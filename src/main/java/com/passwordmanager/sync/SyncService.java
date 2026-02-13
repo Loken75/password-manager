@@ -1,0 +1,138 @@
+package com.passwordmanager.sync;
+
+import com.passwordmanager.config.AppConfig;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ * Orchestrates vault synchronization between local and remote storage.
+ */
+public class SyncService {
+    private static final Logger LOGGER = Logger.getLogger(SyncService.class.getName());
+    private final LocalRepository localRepo;
+    private SFTPRepository sftpRepo;
+    private final AppConfig config;
+    private long lastSyncTime = 0;
+    private String syncStatus = "offline";
+
+    public SyncService(AppConfig config) {
+        this.config = config;
+        this.localRepo = new LocalRepository(config.getLocalVaultDirectory());
+        if ("remote".equals(config.getStorageMode())) {
+            this.sftpRepo = new SFTPRepository(
+                config.getSftpHost(), config.getSftpPort(),
+                config.getSftpUser(), config.getSftpKeyPath(),
+                config.getSftpRemotePath()
+            );
+        }
+    }
+
+    public LocalRepository getLocalRepo() { return localRepo; }
+    public String getSyncStatus() { return syncStatus; }
+    public long getLastSyncTime() { return lastSyncTime; }
+
+    public SyncResult synchronize(String vaultFilename) {
+        if (!"remote".equals(config.getStorageMode()) || sftpRepo == null) {
+            syncStatus = "local";
+            return new SyncResult(true, "local");
+        }
+
+        try {
+            sftpRepo.connect();
+            syncStatus = "syncing";
+
+            if (localRepo.hasPending(vaultFilename)) {
+                String pending = localRepo.readPending(vaultFilename);
+                localRepo.writeFile(vaultFilename, pending);
+                localRepo.clearPending(vaultFilename);
+            }
+
+            String localPath = localRepo.getFilePath(vaultFilename);
+            long localTime = localRepo.getLastModified(vaultFilename);
+            boolean remoteExists = sftpRepo.remoteFileExists(vaultFilename);
+
+            if (!remoteExists) {
+                if (new File(localPath).exists()) {
+                    sftpRepo.uploadFile(localPath, vaultFilename);
+                }
+                lastSyncTime = System.currentTimeMillis();
+                syncStatus = "synced";
+                return new SyncResult(true, "uploaded");
+            }
+
+            long remoteTime = sftpRepo.getRemoteLastModified(vaultFilename);
+
+            if (localTime >= remoteTime) {
+                sftpRepo.uploadFile(localPath, vaultFilename);
+                lastSyncTime = System.currentTimeMillis();
+                syncStatus = "synced";
+                return new SyncResult(true, "uploaded");
+            } else {
+                syncStatus = "conflict";
+                return new SyncResult(false, "CONFLICT");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Sync failed", e);
+            syncStatus = "error";
+            try {
+                if (localRepo.fileExists(vaultFilename)) {
+                    localRepo.savePending(vaultFilename, localRepo.readFile(vaultFilename));
+                }
+            } catch (IOException ioEx) {
+                LOGGER.log(Level.SEVERE, "Failed to save pending changes", ioEx);
+            }
+            return new SyncResult(false, "error: " + e.getMessage());
+        } finally {
+            if (sftpRepo != null) sftpRepo.disconnect();
+        }
+    }
+
+    public SyncResult resolveConflict(String vaultFilename, ConflictResolver resolution) {
+        try {
+            sftpRepo.connect();
+            String localPath = localRepo.getFilePath(vaultFilename);
+            switch (resolution) {
+                case KEEP_LOCAL:
+                    sftpRepo.uploadFile(localPath, vaultFilename);
+                    break;
+                case KEEP_REMOTE:
+                    sftpRepo.downloadFile(vaultFilename, localPath);
+                    break;
+                case KEEP_BOTH:
+                    localRepo.createBackup(vaultFilename);
+                    sftpRepo.downloadFile(vaultFilename, localPath);
+                    break;
+            }
+            lastSyncTime = System.currentTimeMillis();
+            syncStatus = "synced";
+            return new SyncResult(true, "resolved");
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Conflict resolution failed", e);
+            syncStatus = "error";
+            return new SyncResult(false, "error: " + e.getMessage());
+        } finally {
+            if (sftpRepo != null) sftpRepo.disconnect();
+        }
+    }
+
+    public boolean testConnection() {
+        if (sftpRepo == null) return false;
+        return sftpRepo.testConnection();
+    }
+
+    public static class SyncResult {
+        private final boolean success;
+        private final String message;
+
+        public SyncResult(boolean success, String message) {
+            this.success = success;
+            this.message = message;
+        }
+
+        public boolean isSuccess() { return success; }
+        public String getMessage() { return message; }
+    }
+}
