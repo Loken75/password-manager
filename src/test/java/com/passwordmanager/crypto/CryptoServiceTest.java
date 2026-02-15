@@ -1,94 +1,166 @@
 package com.passwordmanager.crypto;
 
-import org.junit.Test;
-import static org.junit.Assert.*;
+import com.passwordmanager.util.SecureWiper;
+import org.junit.jupiter.api.Test;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for CryptoService (AES-256-GCM encrypt/decrypt).
+ * Tests for CryptoService DEK/KEK envelope encryption.
  */
-public class CryptoServiceTest {
+class CryptoServiceTest {
     private final CryptoService service = new CryptoService();
 
     @Test
-    public void testEncryptDecrypt() throws Exception {
-        String plaintext = "Hello, World! This is a secret message.";
+    void createSessionAndEncryptDecrypt() throws Exception {
         char[] password = "MyStr0ng!Passw0rd#2026".toCharArray();
 
-        String encrypted = service.encrypt(plaintext, password);
-        assertNotNull(encrypted);
-        assertFalse(encrypted.contains(plaintext));
+        VaultSession session = service.createSession(password);
+        assertNotNull(session);
+        assertNotNull(session.getDataKey());
+        assertNotNull(session.getSalt());
+        assertNotNull(session.getKekIv());
+        assertNotNull(session.getEncryptedDek());
+        assertTrue(session.getKdfIterations() > 0);
 
-        String decrypted = service.decrypt(encrypted, password);
-        assertEquals(plaintext, decrypted);
+        byte[] plaintext = "Hello, World!".getBytes(StandardCharsets.UTF_8);
+        EncryptedPayload payload = service.encryptData(plaintext, session.getDataKey());
+        assertNotNull(payload.getIv());
+        assertNotNull(payload.getCiphertext());
+
+        byte[] decrypted = service.decryptData(payload.getIv(), payload.getCiphertext(), session.getDataKey());
+        assertArrayEquals(plaintext, decrypted);
+
+        session.destroy();
     }
 
     @Test
-    public void testEncryptDecryptUnicode() throws Exception {
-        String plaintext = "Mot de passe: \u00e9\u00e0\u00fc\u00f1 \u00e7a marche!";
+    void openSessionWithCorrectPassword() throws Exception {
         char[] password = "TestP@ssw0rd!123".toCharArray();
 
-        String encrypted = service.encrypt(plaintext, password);
-        String decrypted = service.decrypt(encrypted, password);
-        assertEquals(plaintext, decrypted);
-    }
+        VaultSession original = service.createSession(password);
+        byte[] plaintext = "Secret data".getBytes(StandardCharsets.UTF_8);
+        EncryptedPayload payload = service.encryptData(plaintext, original.getDataKey());
 
-    @Test(expected = Exception.class)
-    public void testDecryptWithWrongPassword() throws Exception {
-        String plaintext = "Secret data";
-        char[] correctPassword = "CorrectP@ss123!".toCharArray();
-        char[] wrongPassword = "Wr0ngP@ssword!1".toCharArray();
+        // Re-open session with same password
+        VaultSession reopened = service.openSession(
+            original.getSalt(), original.getKekIv(),
+            original.getEncryptedDek(), original.getKdfIterations(),
+            password);
 
-        String encrypted = service.encrypt(plaintext, correctPassword);
-        service.decrypt(encrypted, wrongPassword); // Should throw
+        byte[] decrypted = service.decryptData(payload.getIv(), payload.getCiphertext(), reopened.getDataKey());
+        assertArrayEquals(plaintext, decrypted);
+
+        original.destroy();
+        reopened.destroy();
     }
 
     @Test
-    public void testReEncrypt() throws Exception {
-        String plaintext = "Data to re-encrypt";
+    void openSessionWithWrongPasswordThrows() throws Exception {
+        char[] correct = "CorrectP@ss123!".toCharArray();
+        char[] wrong = "Wr0ngP@ssword!1".toCharArray();
+
+        VaultSession session = service.createSession(correct);
+
+        assertThrows(VaultDecryptionException.class, () ->
+            service.openSession(session.getSalt(), session.getKekIv(),
+                session.getEncryptedDek(), session.getKdfIterations(), wrong));
+
+        session.destroy();
+    }
+
+    @Test
+    void changePasswordPreservesData() throws Exception {
         char[] oldPassword = "OldP@ssw0rd!123".toCharArray();
         char[] newPassword = "NewP@ssw0rd!456".toCharArray();
 
-        String encrypted = service.encrypt(plaintext, oldPassword);
-        String reEncrypted = service.reEncrypt(encrypted, oldPassword, newPassword);
+        VaultSession session = service.createSession(oldPassword);
+        byte[] plaintext = "Data to survive password change".getBytes(StandardCharsets.UTF_8);
+        EncryptedPayload payload = service.encryptData(plaintext, session.getDataKey());
 
-        String decrypted = service.decrypt(reEncrypted, newPassword);
-        assertEquals(plaintext, decrypted);
+        service.changePassword(session, newPassword);
+
+        // Data still decryptable with same session (DEK unchanged)
+        byte[] decrypted = service.decryptData(payload.getIv(), payload.getCiphertext(), session.getDataKey());
+        assertArrayEquals(plaintext, decrypted);
+
+        // Session reopenable with new password
+        VaultSession reopened = service.openSession(
+            session.getSalt(), session.getKekIv(),
+            session.getEncryptedDek(), session.getKdfIterations(),
+            newPassword);
+        decrypted = service.decryptData(payload.getIv(), payload.getCiphertext(), reopened.getDataKey());
+        assertArrayEquals(plaintext, decrypted);
+
+        // Old password no longer works
+        assertThrows(VaultDecryptionException.class, () ->
+            service.openSession(session.getSalt(), session.getKekIv(),
+                session.getEncryptedDek(), session.getKdfIterations(), oldPassword));
+
+        session.destroy();
+        reopened.destroy();
     }
 
     @Test
-    public void testDifferentEncryptionsProduceDifferentOutput() throws Exception {
-        String plaintext = "Same text";
+    void differentSessionsProduceDifferentCiphertexts() throws Exception {
         char[] password = "S@meP@ssw0rd!12".toCharArray();
+        byte[] plaintext = "Same text".getBytes(StandardCharsets.UTF_8);
 
-        String enc1 = service.encrypt(plaintext, password);
-        String enc2 = service.encrypt(plaintext, password);
-        // Different salt and IV each time
-        assertNotEquals(enc1, enc2);
+        VaultSession session = service.createSession(password);
+        EncryptedPayload enc1 = service.encryptData(plaintext, session.getDataKey());
+        EncryptedPayload enc2 = service.encryptData(plaintext, session.getDataKey());
 
-        // But both decrypt to same plaintext
-        assertEquals(plaintext, service.decrypt(enc1, password));
-        assertEquals(plaintext, service.decrypt(enc2, password));
+        // Different IV each time
+        assertFalse(java.util.Arrays.equals(enc1.getIv(), enc2.getIv()));
+
+        // Both decrypt to same plaintext
+        assertArrayEquals(plaintext, service.decryptData(enc1.getIv(), enc1.getCiphertext(), session.getDataKey()));
+        assertArrayEquals(plaintext, service.decryptData(enc2.getIv(), enc2.getCiphertext(), session.getDataKey()));
+
+        session.destroy();
     }
 
     @Test
-    public void testEmptyString() throws Exception {
+    void encryptDecryptEmptyPayload() throws Exception {
         char[] password = "P@ssw0rd!123456".toCharArray();
-        String encrypted = service.encrypt("", password);
-        String decrypted = service.decrypt(encrypted, password);
-        assertEquals("", decrypted);
+        VaultSession session = service.createSession(password);
+
+        byte[] empty = new byte[0];
+        EncryptedPayload payload = service.encryptData(empty, session.getDataKey());
+        byte[] decrypted = service.decryptData(payload.getIv(), payload.getCiphertext(), session.getDataKey());
+        assertArrayEquals(empty, decrypted);
+
+        session.destroy();
     }
 
     @Test
-    public void testLargePayload() throws Exception {
+    void encryptDecryptLargePayload() throws Exception {
+        char[] password = "LargeP@yload!12".toCharArray();
+        VaultSession session = service.createSession(password);
+
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 10000; i++) {
             sb.append("Entry ").append(i).append(": password_").append(i).append("\n");
         }
-        String plaintext = sb.toString();
-        char[] password = "LargeP@yload!12".toCharArray();
+        byte[] plaintext = sb.toString().getBytes(StandardCharsets.UTF_8);
 
-        String encrypted = service.encrypt(plaintext, password);
-        String decrypted = service.decrypt(encrypted, password);
-        assertEquals(plaintext, decrypted);
+        EncryptedPayload payload = service.encryptData(plaintext, session.getDataKey());
+        byte[] decrypted = service.decryptData(payload.getIv(), payload.getCiphertext(), session.getDataKey());
+        assertArrayEquals(plaintext, decrypted);
+
+        session.destroy();
+    }
+
+    @Test
+    void sessionDestroyPreventsReuse() throws Exception {
+        char[] password = "Destr0y!Test123".toCharArray();
+        VaultSession session = service.createSession(password);
+        assertFalse(session.isDestroyed());
+
+        session.destroy();
+        assertTrue(session.isDestroyed());
     }
 }

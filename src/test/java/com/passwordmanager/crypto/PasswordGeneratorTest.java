@@ -1,60 +1,61 @@
 package com.passwordmanager.crypto;
 
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for PasswordGenerator.
  */
-public class PasswordGeneratorTest {
+class PasswordGeneratorTest {
 
     @Test
-    public void testGenerateDefaultLength() {
-        String pwd = PasswordGenerator.generate(16, true, true, true, true, false);
-        assertEquals(16, pwd.length());
+    void testGenerateDefaultLength() {
+        char[] pwd = PasswordGenerator.generate(16, true, true, true, true, false);
+        assertEquals(16, pwd.length);
     }
 
     @Test
-    public void testMinimumLength() {
-        String pwd = PasswordGenerator.generate(4, true, true, true, true, false);
-        assertEquals(8, pwd.length()); // Clamped to minimum 8
+    void testMinimumLength() {
+        char[] pwd = PasswordGenerator.generate(4, true, true, true, true, false);
+        assertEquals(8, pwd.length); // Clamped to minimum 8
     }
 
     @Test
-    public void testContainsAllTypes() {
-        // Generate many times to ensure all types are included
+    void testContainsAllTypes() {
         for (int i = 0; i < 20; i++) {
-            String pwd = PasswordGenerator.generate(20, true, true, true, true, false);
+            char[] pwd = PasswordGenerator.generate(20, true, true, true, true, false);
             boolean hasUpper = false, hasLower = false, hasDigit = false, hasSpecial = false;
-            for (char c : pwd.toCharArray()) {
+            for (char c : pwd) {
                 if (Character.isUpperCase(c)) hasUpper = true;
                 else if (Character.isLowerCase(c)) hasLower = true;
                 else if (Character.isDigit(c)) hasDigit = true;
                 else hasSpecial = true;
             }
-            assertTrue("Should contain uppercase", hasUpper);
-            assertTrue("Should contain lowercase", hasLower);
-            assertTrue("Should contain digit", hasDigit);
-            assertTrue("Should contain special", hasSpecial);
+            assertTrue(hasUpper, "Should contain uppercase");
+            assertTrue(hasLower, "Should contain lowercase");
+            assertTrue(hasDigit, "Should contain digit");
+            assertTrue(hasSpecial, "Should contain special");
         }
     }
 
     @Test
-    public void testOnlyLowercase() {
-        String pwd = PasswordGenerator.generate(16, false, true, false, false, false);
-        for (char c : pwd.toCharArray()) {
-            assertTrue("Should be lowercase: " + c, Character.isLowerCase(c));
+    void testOnlyLowercase() {
+        char[] pwd = PasswordGenerator.generate(16, false, true, false, false, false);
+        for (char c : pwd) {
+            assertTrue(Character.isLowerCase(c), "Should be lowercase: " + c);
         }
     }
 
     @Test
-    public void testExcludeAmbiguous() {
+    void testExcludeAmbiguous() {
         for (int i = 0; i < 50; i++) {
-            String pwd = PasswordGenerator.generate(32, true, true, true, false, true);
-            assertFalse("Should not contain O", pwd.contains("O"));
-            assertFalse("Should not contain 0", pwd.contains("0"));
-            assertFalse("Should not contain l", pwd.contains("l"));
-            assertFalse("Should not contain I", pwd.contains("I"));
+            char[] pwd = PasswordGenerator.generate(32, true, true, true, false, true);
+            String pwdStr = new String(pwd);
+            assertFalse(pwdStr.contains("O"), "Should not contain O");
+            assertFalse(pwdStr.contains("0"), "Should not contain 0");
+            assertFalse(pwdStr.contains("l"), "Should not contain l");
+            assertFalse(pwdStr.contains("I"), "Should not contain I");
         }
     }
 }

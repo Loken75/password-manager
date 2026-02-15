@@ -1,50 +1,53 @@
 package com.passwordmanager.vault;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for VaultService CRUD and search operations.
+ * Tests for VaultService CRUD, search, and sort operations.
  */
-public class VaultServiceTest {
+class VaultServiceTest {
     private Vault vault;
     private VaultService service;
 
-    @Before
-    public void setUp() {
+    @BeforeEach
+    void setUp() {
         vault = new Vault("testuser");
         service = new VaultService(vault);
     }
 
     @Test
-    public void testAddEntry() {
-        VaultEntry entry = new VaultEntry("Gmail", "user@gmail.com", "pass123", "https://gmail.com", "notes", "Email", null);
+    void addEntry() {
+        VaultEntry entry = new VaultEntry("Gmail", "user@gmail.com",
+            "pass123".toCharArray(), "https://gmail.com", "notes", "Email", null);
         service.addEntry(entry);
         assertEquals(1, vault.getEntries().size());
         assertEquals("Gmail", vault.getEntries().get(0).getTitle());
     }
 
     @Test
-    public void testUpdateEntry() {
-        VaultEntry entry = new VaultEntry("Gmail", "user@gmail.com", "pass123", "https://gmail.com", "", "Email", null);
+    void updateEntry() {
+        VaultEntry entry = new VaultEntry("Gmail", "user@gmail.com",
+            "pass123".toCharArray(), "https://gmail.com", "", "Email", null);
         service.addEntry(entry);
 
         entry.setTitle("Gmail Updated");
-        entry.setPassword("newPass456!");
+        entry.setPassword("newPass456!".toCharArray());
         boolean updated = service.updateEntry(entry);
         assertTrue(updated);
         assertEquals("Gmail Updated", vault.getEntries().get(0).getTitle());
     }
 
     @Test
-    public void testDeleteEntry() {
-        VaultEntry entry = new VaultEntry("Test", "user", "pass", "url", "", "Autre", null);
+    void deleteEntry() {
+        VaultEntry entry = new VaultEntry("Test", "user",
+            "pass".toCharArray(), "url", "", "Autre", null);
         service.addEntry(entry);
         assertEquals(1, vault.getEntries().size());
 
@@ -54,15 +57,18 @@ public class VaultServiceTest {
     }
 
     @Test
-    public void testDeleteNonExistent() {
+    void deleteNonExistent() {
         assertFalse(service.deleteEntry("non-existent-id"));
     }
 
     @Test
-    public void testSearch() {
-        service.addEntry(new VaultEntry("Gmail", "user@gmail.com", "pass1", "https://gmail.com", "", "Email", null));
-        service.addEntry(new VaultEntry("Facebook", "user@fb.com", "pass2", "https://facebook.com", "", "Social", null));
-        service.addEntry(new VaultEntry("Bank", "mybank", "pass3", "https://bank.com", "compte bancaire", "Bancaire", null));
+    void search() {
+        service.addEntry(new VaultEntry("Gmail", "user@gmail.com",
+            "pass1".toCharArray(), "https://gmail.com", "", "Email", null));
+        service.addEntry(new VaultEntry("Facebook", "user@fb.com",
+            "pass2".toCharArray(), "https://facebook.com", "", "Social", null));
+        service.addEntry(new VaultEntry("Bank", "mybank",
+            "pass3".toCharArray(), "https://bank.com", "compte bancaire", "Bancaire", null));
 
         List<VaultEntry> results = service.search("gmail");
         assertEquals(1, results.size());
@@ -76,8 +82,9 @@ public class VaultServiceTest {
     }
 
     @Test
-    public void testSearchEmpty() {
-        service.addEntry(new VaultEntry("Test", "user", "pass", "url", "", "Cat", null));
+    void searchEmpty() {
+        service.addEntry(new VaultEntry("Test", "user",
+            "pass".toCharArray(), "url", "", "Cat", null));
         List<VaultEntry> results = service.search("");
         assertEquals(1, results.size());
 
@@ -86,10 +93,10 @@ public class VaultServiceTest {
     }
 
     @Test
-    public void testGetByCategory() {
-        service.addEntry(new VaultEntry("Gmail", "u", "p", "", "", "Email", null));
-        service.addEntry(new VaultEntry("Yahoo", "u", "p", "", "", "Email", null));
-        service.addEntry(new VaultEntry("Bank", "u", "p", "", "", "Bancaire", null));
+    void getByCategory() {
+        service.addEntry(new VaultEntry("Gmail", "u", "p".toCharArray(), "", "", "Email", null));
+        service.addEntry(new VaultEntry("Yahoo", "u", "p".toCharArray(), "", "", "Email", null));
+        service.addEntry(new VaultEntry("Bank", "u", "p".toCharArray(), "", "", "Bancaire", null));
 
         List<VaultEntry> emails = service.getByCategory("Email");
         assertEquals(2, emails.size());
@@ -99,31 +106,41 @@ public class VaultServiceTest {
     }
 
     @Test
-    public void testSort() {
-        service.addEntry(new VaultEntry("Zebra", "u", "p", "", "", "Cat", null));
-        service.addEntry(new VaultEntry("Alpha", "u", "p", "", "", "Cat", null));
-        service.addEntry(new VaultEntry("Middle", "u", "p", "", "", "Cat", null));
+    void sortByTitle() {
+        service.addEntry(new VaultEntry("Zebra", "u", "p".toCharArray(), "", "", "Cat", null));
+        service.addEntry(new VaultEntry("Alpha", "u", "p".toCharArray(), "", "", "Cat", null));
+        service.addEntry(new VaultEntry("Middle", "u", "p".toCharArray(), "", "", "Cat", null));
 
-        List<VaultEntry> sorted = service.sorted(vault.getEntries(), "title");
+        List<VaultEntry> sorted = service.sorted(vault.getEntries(), SortField.TITLE);
         assertEquals("Alpha", sorted.get(0).getTitle());
         assertEquals("Middle", sorted.get(1).getTitle());
         assertEquals("Zebra", sorted.get(2).getTitle());
     }
 
     @Test
-    public void testFindDuplicatePasswords() {
-        service.addEntry(new VaultEntry("Site1", "u", "samepass", "", "", "Cat", null));
-        service.addEntry(new VaultEntry("Site2", "u", "samepass", "", "", "Cat", null));
-        service.addEntry(new VaultEntry("Site3", "u", "unique", "", "", "Cat", null));
+    void sortByCategory() {
+        service.addEntry(new VaultEntry("Z", "u", "p".toCharArray(), "", "", "Work", null));
+        service.addEntry(new VaultEntry("A", "u", "p".toCharArray(), "", "", "Banking", null));
 
-        Map<String, List<VaultEntry>> dups = service.findDuplicatePasswords();
-        assertEquals(1, dups.size());
-        assertTrue(dups.containsKey("samepass"));
-        assertEquals(2, dups.get("samepass").size());
+        List<VaultEntry> sorted = service.sorted(vault.getEntries(), SortField.CATEGORY);
+        assertEquals("Banking", sorted.get(0).getCategory());
+        assertEquals("Work", sorted.get(1).getCategory());
     }
 
     @Test
-    public void testAddCategory() {
+    void findDuplicatePasswords() {
+        service.addEntry(new VaultEntry("Site1", "u", "samepass".toCharArray(), "", "", "Cat", null));
+        service.addEntry(new VaultEntry("Site2", "u", "samepass".toCharArray(), "", "", "Cat", null));
+        service.addEntry(new VaultEntry("Site3", "u", "unique".toCharArray(), "", "", "Cat", null));
+
+        Map<String, List<VaultEntry>> dups = service.findDuplicatePasswords();
+        assertEquals(1, dups.size());
+        List<VaultEntry> dupGroup = dups.values().iterator().next();
+        assertEquals(2, dupGroup.size());
+    }
+
+    @Test
+    void addCategory() {
         int initial = vault.getCategories().size();
         service.addCategory("NewCat");
         assertEquals(initial + 1, vault.getCategories().size());
@@ -134,11 +151,23 @@ public class VaultServiceTest {
     }
 
     @Test
-    public void testSearchByTags() {
-        VaultEntry entry = new VaultEntry("Tagged", "u", "p", "", "", "Cat", Arrays.asList("important", "work"));
+    void searchByTags() {
+        VaultEntry entry = new VaultEntry("Tagged", "u", "p".toCharArray(), "", "", "Cat",
+            Arrays.asList("important", "work"));
         service.addEntry(entry);
 
         List<VaultEntry> results = service.search("important");
         assertEquals(1, results.size());
+    }
+
+    @Test
+    void deleteEntryWipesPassword() {
+        VaultEntry entry = new VaultEntry("Wipe", "u", "secret123".toCharArray(), "", "", "Cat", null);
+        String id = entry.getId();
+        service.addEntry(entry);
+
+        service.deleteEntry(id);
+        // After deletion, the entry's password should be wiped
+        assertNull(entry.getPassword());
     }
 }

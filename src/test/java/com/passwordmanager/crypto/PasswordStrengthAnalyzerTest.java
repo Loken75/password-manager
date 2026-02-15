@@ -1,56 +1,73 @@
 package com.passwordmanager.crypto;
 
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for PasswordStrengthAnalyzer.
+ * Tests for PasswordStrengthAnalyzer (both String and char[] overloads).
  */
-public class PasswordStrengthAnalyzerTest {
+class PasswordStrengthAnalyzerTest {
 
     @Test
-    public void testWeak_Short() {
+    void weakShortPassword() {
         assertEquals(PasswordStrengthAnalyzer.Strength.WEAK, PasswordStrengthAnalyzer.analyze("abc"));
+        assertEquals(PasswordStrengthAnalyzer.Strength.WEAK, PasswordStrengthAnalyzer.analyze("abc".toCharArray()));
     }
 
     @Test
-    public void testWeak_SingleType() {
+    void weakSingleType() {
         assertEquals(PasswordStrengthAnalyzer.Strength.WEAK, PasswordStrengthAnalyzer.analyze("abcdefghij"));
     }
 
     @Test
-    public void testMedium() {
+    void medium() {
         assertEquals(PasswordStrengthAnalyzer.Strength.MEDIUM, PasswordStrengthAnalyzer.analyze("Abcdefgh1"));
     }
 
     @Test
-    public void testStrong() {
+    void strong() {
         assertEquals(PasswordStrengthAnalyzer.Strength.STRONG, PasswordStrengthAnalyzer.analyze("Abcdefgh123!"));
     }
 
     @Test
-    public void testVeryStrong() {
+    void veryStrong() {
         assertEquals(PasswordStrengthAnalyzer.Strength.VERY_STRONG, PasswordStrengthAnalyzer.analyze("Abcdefgh1234!@#$"));
     }
 
     @Test
-    public void testNullAndEmpty() {
-        assertEquals(PasswordStrengthAnalyzer.Strength.WEAK, PasswordStrengthAnalyzer.analyze(null));
+    void nullAndEmpty() {
+        assertEquals(PasswordStrengthAnalyzer.Strength.WEAK, PasswordStrengthAnalyzer.analyze((String) null));
         assertEquals(PasswordStrengthAnalyzer.Strength.WEAK, PasswordStrengthAnalyzer.analyze(""));
+        assertEquals(PasswordStrengthAnalyzer.Strength.WEAK, PasswordStrengthAnalyzer.analyze((char[]) null));
+        assertEquals(PasswordStrengthAnalyzer.Strength.WEAK, PasswordStrengthAnalyzer.analyze(new char[0]));
     }
 
     @Test
-    public void testScoreRange() {
+    void scoreRange() {
         int score = PasswordStrengthAnalyzer.getScore("Abcdefgh1234!@#$");
-        assertTrue("Score should be >= 0", score >= 0);
-        assertTrue("Score should be <= 100", score <= 100);
+        assertTrue(score >= 0, "Score should be >= 0");
+        assertTrue(score <= 100, "Score should be <= 100");
+
+        int scoreChar = PasswordStrengthAnalyzer.getScore("Abcdefgh1234!@#$".toCharArray());
+        assertEquals(score, scoreChar);
     }
 
     @Test
-    public void testCountCharTypes() {
+    void countCharTypes() {
         assertEquals(1, PasswordStrengthAnalyzer.countCharTypes("abcdef"));
         assertEquals(2, PasswordStrengthAnalyzer.countCharTypes("Abcdef"));
         assertEquals(3, PasswordStrengthAnalyzer.countCharTypes("Abcdef1"));
         assertEquals(4, PasswordStrengthAnalyzer.countCharTypes("Abcdef1!"));
+    }
+
+    @Test
+    void charArrayAndStringProduceSameResults() {
+        String pwd = "TestP@ss123!";
+        char[] chars = pwd.toCharArray();
+
+        assertEquals(PasswordStrengthAnalyzer.analyze(pwd), PasswordStrengthAnalyzer.analyze(chars));
+        assertEquals(PasswordStrengthAnalyzer.getScore(pwd), PasswordStrengthAnalyzer.getScore(chars));
+        assertEquals(PasswordStrengthAnalyzer.countCharTypes(pwd), PasswordStrengthAnalyzer.countCharTypes(chars));
     }
 }
