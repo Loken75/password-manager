@@ -1,10 +1,13 @@
 package com.passwordmanager.vault;
 
-import java.text.SimpleDateFormat;
+import com.passwordmanager.i18n.LanguageManager;
+import com.passwordmanager.util.DateUtils;
+
 import java.util.*;
 
 /**
  * Represents the complete password vault for a user.
+ * Pure data model -- use VaultService for operations.
  */
 public class Vault {
     private String version;
@@ -16,62 +19,39 @@ public class Vault {
     private Map<String, Object> settings;
 
     public Vault(String user) {
-        this.version = "1.0";
+        this.version = "2.0";
         this.user = user;
-        String now = getCurrentTimestamp();
+        String now = DateUtils.getCurrentTimestamp();
         this.createdAt = now;
         this.updatedAt = now;
-        this.entries = new ArrayList<VaultEntry>();
-        this.categories = new ArrayList<String>();
-        this.categories.add("Email");
-        this.categories.add("Bancaire");
-        this.categories.add("R\u00e9seaux sociaux");
-        this.categories.add("Travail");
-        this.categories.add("Autre");
-        this.settings = new HashMap<String, Object>();
+        this.entries = new ArrayList<>();
+        this.categories = new ArrayList<>();
+        initDefaultCategories();
+        this.settings = new HashMap<>();
         this.settings.put("auto_lock_minutes", 15);
         this.settings.put("clipboard_clear_seconds", 30);
         this.settings.put("password_expiry_days", 180);
     }
 
-    private static String getCurrentTimestamp() {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-        return sdf.format(new Date());
+    private void initDefaultCategories() {
+        LanguageManager lang = LanguageManager.getInstance();
+        this.categories.add(lang.getString("category.default.email"));
+        this.categories.add(lang.getString("category.default.banking"));
+        this.categories.add(lang.getString("category.default.social"));
+        this.categories.add(lang.getString("category.default.work"));
+        this.categories.add(lang.getString("category.default.other"));
     }
 
-    public void addEntry(VaultEntry entry) {
-        this.entries.add(entry);
-        this.updatedAt = getCurrentTimestamp();
-    }
-
-    public boolean removeEntry(String id) {
-        Iterator<VaultEntry> it = entries.iterator();
-        while (it.hasNext()) {
-            if (it.next().getId().equals(id)) {
-                it.remove();
-                this.updatedAt = getCurrentTimestamp();
-                return true;
+    /**
+     * Securely wipes all entry passwords from memory.
+     */
+    public void wipe() {
+        if (entries != null) {
+            for (VaultEntry entry : entries) {
+                entry.wipe();
             }
+            entries.clear();
         }
-        return false;
-    }
-
-    public VaultEntry findEntryById(String id) {
-        for (VaultEntry entry : entries) {
-            if (entry.getId().equals(id)) return entry;
-        }
-        return null;
-    }
-
-    public List<VaultEntry> getEntriesByCategory(String category) {
-        List<VaultEntry> result = new ArrayList<VaultEntry>();
-        for (VaultEntry entry : entries) {
-            if (entry.getCategory() != null && entry.getCategory().equals(category)) {
-                result.add(entry);
-            }
-        }
-        return result;
     }
 
     public String getVersion() { return version; }

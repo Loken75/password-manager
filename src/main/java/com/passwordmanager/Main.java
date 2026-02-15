@@ -4,6 +4,7 @@ import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.ConfigManager;
+import com.passwordmanager.config.ThemeMode;
 import com.passwordmanager.ui.LoginFrame;
 
 import javax.swing.*;
@@ -13,19 +14,16 @@ import javax.swing.*;
  */
 public class Main {
     public static void main(String[] args) {
-        // Load config to determine theme
         ConfigManager configManager = new ConfigManager();
         AppConfig config = configManager.loadConfig();
 
-        // Set Look & Feel
         try {
-            if ("dark".equals(config.getTheme())) {
+            if (config.getTheme() == ThemeMode.DARK) {
                 UIManager.setLookAndFeel(new FlatDarkLaf());
             } else {
                 UIManager.setLookAndFeel(new FlatLightLaf());
             }
         } catch (Exception e) {
-            // Fallback to system L&F
             try {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
             } catch (Exception ex) {
@@ -33,11 +31,6 @@ public class Main {
             }
         }
 
-        // Launch UI on EDT
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                new LoginFrame().setVisible(true);
-            }
-        });
+        SwingUtilities.invokeLater(() -> new LoginFrame().setVisible(true));
     }
 }

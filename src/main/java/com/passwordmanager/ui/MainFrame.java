@@ -2,13 +2,18 @@ package com.passwordmanager.ui;
 
 import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.ConfigManager;
+import com.passwordmanager.config.StorageMode;
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer;
+import com.passwordmanager.crypto.VaultSession;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.sync.SyncService;
+import com.passwordmanager.util.FileSecurityUtils;
+import com.passwordmanager.util.PasswordValidator;
 import com.passwordmanager.vault.*;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -19,12 +24,13 @@ import java.util.Map;
 
 /**
  * Main application window with menu bar, vault panel, and status bar.
+ * Holds the VaultSession (DEK) instead of the master password.
  */
 public class MainFrame extends JFrame {
     private final LanguageManager lang = LanguageManager.getInstance();
     private Vault vault;
     private String username;
-    private char[] masterPassword;
+    private VaultSession session;
     private VaultManager vaultManager;
     private VaultService vaultService;
     private AppConfig appConfig;
@@ -33,13 +39,14 @@ public class MainFrame extends JFrame {
     private VaultPanel vaultPanel;
     private JLabel statusLabel;
     private Timer autoLockTimer;
+    private AWTEventListener activityListener;
     private long lastActivity;
 
-    public MainFrame(Vault vault, String username, char[] masterPassword,
+    public MainFrame(Vault vault, String username, VaultSession session,
                      VaultManager vaultManager, AppConfig appConfig, ConfigManager configManager) {
         this.vault = vault;
         this.username = username;
-        this.masterPassword = masterPassword;
+        this.session = session;
         this.vaultManager = vaultManager;
         this.appConfig = appConfig;
         this.configManager = configManager;
@@ -58,13 +65,14 @@ public class MainFrame extends JFrame {
         setLocationRelativeTo(null);
 
         addWindowListener(new WindowAdapter() {
+            @Override
             public void windowClosing(WindowEvent e) { doQuit(); }
         });
 
         // Track activity for auto-lock
-        Toolkit.getDefaultToolkit().addAWTEventListener(new AWTEventListener() {
-            public void eventDispatched(AWTEvent event) { lastActivity = System.currentTimeMillis(); }
-        }, AWTEvent.KEY_EVENT_MASK | AWTEvent.MOUSE_EVENT_MASK);
+        activityListener = event -> lastActivity = System.currentTimeMillis();
+        Toolkit.getDefaultToolkit().addAWTEventListener(activityListener,
+            AWTEvent.KEY_EVENT_MASK | AWTEvent.MOUSE_EVENT_MASK);
 
         // Menu bar
         setJMenuBar(createMenuBar());
@@ -75,9 +83,7 @@ public class MainFrame extends JFrame {
 
         // Vault panel
         vaultPanel = new VaultPanel(vaultService, appConfig.getClipboardClearSeconds());
-        vaultPanel.setOnVaultChanged(new Runnable() {
-            public void run() { saveVault(); }
-        });
+        vaultPanel.setOnVaultChanged(this::saveVault);
         add(vaultPanel, BorderLayout.CENTER);
 
         // Status bar
@@ -174,41 +180,35 @@ public class MainFrame extends JFrame {
         bar.add(helpMenu);
 
         // === Actions ===
-        importCsv.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doImport("csv"); } });
-        importJson.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doImport("json"); } });
-        exportCsv.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doExport("csv"); } });
-        exportJson.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doExport("json"); } });
-        exportBackup.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doExportBackup(); } });
-        settings.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doSettings(); } });
-        lock.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doLock(); } });
-        quit.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doQuit(); } });
+        importCsv.addActionListener(e -> doImport("csv"));
+        importJson.addActionListener(e -> doImport("json"));
+        exportCsv.addActionListener(e -> doExport("csv"));
+        exportJson.addActionListener(e -> doExport("json"));
+        exportBackup.addActionListener(e -> doExportBackup());
+        settings.addActionListener(e -> doSettings());
+        lock.addActionListener(e -> doLock());
+        quit.addActionListener(e -> doQuit());
 
-        newEntry.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { vaultPanel.addNewEntry(); } });
-        editEntry.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { vaultPanel.editSelectedEntry(); } });
-        deleteEntry.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { vaultPanel.deleteSelectedEntry(); } });
-        changeMaster.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doChangeMasterPassword(); } });
+        newEntry.addActionListener(e -> vaultPanel.addNewEntry());
+        editEntry.addActionListener(e -> vaultPanel.editSelectedEntry());
+        deleteEntry.addActionListener(e -> vaultPanel.deleteSelectedEntry());
+        changeMaster.addActionListener(e -> doChangeMasterPassword());
 
-        refresh.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { vaultPanel.refreshAll(); } });
-        sortName.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { vaultPanel.setSortMode("title"); } });
-        sortDate.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { vaultPanel.setSortMode("date"); } });
-        sortCat.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { vaultPanel.setSortMode("category"); } });
-        filterWeak.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doFilterWeak(); } });
-        filterDup.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doFilterDuplicate(); } });
+        refresh.addActionListener(e -> vaultPanel.refreshAll());
+        sortName.addActionListener(e -> vaultPanel.setSortMode(SortField.TITLE));
+        sortDate.addActionListener(e -> vaultPanel.setSortMode(SortField.DATE));
+        sortCat.addActionListener(e -> vaultPanel.setSortMode(SortField.CATEGORY));
+        filterWeak.addActionListener(e -> doFilterWeak());
+        filterDup.addActionListener(e -> doFilterDuplicate());
 
-        generator.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                new PasswordGeneratorDialog(MainFrame.this).setVisible(true);
-            }
-        });
-        audit.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doSecurityAudit(); } });
-        syncNow.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doSync(); } });
-        about.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                JOptionPane.showMessageDialog(MainFrame.this,
-                    lang.getString("about.description"),
-                    lang.getString("about.title"), JOptionPane.INFORMATION_MESSAGE);
-            }
-        });
+        generator.addActionListener(e ->
+            new PasswordGeneratorDialog(MainFrame.this).setVisible(true));
+        audit.addActionListener(e -> doSecurityAudit());
+        syncNow.addActionListener(e -> doSync());
+        about.addActionListener(e ->
+            JOptionPane.showMessageDialog(MainFrame.this,
+                lang.getString("about.description"),
+                lang.getString("about.title"), JOptionPane.INFORMATION_MESSAGE));
 
         return bar;
     }
@@ -222,12 +222,10 @@ public class MainFrame extends JFrame {
         JButton lockBtn = new JButton(lang.getString("menu.file.lock"));
         JButton syncBtn = new JButton(lang.getString("menu.tools.sync_now"));
 
-        newBtn.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { vaultPanel.addNewEntry(); } });
-        genBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) { new PasswordGeneratorDialog(MainFrame.this).setVisible(true); }
-        });
-        lockBtn.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doLock(); } });
-        syncBtn.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { doSync(); } });
+        newBtn.addActionListener(e -> vaultPanel.addNewEntry());
+        genBtn.addActionListener(e -> new PasswordGeneratorDialog(MainFrame.this).setVisible(true));
+        lockBtn.addActionListener(e -> doLock());
+        syncBtn.addActionListener(e -> doSync());
 
         tb.add(newBtn);
         tb.addSeparator();
@@ -242,7 +240,7 @@ public class MainFrame extends JFrame {
 
     private void saveVault() {
         try {
-            vaultManager.saveVault(vault, username, masterPassword);
+            vaultManager.saveVault(vault, username, session);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this,
                 lang.getString("common.error") + ": " + ex.getMessage(),
@@ -285,11 +283,13 @@ public class MainFrame extends JFrame {
         try {
             String content;
             if ("csv".equals(format)) {
-                content = vaultManager.exportAsCsv(username, masterPassword);
+                content = vaultManager.exportAsCsv(vault);
             } else {
-                content = vaultManager.exportAsJson(username, masterPassword);
+                content = vaultManager.exportAsJson(vault);
             }
-            Files.write(fc.getSelectedFile().toPath(), content.getBytes(StandardCharsets.UTF_8));
+            java.nio.file.Path exportPath = fc.getSelectedFile().toPath();
+            Files.write(exportPath, content.getBytes(StandardCharsets.UTF_8));
+            FileSecurityUtils.setOwnerOnlyPermissions(exportPath);
             JOptionPane.showMessageDialog(this,
                 lang.getString("export.success"),
                 lang.getString("export.title"), JOptionPane.INFORMATION_MESSAGE);
@@ -305,7 +305,7 @@ public class MainFrame extends JFrame {
         fc.setSelectedFile(new File("vault_" + username + "_backup.enc"));
         if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
         try {
-            vaultManager.exportBackup(username, masterPassword, fc.getSelectedFile().getAbsolutePath());
+            vaultManager.exportBackup(username, session, fc.getSelectedFile().getAbsolutePath());
             JOptionPane.showMessageDialog(this,
                 lang.getString("export.success"),
                 lang.getString("export.title"), JOptionPane.INFORMATION_MESSAGE);
@@ -320,6 +320,7 @@ public class MainFrame extends JFrame {
         SettingsDialog dlg = new SettingsDialog(this, appConfig, configManager);
         dlg.setVisible(true);
         if (dlg.isSaved()) {
+            syncService.refreshConfig(appConfig);
             statusLabel.setText(getStatusText());
         }
     }
@@ -347,43 +348,69 @@ public class MainFrame extends JFrame {
             char[] cp = confirmPass.getPassword();
 
             try {
-                if (!Arrays.equals(op, masterPassword)) {
-                    showError(lang.getString("error.invalid_password"));
-                    return;
-                }
+                // Verify old password by attempting to load the vault
+                VaultLoadResult check = vaultManager.loadVault(username, op);
+                check.getVault().wipe();
+                check.getSession().destroy();
+
                 if (!Arrays.equals(np, cp)) {
                     showError(lang.getString("security.password_mismatch"));
                     return;
                 }
-                if (!validateMasterPassword(np)) {
+                if (!PasswordValidator.validate(np)) {
                     showError(lang.getString("security.password_requirements"));
                     return;
                 }
-                vaultManager.changeMasterPassword(username, op, np);
-                Arrays.fill(masterPassword, ' ');
-                masterPassword = Arrays.copyOf(np, np.length);
+                session = vaultManager.changeMasterPassword(username, vault, session, np);
                 JOptionPane.showMessageDialog(this, lang.getString("security.password_changed"),
                     lang.getString("common.success"), JOptionPane.INFORMATION_MESSAGE);
             } catch (Exception ex) {
-                showError(ex.getMessage());
+                showError(lang.getString("error.invalid_password"));
             } finally {
-                Arrays.fill(op, ' ');
-                Arrays.fill(np, ' ');
-                Arrays.fill(cp, ' ');
+                Arrays.fill(op, '\0');
+                Arrays.fill(np, '\0');
+                Arrays.fill(cp, '\0');
             }
+        }
+    }
+
+    private void cleanup() {
+        if (autoLockTimer != null) {
+            autoLockTimer.stop();
+            autoLockTimer = null;
+        }
+        if (activityListener != null) {
+            Toolkit.getDefaultToolkit().removeAWTEventListener(activityListener);
+            activityListener = null;
+        }
+        vaultPanel.cancelClipboardTimer();
+    }
+
+    private void clearClipboard() {
+        try {
+            Toolkit.getDefaultToolkit().getSystemClipboard()
+                .setContents(new StringSelection(""), null);
+        } catch (Exception ignored) {
+            // Clipboard may not be accessible
         }
     }
 
     private void doLock() {
         saveVault();
-        Arrays.fill(masterPassword, ' ');
+        cleanup();
+        clearClipboard();
+        vault.wipe();
+        session.destroy();
         dispose();
         new LoginFrame().setVisible(true);
     }
 
     private void doQuit() {
         saveVault();
-        Arrays.fill(masterPassword, ' ');
+        cleanup();
+        clearClipboard();
+        vault.wipe();
+        session.destroy();
         System.exit(0);
     }
 
@@ -416,10 +443,11 @@ public class MainFrame extends JFrame {
             default: resolution = com.passwordmanager.sync.ConflictResolver.KEEP_LOCAL;
         }
 
-        SyncService.SyncResult result = syncService.resolveConflict("vault_" + username + ".enc", resolution);
+        syncService.resolveConflict("vault_" + username + ".enc", resolution);
         if (resolution != com.passwordmanager.sync.ConflictResolver.KEEP_LOCAL) {
             try {
-                vault = vaultManager.loadVault(username, masterPassword);
+                Vault reloaded = vaultManager.reloadVault(username, session);
+                vault = reloaded;
                 vaultService.setVault(vault);
                 vaultPanel.refreshAll();
             } catch (Exception ex) {
@@ -509,34 +537,20 @@ public class MainFrame extends JFrame {
     }
 
     private void startAutoLock() {
-        autoLockTimer = new Timer(30000, new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                long idle = System.currentTimeMillis() - lastActivity;
-                if (idle > appConfig.getAutoLockMinutes() * 60 * 1000L) {
-                    doLock();
-                }
+        autoLockTimer = new Timer(30000, e -> {
+            long idle = System.currentTimeMillis() - lastActivity;
+            if (idle > appConfig.getAutoLockMinutes() * 60 * 1000L) {
+                doLock();
             }
         });
         autoLockTimer.start();
     }
 
     private String getStatusText() {
-        String mode = "local".equals(appConfig.getStorageMode())
+        String mode = appConfig.getStorageMode() == StorageMode.LOCAL
             ? lang.getString("sync.status_local")
             : syncService.getSyncStatus();
-        return mode + "  |  " + username + "  |  " + vault.getEntries().size() + " " + lang.getString("vault.new_entry").toLowerCase() + "(s)";
-    }
-
-    private boolean validateMasterPassword(char[] password) {
-        if (password.length < 12) return false;
-        boolean hasUpper = false, hasLower = false, hasDigit = false, hasSpecial = false;
-        for (char c : password) {
-            if (Character.isUpperCase(c)) hasUpper = true;
-            else if (Character.isLowerCase(c)) hasLower = true;
-            else if (Character.isDigit(c)) hasDigit = true;
-            else hasSpecial = true;
-        }
-        return hasUpper && hasLower && hasDigit && hasSpecial;
+        return mode + "  |  " + username + "  |  " + vault.getEntries().size() + " " + lang.getString("vault.entries");
     }
 
     private void showError(String msg) {

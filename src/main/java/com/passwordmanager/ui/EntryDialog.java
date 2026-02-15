@@ -1,6 +1,5 @@
 package com.passwordmanager.ui;
 
-import com.passwordmanager.crypto.PasswordStrengthAnalyzer;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.vault.VaultEntry;
 
@@ -8,7 +7,6 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
-import java.awt.event.*;
 import java.util.Arrays;
 import java.util.List;
 
@@ -111,7 +109,7 @@ public class EntryDialog extends JDialog {
         gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
         form.add(new JLabel(lang.getString("entry.category")), gbc);
         gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
-        categoryCombo = new JComboBox<String>();
+        categoryCombo = new JComboBox<>();
         if (categories != null) {
             for (String c : categories) categoryCombo.addItem(c);
         }
@@ -148,19 +146,15 @@ public class EntryDialog extends JDialog {
         add(btnPanel, BorderLayout.SOUTH);
 
         // Listeners
-        showPasswordCheck.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                passwordField.setEchoChar(showPasswordCheck.isSelected() ? (char) 0 : echoChar);
-            }
-        });
+        showPasswordCheck.addActionListener(e ->
+            passwordField.setEchoChar(showPasswordCheck.isSelected() ? (char) 0 : echoChar));
 
-        generateBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                PasswordGeneratorDialog gen = new PasswordGeneratorDialog(EntryDialog.this);
-                gen.setVisible(true);
-                if (gen.getGeneratedPassword() != null) {
-                    passwordField.setText(gen.getGeneratedPassword());
-                }
+        generateBtn.addActionListener(e -> {
+            PasswordGeneratorDialog gen = new PasswordGeneratorDialog(EntryDialog.this);
+            gen.setVisible(true);
+            char[] gp = gen.getGeneratedPassword();
+            if (gp != null) {
+                passwordField.setText(new String(gp));
             }
         });
 
@@ -170,27 +164,23 @@ public class EntryDialog extends JDialog {
             public void changedUpdate(DocumentEvent e) { updateStrength(); }
         });
 
-        cancelBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) { dispose(); }
-        });
+        cancelBtn.addActionListener(e -> dispose());
 
-        saveBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                if (titleField.getText().trim().isEmpty()) {
-                    JOptionPane.showMessageDialog(EntryDialog.this,
-                        lang.getString("entry.title") + " required",
-                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                if (passwordField.getPassword().length == 0) {
-                    JOptionPane.showMessageDialog(EntryDialog.this,
-                        lang.getString("entry.password") + " required",
-                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                confirmed = true;
-                dispose();
+        saveBtn.addActionListener(e -> {
+            if (titleField.getText().trim().isEmpty()) {
+                JOptionPane.showMessageDialog(EntryDialog.this,
+                    lang.getString("entry.title") + " required",
+                    lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                return;
             }
+            if (passwordField.getPassword().length == 0) {
+                JOptionPane.showMessageDialog(EntryDialog.this,
+                    lang.getString("entry.password") + " required",
+                    lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            confirmed = true;
+            dispose();
         });
 
         pack();
@@ -201,7 +191,7 @@ public class EntryDialog extends JDialog {
     private void populateFields(VaultEntry e) {
         titleField.setText(e.getTitle());
         usernameField.setText(e.getUsername());
-        passwordField.setText(e.getPassword());
+        passwordField.setText(e.getPassword() != null ? new String(e.getPassword()) : "");
         urlField.setText(e.getUrl());
         notesArea.setText(e.getNotes());
         if (e.getCategory() != null) categoryCombo.setSelectedItem(e.getCategory());
@@ -217,29 +207,7 @@ public class EntryDialog extends JDialog {
     }
 
     private void updateStrength() {
-        String pwd = new String(passwordField.getPassword());
-        int score = PasswordStrengthAnalyzer.getScore(pwd);
-        PasswordStrengthAnalyzer.Strength strength = PasswordStrengthAnalyzer.analyze(pwd);
-        strengthBar.setValue(score);
-
-        switch (strength) {
-            case WEAK:
-                strengthBar.setForeground(Color.RED);
-                strengthLabel.setText(lang.getString("strength.weak"));
-                break;
-            case MEDIUM:
-                strengthBar.setForeground(Color.ORANGE);
-                strengthLabel.setText(lang.getString("strength.medium"));
-                break;
-            case STRONG:
-                strengthBar.setForeground(new Color(0, 180, 0));
-                strengthLabel.setText(lang.getString("strength.strong"));
-                break;
-            case VERY_STRONG:
-                strengthBar.setForeground(new Color(0, 100, 200));
-                strengthLabel.setText(lang.getString("strength.very_strong"));
-                break;
-        }
+        StrengthBarHelper.update(strengthBar, strengthLabel, passwordField.getPassword());
     }
 
     public boolean isConfirmed() { return confirmed; }
@@ -249,14 +217,14 @@ public class EntryDialog extends JDialog {
 
         String tagsStr = tagsField.getText().trim();
         List<String> tags = tagsStr.isEmpty()
-            ? new java.util.ArrayList<String>()
+            ? new java.util.ArrayList<>()
             : Arrays.asList(tagsStr.split("\\s*,\\s*"));
 
         if (entry == null) {
             entry = new VaultEntry(
                 titleField.getText().trim(),
                 usernameField.getText().trim(),
-                new String(passwordField.getPassword()),
+                passwordField.getPassword(),
                 urlField.getText().trim(),
                 notesArea.getText(),
                 (String) categoryCombo.getSelectedItem(),
@@ -265,7 +233,7 @@ public class EntryDialog extends JDialog {
         } else {
             entry.setTitle(titleField.getText().trim());
             entry.setUsername(usernameField.getText().trim());
-            entry.setPassword(new String(passwordField.getPassword()));
+            entry.setPassword(passwordField.getPassword());
             entry.setUrl(urlField.getText().trim());
             entry.setNotes(notesArea.getText());
             entry.setCategory((String) categoryCombo.getSelectedItem());

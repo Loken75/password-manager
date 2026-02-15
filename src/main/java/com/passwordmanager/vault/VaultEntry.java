@@ -1,20 +1,21 @@
 package com.passwordmanager.vault;
 
-import java.text.SimpleDateFormat;
+import com.passwordmanager.util.DateUtils;
+import com.passwordmanager.util.SecureWiper;
+
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.TimeZone;
 import java.util.UUID;
 
 /**
  * Represents a single password entry stored in the vault.
+ * Password is stored as char[] to allow explicit memory wiping.
  */
 public class VaultEntry {
     private String id;
     private String title;
     private String username;
-    private String password;
+    private char[] password;
     private String url;
     private String notes;
     private String category;
@@ -25,31 +26,38 @@ public class VaultEntry {
     /** Default constructor for Gson deserialization. */
     public VaultEntry() {
         this.id = UUID.randomUUID().toString();
-        String now = getCurrentTimestamp();
+        String now = DateUtils.getCurrentTimestamp();
         this.createdAt = now;
         this.updatedAt = now;
-        this.tags = new ArrayList<String>();
+        this.tags = new ArrayList<>();
     }
 
-    public VaultEntry(String title, String username, String password, String url,
+    public VaultEntry(String title, String username, char[] password, String url,
                       String notes, String category, List<String> tags) {
         this.id = UUID.randomUUID().toString();
         this.title = title;
         this.username = username;
-        this.password = password;
+        this.password = password != null ? password.clone() : null;
         this.url = url;
         this.notes = notes;
         this.category = category;
-        this.tags = (tags != null) ? new ArrayList<String>(tags) : new ArrayList<String>();
-        String now = getCurrentTimestamp();
+        this.tags = (tags != null) ? new ArrayList<>(tags) : new ArrayList<>();
+        String now = DateUtils.getCurrentTimestamp();
         this.createdAt = now;
         this.updatedAt = now;
     }
 
-    private static String getCurrentTimestamp() {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-        return sdf.format(new Date());
+    /**
+     * Securely wipes all sensitive data from this entry.
+     * Call when the vault is locked or the entry is no longer needed.
+     */
+    public void wipe() {
+        SecureWiper.wipe(password);
+        password = null;
+        title = null;
+        username = null;
+        url = null;
+        notes = null;
     }
 
     public String getId() { return id; }
@@ -58,8 +66,8 @@ public class VaultEntry {
     public void setTitle(String title) { this.title = title; }
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
+    public char[] getPassword() { return password != null ? password.clone() : null; }
+    public void setPassword(char[] password) { this.password = password; }
     public String getUrl() { return url; }
     public void setUrl(String url) { this.url = url; }
     public String getNotes() { return notes; }
@@ -75,6 +83,6 @@ public class VaultEntry {
 
     @Override
     public String toString() {
-        return "VaultEntry{id='" + id + "', title='" + title + "', username='" + username + "'}";
+        return "VaultEntry{id='" + id + "'}";
     }
 }

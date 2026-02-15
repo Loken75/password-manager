@@ -1,13 +1,11 @@
 package com.passwordmanager.ui;
 
 import com.passwordmanager.crypto.PasswordGenerator;
-import com.passwordmanager.crypto.PasswordStrengthAnalyzer;
 import com.passwordmanager.i18n.LanguageManager;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
-import java.awt.event.*;
 
 /**
  * Dialog for generating secure passwords.
@@ -19,7 +17,7 @@ public class PasswordGeneratorDialog extends JDialog {
     private JCheckBox upperCheck, lowerCheck, digitsCheck, specialCheck, ambiguousCheck;
     private JProgressBar strengthBar;
     private JLabel strengthLabel;
-    private String generatedPassword;
+    private char[] generatedPassword;
 
     public PasswordGeneratorDialog(Dialog owner) {
         super(owner, LanguageManager.getInstance().getString("generator.title"), true);
@@ -99,31 +97,22 @@ public class PasswordGeneratorDialog extends JDialog {
         add(btnPanel, BorderLayout.SOUTH);
 
         // Actions
-        refreshBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) { doGenerate(); }
-        });
-        copyBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                if (resultField.getText().length() > 0) {
-                    Toolkit.getDefaultToolkit().getSystemClipboard()
-                        .setContents(new StringSelection(resultField.getText()), null);
-                }
+        refreshBtn.addActionListener(e -> doGenerate());
+        copyBtn.addActionListener(e -> {
+            if (resultField.getText().length() > 0) {
+                Toolkit.getDefaultToolkit().getSystemClipboard()
+                    .setContents(new StringSelection(resultField.getText()), null);
             }
         });
-        cancelBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                generatedPassword = null;
-                dispose();
-            }
+        cancelBtn.addActionListener(e -> {
+            generatedPassword = null;
+            dispose();
         });
-        useBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                generatedPassword = resultField.getText();
-                dispose();
-            }
+        useBtn.addActionListener(e -> {
+            generatedPassword = resultField.getText().toCharArray();
+            dispose();
         });
 
-        // Generate on open
         doGenerate();
 
         pack();
@@ -133,37 +122,13 @@ public class PasswordGeneratorDialog extends JDialog {
 
     private void doGenerate() {
         int length = (Integer) lengthSpinner.getValue();
-        String pwd = PasswordGenerator.generate(length,
+        char[] pwd = PasswordGenerator.generate(length,
             upperCheck.isSelected(), lowerCheck.isSelected(),
             digitsCheck.isSelected(), specialCheck.isSelected(),
             ambiguousCheck.isSelected());
-        resultField.setText(pwd);
-        updateStrength(pwd);
+        resultField.setText(new String(pwd));
+        StrengthBarHelper.update(strengthBar, strengthLabel, pwd);
     }
 
-    private void updateStrength(String pwd) {
-        int score = PasswordStrengthAnalyzer.getScore(pwd);
-        PasswordStrengthAnalyzer.Strength strength = PasswordStrengthAnalyzer.analyze(pwd);
-        strengthBar.setValue(score);
-        switch (strength) {
-            case WEAK:
-                strengthBar.setForeground(Color.RED);
-                strengthLabel.setText(lang.getString("strength.weak"));
-                break;
-            case MEDIUM:
-                strengthBar.setForeground(Color.ORANGE);
-                strengthLabel.setText(lang.getString("strength.medium"));
-                break;
-            case STRONG:
-                strengthBar.setForeground(new Color(0, 180, 0));
-                strengthLabel.setText(lang.getString("strength.strong"));
-                break;
-            case VERY_STRONG:
-                strengthBar.setForeground(new Color(0, 100, 200));
-                strengthLabel.setText(lang.getString("strength.very_strong"));
-                break;
-        }
-    }
-
-    public String getGeneratedPassword() { return generatedPassword; }
+    public char[] getGeneratedPassword() { return generatedPassword; }
 }

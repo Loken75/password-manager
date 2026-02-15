@@ -2,20 +2,24 @@ package com.passwordmanager.sync;
 
 import com.jcraft.jsch.*;
 
-import java.util.Properties;
+import java.io.File;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Manages remote file operations via SFTP using JSch.
  * Connects using SSH private key only (no password auth).
+ * Host key verification uses ~/.ssh/known_hosts.
  */
 public class SFTPRepository {
+    private static final Logger LOGGER = Logger.getLogger(SFTPRepository.class.getName());
     private Session session;
     private ChannelSftp sftpChannel;
-    private String host;
-    private int port;
-    private String user;
-    private String privateKeyPath;
-    private String remotePath;
+    private final String host;
+    private final int port;
+    private final String user;
+    private final String privateKeyPath;
+    private final String remotePath;
 
     public SFTPRepository(String host, int port, String user, String privateKeyPath, String remotePath) {
         this.host = host;
@@ -29,15 +33,27 @@ public class SFTPRepository {
         JSch jsch = new JSch();
         jsch.addIdentity(privateKeyPath);
 
+        String knownHostsPath = System.getProperty("user.home") + File.separator + ".ssh" + File.separator + "known_hosts";
+        if (new File(knownHostsPath).exists()) {
+            jsch.setKnownHosts(knownHostsPath);
+        }
+
         session = jsch.getSession(user, host, port);
-        Properties config = new Properties();
-        config.put("StrictHostKeyChecking", "no");
-        session.setConfig(config);
+        session.setConfig("StrictHostKeyChecking", "yes");
         session.connect(30000);
 
-        Channel channel = session.openChannel("sftp");
-        channel.connect(10000);
-        sftpChannel = (ChannelSftp) channel;
+        try {
+            Channel channel = session.openChannel("sftp");
+            channel.connect(10000);
+            sftpChannel = (ChannelSftp) channel;
+        } catch (JSchException e) {
+            // Cleanup session if channel connection fails
+            if (session != null && session.isConnected()) {
+                session.disconnect();
+            }
+            session = null;
+            throw e;
+        }
     }
 
     public boolean isConnected() {
@@ -83,6 +99,7 @@ public class SFTPRepository {
             disconnect();
             return ok;
         } catch (Exception e) {
+            LOGGER.log(Level.FINE, "Connection test failed", e);
             return false;
         }
     }

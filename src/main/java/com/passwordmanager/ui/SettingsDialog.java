@@ -2,12 +2,13 @@ package com.passwordmanager.ui;
 
 import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.ConfigManager;
+import com.passwordmanager.config.StorageMode;
+import com.passwordmanager.config.ThemeMode;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.sync.SFTPRepository;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
 
 /**
  * Settings dialog with tabs: General, Security, Synchronization.
@@ -52,21 +53,20 @@ public class SettingsDialog extends JDialog {
         g.gridx = 0; g.gridy = 0; g.weightx = 0;
         generalPanel.add(new JLabel(lang.getString("settings.language")), g);
         g.gridx = 1; g.weightx = 1;
-        langCombo = new JComboBox<String>(new String[]{"Fran\u00e7ais", "English"});
+        langCombo = new JComboBox<>(new String[]{"Fran\u00e7ais", "English"});
         langCombo.setSelectedIndex("en".equals(config.getLanguage()) ? 1 : 0);
         generalPanel.add(langCombo, g);
 
         g.gridx = 0; g.gridy = 1; g.weightx = 0;
         generalPanel.add(new JLabel(lang.getString("settings.theme")), g);
         g.gridx = 1; g.weightx = 1;
-        themeCombo = new JComboBox<String>(new String[]{
+        themeCombo = new JComboBox<>(new String[]{
             lang.getString("settings.theme_light"),
             lang.getString("settings.theme_dark")
         });
-        themeCombo.setSelectedIndex("dark".equals(config.getTheme()) ? 1 : 0);
+        themeCombo.setSelectedIndex(config.getTheme() == ThemeMode.DARK ? 1 : 0);
         generalPanel.add(themeCombo, g);
 
-        // Filler
         g.gridx = 0; g.gridy = 2; g.weighty = 1;
         generalPanel.add(Box.createVerticalGlue(), g);
 
@@ -111,7 +111,7 @@ public class SettingsDialog extends JDialog {
         ButtonGroup bg = new ButtonGroup();
         bg.add(localRadio);
         bg.add(remoteRadio);
-        if ("remote".equals(config.getStorageMode())) remoteRadio.setSelected(true);
+        if (config.getStorageMode() == StorageMode.REMOTE) remoteRadio.setSelected(true);
         else localRadio.setSelected(true);
 
         syncPanel.add(localRadio, c);
@@ -174,35 +174,26 @@ public class SettingsDialog extends JDialog {
         add(btnPanel, BorderLayout.SOUTH);
 
         // Actions
-        browseBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                JFileChooser fc = new JFileChooser();
-                if (fc.showOpenDialog(SettingsDialog.this) == JFileChooser.APPROVE_OPTION) {
-                    keyPathField.setText(fc.getSelectedFile().getAbsolutePath());
-                }
+        browseBtn.addActionListener(e -> {
+            JFileChooser fc = new JFileChooser();
+            if (fc.showOpenDialog(SettingsDialog.this) == JFileChooser.APPROVE_OPTION) {
+                keyPathField.setText(fc.getSelectedFile().getAbsolutePath());
             }
         });
 
-        testBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                SFTPRepository repo = new SFTPRepository(
-                    hostField.getText(), (Integer) portSpinner.getValue(),
-                    userField.getText(), keyPathField.getText(), remotePathField.getText());
-                boolean ok = repo.testConnection();
-                JOptionPane.showMessageDialog(SettingsDialog.this,
-                    ok ? lang.getString("settings.connection_ok") : lang.getString("settings.connection_fail"),
-                    lang.getString("settings.test_connection"),
-                    ok ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
-            }
+        testBtn.addActionListener(e -> {
+            SFTPRepository repo = new SFTPRepository(
+                hostField.getText(), (Integer) portSpinner.getValue(),
+                userField.getText(), keyPathField.getText(), remotePathField.getText());
+            boolean ok = repo.testConnection();
+            JOptionPane.showMessageDialog(SettingsDialog.this,
+                ok ? lang.getString("settings.connection_ok") : lang.getString("settings.connection_fail"),
+                lang.getString("settings.test_connection"),
+                ok ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
         });
 
-        cancelBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) { dispose(); }
-        });
-
-        saveBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) { doSave(); }
-        });
+        cancelBtn.addActionListener(e -> dispose());
+        saveBtn.addActionListener(e -> doSave());
 
         pack();
         setMinimumSize(new Dimension(500, 450));
@@ -211,10 +202,10 @@ public class SettingsDialog extends JDialog {
 
     private void doSave() {
         config.setLanguage(langCombo.getSelectedIndex() == 0 ? "fr" : "en");
-        config.setTheme(themeCombo.getSelectedIndex() == 0 ? "light" : "dark");
+        config.setTheme(themeCombo.getSelectedIndex() == 0 ? ThemeMode.LIGHT : ThemeMode.DARK);
         config.setAutoLockMinutes((Integer) autoLockSpinner.getValue());
         config.setClipboardClearSeconds((Integer) clipboardSpinner.getValue());
-        config.setStorageMode(remoteRadio.isSelected() ? "remote" : "local");
+        config.setStorageMode(remoteRadio.isSelected() ? StorageMode.REMOTE : StorageMode.LOCAL);
         config.setSftpHost(hostField.getText());
         config.setSftpPort((Integer) portSpinner.getValue());
         config.setSftpUser(userField.getText());

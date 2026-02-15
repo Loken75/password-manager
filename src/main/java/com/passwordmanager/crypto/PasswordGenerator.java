@@ -26,7 +26,7 @@ public class PasswordGenerator {
      * @param excludeAmbiguous exclude ambiguous characters (0/O, 1/l/I)
      * @return the generated password
      */
-    public static String generate(int length, boolean useUpper, boolean useLower,
+    public static char[] generate(int length, boolean useUpper, boolean useLower,
                                   boolean useDigits, boolean useSpecial, boolean excludeAmbiguous) {
         if (length < 8) length = 8;
         if (length > 128) length = 128;
@@ -83,7 +83,7 @@ public class PasswordGenerator {
             password[j] = tmp;
         }
 
-        return new String(password);
+        return password;
     }
 
     private static String removeAmbiguous(String input) {

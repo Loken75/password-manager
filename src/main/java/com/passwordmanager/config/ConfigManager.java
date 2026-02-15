@@ -1,17 +1,26 @@
 package com.passwordmanager.config;
 
+import com.passwordmanager.util.FileSecurityUtils;
+
 import java.io.*;
 import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Loads and saves application configuration from config.properties.
  */
 public class ConfigManager {
+    private static final Logger LOGGER = Logger.getLogger(ConfigManager.class.getName());
     private final String configPath;
 
     public ConfigManager() {
         String home = System.getProperty("user.home");
         this.configPath = home + File.separator + ".password-manager" + File.separator + "config.properties";
+    }
+
+    public ConfigManager(String configPath) {
+        this.configPath = configPath;
     }
 
     /**
@@ -31,40 +40,39 @@ public class ConfigManager {
         try (FileInputStream fis = new FileInputStream(file)) {
             props.load(fis);
         } catch (IOException e) {
+            LOGGER.log(Level.WARNING, "Failed to load config, using defaults", e);
             return config;
         }
 
         config.setLanguage(props.getProperty("app.language", "fr"));
-        config.setStorageMode(props.getProperty("storage.mode", "local"));
+        config.setStorageMode(StorageMode.fromValue(props.getProperty("storage.mode", "local")));
         config.setSftpHost(props.getProperty("sftp.host", ""));
-        config.setSftpPort(Integer.parseInt(props.getProperty("sftp.port", "22")));
+        config.setSftpPort(parseIntSafe(props.getProperty("sftp.port"), 22));
         config.setSftpUser(props.getProperty("sftp.user", ""));
         config.setSftpKeyPath(props.getProperty("sftp.key_path", ""));
         config.setSftpRemotePath(props.getProperty("sftp.remote_path", "/vault/data"));
         config.setLocalVaultDirectory(props.getProperty("local.vault_directory", config.getLocalVaultDirectory()));
-        config.setPbkdf2Iterations(Integer.parseInt(props.getProperty("security.pbkdf2_iterations", "100000")));
-        config.setAutoLockMinutes(Integer.parseInt(props.getProperty("security.auto_lock_minutes", "15")));
-        config.setClipboardClearSeconds(Integer.parseInt(props.getProperty("security.clipboard_clear_seconds", "30")));
-        config.setTheme(props.getProperty("app.theme", "light"));
+        config.setAutoLockMinutes(parseIntSafe(props.getProperty("security.auto_lock_minutes"), 15));
+        config.setClipboardClearSeconds(parseIntSafe(props.getProperty("security.clipboard_clear_seconds"), 30));
+        config.setTheme(ThemeMode.fromValue(props.getProperty("app.theme", "light")));
 
         return config;
     }
 
     /**
-     * Saves configuration to file.
+     * Saves configuration to file with restrictive permissions.
      */
     public void saveConfig(AppConfig config) {
         Properties props = new Properties();
         props.setProperty("app.language", config.getLanguage());
-        props.setProperty("app.theme", config.getTheme());
-        props.setProperty("storage.mode", config.getStorageMode());
+        props.setProperty("app.theme", config.getTheme().getValue());
+        props.setProperty("storage.mode", config.getStorageMode().getValue());
         props.setProperty("sftp.host", config.getSftpHost());
         props.setProperty("sftp.port", String.valueOf(config.getSftpPort()));
         props.setProperty("sftp.user", config.getSftpUser());
         props.setProperty("sftp.key_path", config.getSftpKeyPath());
         props.setProperty("sftp.remote_path", config.getSftpRemotePath());
         props.setProperty("local.vault_directory", config.getLocalVaultDirectory());
-        props.setProperty("security.pbkdf2_iterations", String.valueOf(config.getPbkdf2Iterations()));
         props.setProperty("security.auto_lock_minutes", String.valueOf(config.getAutoLockMinutes()));
         props.setProperty("security.clipboard_clear_seconds", String.valueOf(config.getClipboardClearSeconds()));
 
@@ -73,7 +81,17 @@ public class ConfigManager {
         try (FileOutputStream fos = new FileOutputStream(file)) {
             props.store(fos, "Password Manager Configuration");
         } catch (IOException e) {
-            System.err.println("Failed to save config: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Failed to save config", e);
+        }
+        FileSecurityUtils.setOwnerOnlyPermissions(file.toPath());
+    }
+
+    private static int parseIntSafe(String value, int defaultValue) {
+        if (value == null) return defaultValue;
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
         }
     }
 }

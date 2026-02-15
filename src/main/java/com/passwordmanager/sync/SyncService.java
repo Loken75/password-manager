@@ -1,6 +1,7 @@
 package com.passwordmanager.sync;
 
 import com.passwordmanager.config.AppConfig;
+import com.passwordmanager.config.StorageMode;
 
 import java.io.File;
 import java.io.IOException;
@@ -14,20 +15,31 @@ public class SyncService {
     private static final Logger LOGGER = Logger.getLogger(SyncService.class.getName());
     private final LocalRepository localRepo;
     private SFTPRepository sftpRepo;
-    private final AppConfig config;
+    private AppConfig config;
     private long lastSyncTime = 0;
     private String syncStatus = "offline";
 
     public SyncService(AppConfig config) {
         this.config = config;
         this.localRepo = new LocalRepository(config.getLocalVaultDirectory());
-        if ("remote".equals(config.getStorageMode())) {
+        buildSftpRepo();
+    }
+
+    private void buildSftpRepo() {
+        if (config.getStorageMode() == StorageMode.REMOTE) {
             this.sftpRepo = new SFTPRepository(
                 config.getSftpHost(), config.getSftpPort(),
                 config.getSftpUser(), config.getSftpKeyPath(),
                 config.getSftpRemotePath()
             );
+        } else {
+            this.sftpRepo = null;
         }
+    }
+
+    public void refreshConfig(AppConfig config) {
+        this.config = config;
+        buildSftpRepo();
     }
 
     public LocalRepository getLocalRepo() { return localRepo; }
@@ -35,7 +47,7 @@ public class SyncService {
     public long getLastSyncTime() { return lastSyncTime; }
 
     public SyncResult synchronize(String vaultFilename) {
-        if (!"remote".equals(config.getStorageMode()) || sftpRepo == null) {
+        if (config.getStorageMode() != StorageMode.REMOTE || sftpRepo == null) {
             syncStatus = "local";
             return new SyncResult(true, "local");
         }

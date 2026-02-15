@@ -40,3 +40,8 @@ build/
 
 ### Maven wrapper ###
 .mvn/
+
+### Application data ###
+*.enc
+*.bak
+tmp_*

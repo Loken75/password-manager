@@ -1,37 +1,51 @@
 package com.passwordmanager.vault;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.passwordmanager.crypto.CryptoService;
+import com.google.gson.*;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
+import com.passwordmanager.crypto.*;
+import com.passwordmanager.util.DateUtils;
+import com.passwordmanager.util.FileSecurityUtils;
+import com.passwordmanager.util.SecureWiper;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.text.Normalizer;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.nio.file.*;
+import java.util.*;
 
 /**
- * Manages vault persistence: load/save encrypted vault files, import/export.
+ * Manages vault persistence: load/save encrypted vault files with DEK/KEK envelope encryption.
+ * Import/export is delegated to VaultImporter/VaultExporter.
  */
 public class VaultManager {
-    private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
-    private final CryptoService cryptoService = new CryptoService();
-    private String vaultDirectory;
+    private static final String VAULT_VERSION = "2.0";
+    private final Gson gson;
+    private final EncryptionService cryptoService;
+    private final VaultImporter importer;
+    private final VaultExporter exporter;
+    private final String vaultDirectory;
 
     public VaultManager(String vaultDirectory) {
+        this(vaultDirectory, new CryptoService());
+    }
+
+    public VaultManager(String vaultDirectory, EncryptionService cryptoService) {
         this.vaultDirectory = vaultDirectory;
+        this.cryptoService = cryptoService;
+        this.gson = new GsonBuilder()
+            .setPrettyPrinting()
+            .registerTypeHierarchyAdapter(char[].class, new CharArrayAdapter())
+            .create();
+        this.importer = new VaultImporter(gson);
+        this.exporter = new VaultExporter(gson);
         File dir = new File(vaultDirectory);
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
+        if (!dir.exists()) dir.mkdirs();
     }
 
     public String getVaultDirectory() { return vaultDirectory; }
+    public VaultImporter getImporter() { return importer; }
+    public VaultExporter getExporter() { return exporter; }
 
     public String getVaultPath(String username) {
         return vaultDirectory + File.separator + "vault_" + username + ".enc";
@@ -41,34 +55,121 @@ public class VaultManager {
         return new File(getVaultPath(username)).exists();
     }
 
-    public Vault createVault(String username, char[] masterPassword) throws Exception {
+    /**
+     * Creates a new vault with DEK/KEK envelope encryption.
+     */
+    public VaultLoadResult createVault(String username, char[] masterPassword)
+            throws VaultEncryptionException, IOException {
         Vault vault = new Vault(username);
-        saveVault(vault, username, masterPassword);
-        return vault;
+        VaultSession session = cryptoService.createSession(masterPassword);
+        saveVault(vault, username, session);
+        return new VaultLoadResult(vault, session);
     }
 
-    public Vault loadVault(String username, char[] masterPassword) throws Exception {
+    /**
+     * Loads a vault, auto-migrating v1.0 format to v2.0 DEK/KEK format.
+     */
+    public VaultLoadResult loadVault(String username, char[] masterPassword)
+            throws VaultDecryptionException, VaultEncryptionException, IOException {
         String path = getVaultPath(username);
         byte[] fileBytes = Files.readAllBytes(Paths.get(path));
-        String encryptedJson = new String(fileBytes, StandardCharsets.UTF_8);
-        String decryptedJson = cryptoService.decrypt(encryptedJson, masterPassword);
-        return gson.fromJson(decryptedJson, Vault.class);
+        String fileContent = new String(fileBytes, StandardCharsets.UTF_8);
+        JsonObject json = JsonParser.parseString(fileContent).getAsJsonObject();
+        String version = json.has("version") ? json.get("version").getAsString() : "1.0";
+
+        VaultSession session;
+        byte[] vaultJsonBytes;
+
+        if ("2.0".equals(version)) {
+            byte[] salt = Base64.getDecoder().decode(json.get("salt").getAsString());
+            byte[] kekIv = Base64.getDecoder().decode(json.get("kek_iv").getAsString());
+            byte[] encryptedDek = Base64.getDecoder().decode(json.get("encrypted_dek").getAsString());
+            int iterations = json.get("kdf_iterations").getAsInt();
+            byte[] dataIv = Base64.getDecoder().decode(json.get("data_iv").getAsString());
+            byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
+
+            session = cryptoService.openSession(salt, kekIv, encryptedDek, iterations, masterPassword);
+            vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
+        } else {
+            // Legacy v1.0: password directly derives the data key
+            byte[] salt = Base64.getDecoder().decode(json.get("salt").getAsString());
+            byte[] iv = Base64.getDecoder().decode(json.get("iv").getAsString());
+            byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
+
+            vaultJsonBytes = cryptoService.decryptLegacy(salt, iv, ciphertext, masterPassword);
+            // Auto-migrate: create new DEK/KEK session
+            session = cryptoService.createSession(masterPassword);
+        }
+
+        Vault vault;
+        try {
+            vault = gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
+        } finally {
+            SecureWiper.wipe(vaultJsonBytes);
+        }
+
+        // If migrated from v1.0, save in v2.0 format immediately
+        if (!"2.0".equals(version)) {
+            saveVault(vault, username, session);
+        }
+
+        return new VaultLoadResult(vault, session);
     }
 
-    public void saveVault(Vault vault, String username, char[] masterPassword) throws Exception {
-        String json = gson.toJson(vault);
-        String encryptedJson = cryptoService.encrypt(json, masterPassword);
-        String path = getVaultPath(username);
-        Files.write(Paths.get(path), encryptedJson.getBytes(StandardCharsets.UTF_8));
+    /**
+     * Saves vault with backup and atomic write for data safety.
+     * Uses the session's DEK for encryption (no KDF needed -- fast).
+     */
+    public void saveVault(Vault vault, String username, VaultSession session)
+            throws VaultEncryptionException, IOException {
+        vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
+
+        // Serialize vault to bytes and wipe after encryption
+        byte[] vaultBytes = gson.toJson(vault).getBytes(StandardCharsets.UTF_8);
+        String envelopeJson;
+        try {
+            EncryptedPayload encData = cryptoService.encryptData(vaultBytes, session.getDataKey());
+
+            JsonObject envelope = new JsonObject();
+            envelope.addProperty("version", VAULT_VERSION);
+            envelope.addProperty("kdf", "PBKDF2WithHmacSHA256");
+            envelope.addProperty("kdf_iterations", session.getKdfIterations());
+            envelope.addProperty("salt", Base64.getEncoder().encodeToString(session.getSalt()));
+            envelope.addProperty("kek_iv", Base64.getEncoder().encodeToString(session.getKekIv()));
+            envelope.addProperty("encrypted_dek", Base64.getEncoder().encodeToString(session.getEncryptedDek()));
+            envelope.addProperty("data_iv", Base64.getEncoder().encodeToString(encData.getIv()));
+            envelope.addProperty("encrypted_data", Base64.getEncoder().encodeToString(encData.getCiphertext()));
+            envelopeJson = envelope.toString();
+        } finally {
+            SecureWiper.wipe(vaultBytes);
+        }
+
+        Path path = Paths.get(getVaultPath(username));
+
+        // Backup existing file before overwriting
+        if (Files.exists(path)) {
+            Path backupPath = Paths.get(getVaultPath(username) + ".bak");
+            Files.copy(path, backupPath, StandardCopyOption.REPLACE_EXISTING);
+            FileSecurityUtils.setOwnerOnlyPermissions(backupPath);
+        }
+
+        // Atomic write: write to temp file then rename
+        Path tempPath = Paths.get(getVaultPath(username) + ".tmp");
+        Files.write(tempPath, envelopeJson.getBytes(StandardCharsets.UTF_8));
+        try {
+            Files.move(tempPath, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(tempPath, path, StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(tempPath);
+        }
+
+        FileSecurityUtils.setOwnerOnlyPermissions(path);
     }
 
     public String[] listUsers() {
         File dir = new File(vaultDirectory);
-        File[] files = dir.listFiles(new FilenameFilter() {
-            public boolean accept(File d, String name) {
-                return name.startsWith("vault_") && name.endsWith(".enc");
-            }
-        });
+        File[] files = dir.listFiles((d, name) -> name.startsWith("vault_") && name.endsWith(".enc"));
         if (files == null) return new String[0];
         String[] users = new String[files.length];
         for (int i = 0; i < files.length; i++) {
@@ -84,210 +185,87 @@ public class VaultManager {
         return file.exists() && file.delete();
     }
 
-    public void changeMasterPassword(String username, char[] oldPassword, char[] newPassword) throws Exception {
-        Vault vault = loadVault(username, oldPassword);
-        saveVault(vault, username, newPassword);
+    /**
+     * Changes the master password: re-encrypts the DEK only (fast, no full vault re-encryption).
+     */
+    public VaultSession changeMasterPassword(String username, Vault vault,
+                                              VaultSession currentSession, char[] newPassword)
+            throws VaultEncryptionException, IOException {
+        VaultSession updatedSession = cryptoService.changePassword(currentSession, newPassword);
+        saveVault(vault, username, updatedSession);
+        return updatedSession;
     }
 
-    public void exportBackup(String username, char[] masterPassword, String exportPath) throws Exception {
+    /**
+     * Reloads a vault from disk using an existing session's DEK.
+     * Used after sync downloads a remote vault file (same DEK, no need for master password).
+     */
+    public Vault reloadVault(String username, VaultSession session)
+            throws VaultDecryptionException, IOException {
+        String path = getVaultPath(username);
+        byte[] fileBytes = Files.readAllBytes(Paths.get(path));
+        String fileContent = new String(fileBytes, StandardCharsets.UTF_8);
+        JsonObject json = JsonParser.parseString(fileContent).getAsJsonObject();
+
+        byte[] dataIv = Base64.getDecoder().decode(json.get("data_iv").getAsString());
+        byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
+
+        byte[] vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
+        try {
+            return gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
+        } finally {
+            SecureWiper.wipe(vaultJsonBytes);
+        }
+    }
+
+    /**
+     * Exports an encrypted backup. Verifies the vault can be loaded first.
+     */
+    public void exportBackup(String username, VaultSession session, String exportPath) throws IOException {
         String sourcePath = getVaultPath(username);
         byte[] data = Files.readAllBytes(Paths.get(sourcePath));
-        Files.write(Paths.get(exportPath), data);
+        Path target = Paths.get(exportPath);
+        Files.write(target, data);
+        FileSecurityUtils.setOwnerOnlyPermissions(target);
     }
 
-    public String exportAsJson(String username, char[] masterPassword) throws Exception {
-        Vault vault = loadVault(username, masterPassword);
-        return gson.toJson(vault);
+    public String exportAsJson(Vault vault) {
+        return exporter.exportAsJson(vault);
     }
 
-    public String exportAsCsv(String username, char[] masterPassword) throws Exception {
-        Vault vault = loadVault(username, masterPassword);
-        StringBuilder sb = new StringBuilder();
-        sb.append("title,username,password,url,notes,category,tags\n");
-        for (VaultEntry e : vault.getEntries()) {
-            sb.append(csvEscape(e.getTitle())).append(",");
-            sb.append(csvEscape(e.getUsername())).append(",");
-            sb.append(csvEscape(e.getPassword())).append(",");
-            sb.append(csvEscape(e.getUrl())).append(",");
-            sb.append(csvEscape(e.getNotes())).append(",");
-            sb.append(csvEscape(e.getCategory())).append(",");
-            sb.append(csvEscape(e.getTags() != null ? joinStrings(e.getTags(), ";") : "")).append("\n");
-        }
-        return sb.toString();
+    public String exportAsCsv(Vault vault) {
+        return exporter.exportAsCsv(vault);
     }
 
     public int importFromCsv(Vault vault, String csvContent) {
-        String[] lines = csvContent.split("\n");
-        if (lines.length < 2) return 0;
-
-        String headerLine = lines[0].trim();
-
-        // Detect separator: if more ';' than ',' in header, use ';'
-        int semicolons = 0;
-        int commas = 0;
-        for (int i = 0; i < headerLine.length(); i++) {
-            if (headerLine.charAt(i) == ';') semicolons++;
-            else if (headerLine.charAt(i) == ',') commas++;
-        }
-        char separator = semicolons > commas ? ';' : ',';
-
-        // Parse header and build column mapping
-        String[] headers = parseCsvLine(headerLine, separator);
-        Map<String, String> aliasMap = buildAliasMap();
-        int titleIdx = -1, usernameIdx = -1, passwordIdx = -1, urlIdx = -1;
-        int notesIdx = -1, categoryIdx = -1, tagsIdx = -1;
-        boolean headerRecognized = false;
-
-        for (int i = 0; i < headers.length; i++) {
-            String normalized = stripAccents(headers[i].trim().toLowerCase());
-            String field = aliasMap.get(normalized);
-            if (field != null) {
-                headerRecognized = true;
-                if ("title".equals(field)) titleIdx = i;
-                else if ("username".equals(field)) usernameIdx = i;
-                else if ("password".equals(field)) passwordIdx = i;
-                else if ("url".equals(field)) urlIdx = i;
-                else if ("notes".equals(field)) notesIdx = i;
-                else if ("category".equals(field)) categoryIdx = i;
-                else if ("tags".equals(field)) tagsIdx = i;
-            }
-        }
-
-        // Fallback: if no header recognized, use fixed positional order
-        if (!headerRecognized) {
-            titleIdx = 0; usernameIdx = 1; passwordIdx = 2; urlIdx = 3;
-            notesIdx = 4; categoryIdx = 5; tagsIdx = 6;
-        }
-
-        int count = 0;
-        for (int i = 1; i < lines.length; i++) {
-            String line = lines[i].trim();
-            if (line.isEmpty()) continue;
-            String[] parts = parseCsvLine(line, separator);
-
-            VaultEntry entry = new VaultEntry();
-            entry.setTitle(getField(parts, titleIdx));
-            entry.setUsername(getField(parts, usernameIdx));
-            entry.setPassword(getField(parts, passwordIdx));
-            entry.setUrl(getField(parts, urlIdx));
-            entry.setNotes(getField(parts, notesIdx));
-            String cat = getField(parts, categoryIdx);
-            entry.setCategory(cat.isEmpty() ? "Autre" : cat);
-            String tagsVal = getField(parts, tagsIdx);
-            if (!tagsVal.isEmpty()) {
-                entry.setTags(Arrays.asList(tagsVal.split(";")));
-            }
-
-            // Only add if we have at least a title or username or password
-            if (!entry.getTitle().isEmpty() || !entry.getUsername().isEmpty() || !entry.getPassword().isEmpty()) {
-                vault.getEntries().add(entry);
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private static String getField(String[] parts, int index) {
-        if (index >= 0 && index < parts.length) {
-            return parts[index];
-        }
-        return "";
-    }
-
-    private static String stripAccents(String input) {
-        String normalized = Normalizer.normalize(input, Normalizer.Form.NFD);
-        return normalized.replaceAll("\\p{M}", "");
-    }
-
-    private static Map<String, String> buildAliasMap() {
-        Map<String, String> map = new HashMap<String, String>();
-        // title aliases
-        for (String alias : new String[]{"title", "organisme", "name", "nom", "titre"}) {
-            map.put(alias, "title");
-        }
-        // username aliases
-        for (String alias : new String[]{"username", "identifiant", "email", "adresse mail",
-                "login", "adresse mail / identifiant"}) {
-            map.put(alias, "username");
-        }
-        // password aliases
-        for (String alias : new String[]{"password", "mdp", "mot de passe", "pass"}) {
-            map.put(alias, "password");
-        }
-        // url aliases
-        for (String alias : new String[]{"url", "site", "website", "lien"}) {
-            map.put(alias, "url");
-        }
-        // notes aliases
-        for (String alias : new String[]{"notes", "description", "commentaire"}) {
-            map.put(alias, "notes");
-        }
-        // category aliases
-        for (String alias : new String[]{"category", "categorie", "type"}) {
-            map.put(alias, "category");
-        }
-        // tags aliases
-        for (String alias : new String[]{"tags", "etiquettes"}) {
-            map.put(alias, "tags");
-        }
-        return map;
+        return importer.importFromCsv(vault, csvContent);
     }
 
     public int importFromJson(Vault vault, String jsonContent) {
-        Vault imported = gson.fromJson(jsonContent, Vault.class);
-        if (imported != null && imported.getEntries() != null) {
-            vault.getEntries().addAll(imported.getEntries());
-            return imported.getEntries().size();
-        }
-        return 0;
+        return importer.importFromJson(vault, jsonContent);
     }
 
-    private String csvEscape(String value) {
-        if (value == null) return "";
-        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
-    }
-
-    private String[] parseCsvLine(String line, char separator) {
-        List<String> fields = new ArrayList<String>();
-        StringBuilder current = new StringBuilder();
-        boolean inQuotes = false;
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (inQuotes) {
-                if (c == '"') {
-                    if (i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                        current.append('"');
-                        i++;
-                    } else {
-                        inQuotes = false;
-                    }
-                } else {
-                    current.append(c);
-                }
+    /**
+     * Gson TypeAdapter that serializes char[] as a JSON string (not a JSON array).
+     * This ensures backward-compatible JSON format while storing passwords as char[].
+     */
+    static class CharArrayAdapter extends com.google.gson.TypeAdapter<char[]> {
+        @Override
+        public void write(JsonWriter out, char[] value) throws IOException {
+            if (value == null) {
+                out.nullValue();
             } else {
-                if (c == '"') {
-                    inQuotes = true;
-                } else if (c == separator) {
-                    fields.add(current.toString());
-                    current = new StringBuilder();
-                } else {
-                    current.append(c);
-                }
+                out.value(new String(value));
             }
         }
-        fields.add(current.toString());
-        return fields.toArray(new String[0]);
-    }
 
-    private static String joinStrings(List<String> list, String separator) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < list.size(); i++) {
-            if (i > 0) sb.append(separator);
-            sb.append(list.get(i));
+        @Override
+        public char[] read(JsonReader in) throws IOException {
+            if (in.peek() == JsonToken.NULL) {
+                in.nextNull();
+                return null;
+            }
+            return in.nextString().toCharArray();
         }
-        return sb.toString();
     }
 }

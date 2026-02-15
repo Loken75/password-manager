@@ -3,12 +3,12 @@ package com.passwordmanager.ui;
 import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.ConfigManager;
 import com.passwordmanager.i18n.LanguageManager;
-import com.passwordmanager.vault.Vault;
+import com.passwordmanager.util.PasswordValidator;
+import com.passwordmanager.vault.VaultLoadResult;
 import com.passwordmanager.vault.VaultManager;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
 import java.util.Arrays;
 
 /**
@@ -26,6 +26,7 @@ public class LoginFrame extends JFrame {
     private JButton createUserButton;
     private JComboBox<String> languageCombo;
     private JLabel statusLabel;
+    private static int failedAttempts = 0;
 
     public LoginFrame() {
         appConfig = configManager.loadConfig();
@@ -61,7 +62,7 @@ public class LoginFrame extends JFrame {
         userPanel.setMaximumSize(new Dimension(350, 30));
         JLabel userLabel = new JLabel(lang.getString("login.username"));
         userLabel.setPreferredSize(new Dimension(140, 25));
-        userCombo = new JComboBox<String>();
+        userCombo = new JComboBox<>();
         refreshUserList();
         userPanel.add(userLabel, BorderLayout.WEST);
         userPanel.add(userCombo, BorderLayout.CENTER);
@@ -107,7 +108,7 @@ public class LoginFrame extends JFrame {
         // Language selector
         JPanel langPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         langPanel.add(new JLabel(lang.getString("settings.language") + " :"));
-        languageCombo = new JComboBox<String>(new String[]{"Fran\u00e7ais", "English"});
+        languageCombo = new JComboBox<>(new String[]{"Fran\u00e7ais", "English"});
         languageCombo.setSelectedIndex("en".equals(appConfig.getLanguage()) ? 1 : 0);
         langPanel.add(languageCombo);
         mainPanel.add(langPanel);
@@ -115,25 +116,17 @@ public class LoginFrame extends JFrame {
         setContentPane(mainPanel);
 
         // -- Actions --
-        loginButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) { doLogin(); }
-        });
-        passwordField.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) { doLogin(); }
-        });
-        createUserButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) { doCreateUser(); }
-        });
-        languageCombo.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                String newLang = languageCombo.getSelectedIndex() == 0 ? "fr" : "en";
-                if (!newLang.equals(appConfig.getLanguage())) {
-                    appConfig.setLanguage(newLang);
-                    configManager.saveConfig(appConfig);
-                    lang.setLanguage(newLang);
-                    dispose();
-                    new LoginFrame().setVisible(true);
-                }
+        loginButton.addActionListener(e -> doLogin());
+        passwordField.addActionListener(e -> doLogin());
+        createUserButton.addActionListener(e -> doCreateUser());
+        languageCombo.addActionListener(e -> {
+            String newLang = languageCombo.getSelectedIndex() == 0 ? "fr" : "en";
+            if (!newLang.equals(appConfig.getLanguage())) {
+                appConfig.setLanguage(newLang);
+                configManager.saveConfig(appConfig);
+                lang.setLanguage(newLang);
+                dispose();
+                new LoginFrame().setVisible(true);
             }
         });
 
@@ -161,13 +154,32 @@ public class LoginFrame extends JFrame {
             return;
         }
         try {
-            Vault vault = vaultManager.loadVault(username, password);
+            VaultLoadResult result = vaultManager.loadVault(username, password);
+            failedAttempts = 0;
             statusLabel.setText("");
             dispose();
-            new MainFrame(vault, username, password, vaultManager, appConfig, configManager).setVisible(true);
+            new MainFrame(result.getVault(), username, result.getSession(),
+                vaultManager, appConfig, configManager).setVisible(true);
         } catch (Exception ex) {
+            failedAttempts++;
             statusLabel.setText(lang.getString("error.invalid_password"));
             passwordField.setText("");
+            // Rate-limit after 3 consecutive failures
+            if (failedAttempts >= 3) {
+                loginButton.setEnabled(false);
+                passwordField.setEnabled(false);
+                statusLabel.setText(lang.getString("error.too_many_attempts"));
+                int delay = Math.min(failedAttempts * 2000, 30000);
+                Timer unlockTimer = new Timer(delay, evt -> {
+                    loginButton.setEnabled(true);
+                    passwordField.setEnabled(true);
+                    statusLabel.setText(lang.getString("error.invalid_password"));
+                });
+                unlockTimer.setRepeats(false);
+                unlockTimer.start();
+            }
+        } finally {
+            Arrays.fill(password, '\0');
         }
     }
 
@@ -212,7 +224,7 @@ public class LoginFrame extends JFrame {
                     showError(lang.getString("security.password_mismatch"));
                     return;
                 }
-                if (!validateMasterPassword(p1)) {
+                if (!PasswordValidator.validate(p1)) {
                     showError(lang.getString("security.password_requirements"));
                     return;
                 }
@@ -224,22 +236,10 @@ public class LoginFrame extends JFrame {
             } catch (Exception ex) {
                 showError(ex.getMessage());
             } finally {
-                Arrays.fill(p1, ' ');
-                Arrays.fill(p2, ' ');
+                Arrays.fill(p1, '\0');
+                Arrays.fill(p2, '\0');
             }
         }
-    }
-
-    private boolean validateMasterPassword(char[] password) {
-        if (password.length < 12) return false;
-        boolean hasUpper = false, hasLower = false, hasDigit = false, hasSpecial = false;
-        for (char c : password) {
-            if (Character.isUpperCase(c)) hasUpper = true;
-            else if (Character.isLowerCase(c)) hasLower = true;
-            else if (Character.isDigit(c)) hasDigit = true;
-            else hasSpecial = true;
-        }
-        return hasUpper && hasLower && hasDigit && hasSpecial;
     }
 
     private void showError(String msg) {

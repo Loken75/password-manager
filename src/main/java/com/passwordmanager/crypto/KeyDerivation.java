@@ -9,23 +9,39 @@ import java.security.spec.KeySpec;
 
 /**
  * Key derivation using PBKDF2WithHmacSHA256.
+ * OWASP 2025 minimum: 600,000 iterations for PBKDF2-HMAC-SHA256.
  */
 public class KeyDerivation {
-    private static final int ITERATIONS = 100000;
+    private static final int DEFAULT_ITERATIONS = 600_000;
     private static final int KEY_SIZE = 256;
     private static final int SALT_LENGTH = 32;
 
+    public static int getDefaultIterations() {
+        return DEFAULT_ITERATIONS;
+    }
+
     /**
-     * Derives an AES-256 key from the given password and salt.
+     * Derives an AES-256 key from the given password and salt with default iterations.
      */
-    public static SecretKey deriveKey(char[] password, byte[] salt) throws Exception {
-        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-        PBEKeySpec spec = new PBEKeySpec(password, salt, ITERATIONS, KEY_SIZE);
+    public static SecretKey deriveKey(char[] password, byte[] salt) throws VaultEncryptionException {
+        return deriveKey(password, salt, DEFAULT_ITERATIONS);
+    }
+
+    /**
+     * Derives an AES-256 key from the given password, salt, and iteration count.
+     */
+    public static SecretKey deriveKey(char[] password, byte[] salt, int iterations) throws VaultEncryptionException {
         try {
-            SecretKey tmp = factory.generateSecret(spec);
-            return new SecretKeySpec(tmp.getEncoded(), "AES");
-        } finally {
-            spec.clearPassword();
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            PBEKeySpec spec = new PBEKeySpec(password, salt, iterations, KEY_SIZE);
+            try {
+                SecretKey tmp = factory.generateSecret(spec);
+                return new SecretKeySpec(tmp.getEncoded(), "AES");
+            } finally {
+                spec.clearPassword();
+            }
+        } catch (Exception e) {
+            throw new VaultEncryptionException("Key derivation failed", e);
         }
     }
 

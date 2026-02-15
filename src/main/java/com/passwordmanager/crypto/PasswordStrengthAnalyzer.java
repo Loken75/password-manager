@@ -1,7 +1,9 @@
 package com.passwordmanager.crypto;
 
+import com.passwordmanager.util.SecureWiper;
+
 /**
- * Analyzes password strength.
+ * Analyzes password strength with both char[] (preferred) and String overloads.
  */
 public class PasswordStrengthAnalyzer {
 
@@ -9,13 +11,10 @@ public class PasswordStrengthAnalyzer {
         WEAK, MEDIUM, STRONG, VERY_STRONG
     }
 
-    /**
-     * Analyzes the strength of a password.
-     */
-    public static Strength analyze(String password) {
-        if (password == null || password.isEmpty()) return Strength.WEAK;
+    public static Strength analyze(char[] password) {
+        if (password == null || password.length == 0) return Strength.WEAK;
 
-        int len = password.length();
+        int len = password.length;
         int types = countCharTypes(password);
 
         if (len < 8 || types <= 1) return Strength.WEAK;
@@ -24,35 +23,48 @@ public class PasswordStrengthAnalyzer {
         return Strength.MEDIUM;
     }
 
-    /**
-     * Returns a score from 0 to 100.
-     */
-    public static int getScore(String password) {
-        if (password == null || password.isEmpty()) return 0;
+    /** Convenience overload for non-sensitive contexts (e.g. generator preview). */
+    public static Strength analyze(String password) {
+        if (password == null) return Strength.WEAK;
+        char[] chars = password.toCharArray();
+        try {
+            return analyze(chars);
+        } finally {
+            SecureWiper.wipe(chars);
+        }
+    }
+
+    public static int getScore(char[] password) {
+        if (password == null || password.length == 0) return 0;
 
         int score = 0;
-        int len = password.length();
+        int len = password.length;
 
-        // Length scoring
         score += Math.min(len * 4, 40);
 
-        // Character diversity
         int types = countCharTypes(password);
         score += types * 15;
 
-        // Bonus for length
         if (len >= 16) score += 10;
         if (len >= 20) score += 10;
 
         return Math.min(score, 100);
     }
 
-    /**
-     * Counts how many character types are present (upper, lower, digit, special).
-     */
-    public static int countCharTypes(String password) {
+    /** Convenience overload for non-sensitive contexts. */
+    public static int getScore(String password) {
+        if (password == null) return 0;
+        char[] chars = password.toCharArray();
+        try {
+            return getScore(chars);
+        } finally {
+            SecureWiper.wipe(chars);
+        }
+    }
+
+    public static int countCharTypes(char[] password) {
         boolean hasUpper = false, hasLower = false, hasDigit = false, hasSpecial = false;
-        for (char c : password.toCharArray()) {
+        for (char c : password) {
             if (Character.isUpperCase(c)) hasUpper = true;
             else if (Character.isLowerCase(c)) hasLower = true;
             else if (Character.isDigit(c)) hasDigit = true;
@@ -64,5 +76,16 @@ public class PasswordStrengthAnalyzer {
         if (hasDigit) count++;
         if (hasSpecial) count++;
         return count;
+    }
+
+    /** Convenience overload. */
+    public static int countCharTypes(String password) {
+        if (password == null) return 0;
+        char[] chars = password.toCharArray();
+        try {
+            return countCharTypes(chars);
+        } finally {
+            SecureWiper.wipe(chars);
+        }
     }
 }

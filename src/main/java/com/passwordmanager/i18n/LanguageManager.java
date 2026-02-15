@@ -6,10 +6,11 @@ import java.util.ResourceBundle;
 
 /**
  * Singleton for managing internationalization (FR/EN).
+ * Thread-safe: bundle is volatile so changes are visible across threads (e.g. EDT and timers).
  */
 public class LanguageManager {
     private static LanguageManager instance;
-    private ResourceBundle bundle;
+    private volatile ResourceBundle bundle;
     private String language;
 
     private LanguageManager() {
@@ -53,7 +54,7 @@ public class LanguageManager {
     }
 
     private void loadBundle() {
-        Locale locale = new Locale(language);
+        Locale locale = new Locale.Builder().setLanguage(language).build();
         bundle = ResourceBundle.getBundle("i18n.messages", locale);
     }
 }

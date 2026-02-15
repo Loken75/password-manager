@@ -1,6 +1,13 @@
 package com.passwordmanager.vault;
 
-import java.text.SimpleDateFormat;
+import com.passwordmanager.util.DateUtils;
+import com.passwordmanager.util.SecureWiper;
+
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 /**
@@ -8,11 +15,6 @@ import java.util.*;
  */
 public class VaultService {
     private Vault vault;
-    private static final SimpleDateFormat ISO_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-
-    static {
-        ISO_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
 
     public VaultService(Vault vault) {
         this.vault = vault;
@@ -22,17 +24,17 @@ public class VaultService {
     public void setVault(Vault vault) { this.vault = vault; }
 
     public void addEntry(VaultEntry entry) {
-        entry.setUpdatedAt(ISO_FORMAT.format(new Date()));
+        entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
         vault.getEntries().add(entry);
-        vault.setUpdatedAt(ISO_FORMAT.format(new Date()));
+        vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
     }
 
     public boolean updateEntry(VaultEntry updated) {
         for (int i = 0; i < vault.getEntries().size(); i++) {
             if (vault.getEntries().get(i).getId().equals(updated.getId())) {
-                updated.setUpdatedAt(ISO_FORMAT.format(new Date()));
+                updated.setUpdatedAt(DateUtils.getCurrentTimestamp());
                 vault.getEntries().set(i, updated);
-                vault.setUpdatedAt(ISO_FORMAT.format(new Date()));
+                vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
                 return true;
             }
         }
@@ -42,9 +44,11 @@ public class VaultService {
     public boolean deleteEntry(String entryId) {
         Iterator<VaultEntry> it = vault.getEntries().iterator();
         while (it.hasNext()) {
-            if (it.next().getId().equals(entryId)) {
+            VaultEntry entry = it.next();
+            if (entry.getId().equals(entryId)) {
+                entry.wipe();
                 it.remove();
-                vault.setUpdatedAt(ISO_FORMAT.format(new Date()));
+                vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
                 return true;
             }
         }
@@ -53,10 +57,10 @@ public class VaultService {
 
     public List<VaultEntry> search(String query) {
         if (query == null || query.trim().isEmpty()) {
-            return new ArrayList<VaultEntry>(vault.getEntries());
+            return new ArrayList<>(vault.getEntries());
         }
         String q = query.toLowerCase();
-        List<VaultEntry> results = new ArrayList<VaultEntry>();
+        List<VaultEntry> results = new ArrayList<>();
         for (VaultEntry e : vault.getEntries()) {
             if (matches(e, q)) results.add(e);
         }
@@ -76,57 +80,47 @@ public class VaultService {
 
     public List<VaultEntry> getByCategory(String category) {
         if (category == null || category.isEmpty()) {
-            return new ArrayList<VaultEntry>(vault.getEntries());
+            return new ArrayList<>(vault.getEntries());
         }
-        List<VaultEntry> results = new ArrayList<VaultEntry>();
+        List<VaultEntry> results = new ArrayList<>();
         for (VaultEntry e : vault.getEntries()) {
             if (category.equals(e.getCategory())) results.add(e);
         }
         return results;
     }
 
-    public List<VaultEntry> sorted(List<VaultEntry> entries, String sortBy) {
-        List<VaultEntry> sorted = new ArrayList<VaultEntry>(entries);
+    public List<VaultEntry> sorted(List<VaultEntry> entries, SortField sortBy) {
+        List<VaultEntry> sorted = new ArrayList<>(entries);
         Comparator<VaultEntry> comp;
         switch (sortBy) {
-            case "date":
-                comp = new Comparator<VaultEntry>() {
-                    public int compare(VaultEntry a, VaultEntry b) {
-                        return safe(b.getUpdatedAt()).compareTo(safe(a.getUpdatedAt()));
-                    }
-                };
+            case DATE:
+                comp = (a, b) -> safe(b.getUpdatedAt()).compareTo(safe(a.getUpdatedAt()));
                 break;
-            case "category":
-                comp = new Comparator<VaultEntry>() {
-                    public int compare(VaultEntry a, VaultEntry b) {
-                        return safe(a.getCategory()).compareTo(safe(b.getCategory()));
-                    }
-                };
+            case CATEGORY:
+                comp = (a, b) -> safe(a.getCategory()).compareTo(safe(b.getCategory()));
                 break;
             default:
-                comp = new Comparator<VaultEntry>() {
-                    public int compare(VaultEntry a, VaultEntry b) {
-                        return safe(a.getTitle()).compareToIgnoreCase(safe(b.getTitle()));
-                    }
-                };
+                comp = (a, b) -> safe(a.getTitle()).compareToIgnoreCase(safe(b.getTitle()));
         }
-        Collections.sort(sorted, comp);
+        sorted.sort(comp);
         return sorted;
     }
 
     private String safe(String s) { return s == null ? "" : s; }
 
+    /**
+     * Finds entries that share the same password.
+     * Uses SHA-256 hashes to avoid storing plaintext passwords as keys.
+     */
     public Map<String, List<VaultEntry>> findDuplicatePasswords() {
-        Map<String, List<VaultEntry>> map = new HashMap<String, List<VaultEntry>>();
+        Map<String, List<VaultEntry>> map = new HashMap<>();
         for (VaultEntry e : vault.getEntries()) {
-            if (e.getPassword() != null && !e.getPassword().isEmpty()) {
-                if (!map.containsKey(e.getPassword())) {
-                    map.put(e.getPassword(), new ArrayList<VaultEntry>());
-                }
-                map.get(e.getPassword()).add(e);
+            if (e.getPassword() != null && e.getPassword().length > 0) {
+                String hash = sha256(e.getPassword());
+                map.computeIfAbsent(hash, k -> new ArrayList<>()).add(e);
             }
         }
-        Map<String, List<VaultEntry>> duplicates = new HashMap<String, List<VaultEntry>>();
+        Map<String, List<VaultEntry>> duplicates = new HashMap<>();
         for (Map.Entry<String, List<VaultEntry>> entry : map.entrySet()) {
             if (entry.getValue().size() > 1) {
                 duplicates.put(entry.getKey(), entry.getValue());
@@ -135,15 +129,33 @@ public class VaultService {
         return duplicates;
     }
 
+    /**
+     * SHA-256 hash of a char[] without creating an intermediate String.
+     */
+    private static String sha256(char[] input) {
+        ByteBuffer bb = StandardCharsets.UTF_8.encode(CharBuffer.wrap(input));
+        byte[] bytes = new byte[bb.remaining()];
+        bb.get(bytes);
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(bytes);
+            return Base64.getEncoder().encodeToString(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        } finally {
+            SecureWiper.wipe(bytes);
+        }
+    }
+
     public List<VaultEntry> findOldPasswords(int days) {
-        List<VaultEntry> old = new ArrayList<VaultEntry>();
+        List<VaultEntry> old = new ArrayList<>();
         long threshold = System.currentTimeMillis() - ((long) days * 24 * 60 * 60 * 1000);
         for (VaultEntry e : vault.getEntries()) {
             try {
-                Date d = ISO_FORMAT.parse(e.getUpdatedAt());
+                Date d = DateUtils.parseTimestamp(e.getUpdatedAt());
                 if (d.getTime() < threshold) old.add(e);
             } catch (Exception ex) {
-                // skip
+                // skip entries with invalid dates
             }
         }
         return old;

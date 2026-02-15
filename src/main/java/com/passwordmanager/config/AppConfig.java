@@ -7,17 +7,16 @@ import java.io.File;
  */
 public class AppConfig {
     private String language = "fr";
-    private String storageMode = "local";
+    private StorageMode storageMode = StorageMode.LOCAL;
     private String sftpHost = "";
     private int sftpPort = 22;
     private String sftpUser = "";
     private String sftpKeyPath = "";
     private String sftpRemotePath = "/vault/data";
     private String localVaultDirectory;
-    private int pbkdf2Iterations = 100000;
     private int autoLockMinutes = 15;
     private int clipboardClearSeconds = 30;
-    private String theme = "light";
+    private ThemeMode theme = ThemeMode.LIGHT;
 
     public AppConfig() {
         String home = System.getProperty("user.home");
@@ -26,8 +25,8 @@ public class AppConfig {
 
     public String getLanguage() { return language; }
     public void setLanguage(String language) { this.language = language; }
-    public String getStorageMode() { return storageMode; }
-    public void setStorageMode(String storageMode) { this.storageMode = storageMode; }
+    public StorageMode getStorageMode() { return storageMode; }
+    public void setStorageMode(StorageMode storageMode) { this.storageMode = storageMode; }
     public String getSftpHost() { return sftpHost; }
     public void setSftpHost(String sftpHost) { this.sftpHost = sftpHost; }
     public int getSftpPort() { return sftpPort; }
@@ -40,12 +39,10 @@ public class AppConfig {
     public void setSftpRemotePath(String sftpRemotePath) { this.sftpRemotePath = sftpRemotePath; }
     public String getLocalVaultDirectory() { return localVaultDirectory; }
     public void setLocalVaultDirectory(String localVaultDirectory) { this.localVaultDirectory = localVaultDirectory; }
-    public int getPbkdf2Iterations() { return pbkdf2Iterations; }
-    public void setPbkdf2Iterations(int pbkdf2Iterations) { this.pbkdf2Iterations = pbkdf2Iterations; }
     public int getAutoLockMinutes() { return autoLockMinutes; }
     public void setAutoLockMinutes(int autoLockMinutes) { this.autoLockMinutes = autoLockMinutes; }
     public int getClipboardClearSeconds() { return clipboardClearSeconds; }
     public void setClipboardClearSeconds(int clipboardClearSeconds) { this.clipboardClearSeconds = clipboardClearSeconds; }
-    public String getTheme() { return theme; }
-    public void setTheme(String theme) { this.theme = theme; }
+    public ThemeMode getTheme() { return theme; }
+    public void setTheme(ThemeMode theme) { this.theme = theme; }
 }

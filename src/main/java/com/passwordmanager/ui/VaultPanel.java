@@ -2,19 +2,19 @@ package com.passwordmanager.ui;
 
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer;
 import com.passwordmanager.i18n.LanguageManager;
+import com.passwordmanager.vault.SortField;
 import com.passwordmanager.vault.VaultEntry;
 import com.passwordmanager.vault.VaultService;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
-import java.awt.event.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
@@ -38,9 +38,10 @@ public class VaultPanel extends JPanel {
     private JCheckBox showDetailPassword;
     private JTextArea detailNotes;
 
-    private List<VaultEntry> displayedEntries = new ArrayList<VaultEntry>();
+    private List<VaultEntry> displayedEntries = new ArrayList<>();
     private String currentCategory = null;
-    private String currentSort = "title";
+    private SortField currentSort = SortField.TITLE;
+    private Timer clipboardTimer;
 
     // Callbacks
     private Runnable onVaultChanged;
@@ -64,8 +65,8 @@ public class VaultPanel extends JPanel {
         leftPanel.setPreferredSize(new Dimension(180, 0));
         leftPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 0));
 
-        categoryModel = new DefaultListModel<String>();
-        categoryList = new JList<String>(categoryModel);
+        categoryModel = new DefaultListModel<>();
+        categoryList = new JList<>(categoryModel);
         categoryList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         leftPanel.add(new JScrollPane(categoryList), BorderLayout.CENTER);
 
@@ -96,6 +97,7 @@ public class VaultPanel extends JPanel {
 
         // Color strength column
         entryTable.getColumnModel().getColumn(3).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
                     boolean isSelected, boolean hasFocus, int row, int col) {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col);
@@ -176,13 +178,11 @@ public class VaultPanel extends JPanel {
         add(rightPanel, BorderLayout.EAST);
 
         // === Listeners ===
-        categoryList.addListSelectionListener(new ListSelectionListener() {
-            public void valueChanged(ListSelectionEvent e) {
-                if (!e.getValueIsAdjusting()) {
-                    String sel = categoryList.getSelectedValue();
-                    currentCategory = (sel != null && sel.equals(lang.getString("category.all"))) ? null : sel;
-                    refreshEntries();
-                }
+        categoryList.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                String sel = categoryList.getSelectedValue();
+                currentCategory = (sel != null && sel.equals(lang.getString("category.all"))) ? null : sel;
+                refreshEntries();
             }
         });
 
@@ -192,38 +192,30 @@ public class VaultPanel extends JPanel {
             public void changedUpdate(DocumentEvent e) { refreshEntries(); }
         });
 
-        entryTable.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
-            public void valueChanged(ListSelectionEvent e) {
-                if (!e.getValueIsAdjusting()) showSelectedEntry();
-            }
+        entryTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) showSelectedEntry();
         });
 
         final char echoChar = detailPassword.getEchoChar();
-        showDetailPassword.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                detailPassword.setEchoChar(showDetailPassword.isSelected() ? (char) 0 : echoChar);
-            }
-        });
+        showDetailPassword.addActionListener(e ->
+            detailPassword.setEchoChar(showDetailPassword.isSelected() ? (char) 0 : echoChar));
 
-        copyPassBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) { copyPasswordToClipboard(); }
-        });
+        copyPassBtn.addActionListener(e -> copyPasswordToClipboard());
 
-        addCatBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                String name = JOptionPane.showInputDialog(VaultPanel.this,
-                    lang.getString("category.new"), lang.getString("category.add"),
-                    JOptionPane.PLAIN_MESSAGE);
-                if (name != null && !name.trim().isEmpty()) {
-                    vaultService.addCategory(name.trim());
-                    refreshCategories();
-                    notifyChanged();
-                }
+        addCatBtn.addActionListener(e -> {
+            String name = JOptionPane.showInputDialog(VaultPanel.this,
+                lang.getString("category.new"), lang.getString("category.add"),
+                JOptionPane.PLAIN_MESSAGE);
+            if (name != null && !name.trim().isEmpty()) {
+                vaultService.addCategory(name.trim());
+                refreshCategories();
+                notifyChanged();
             }
         });
 
         // Double-click to edit
         entryTable.addMouseListener(new MouseAdapter() {
+            @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
                     editSelectedEntry();
@@ -248,13 +240,24 @@ public class VaultPanel extends JPanel {
     public void refreshEntries() {
         String query = searchField.getText().trim();
         List<VaultEntry> entries;
+
         if (!query.isEmpty()) {
             entries = vaultService.search(query);
+            if (currentCategory != null) {
+                List<VaultEntry> filtered = new ArrayList<>();
+                for (VaultEntry e : entries) {
+                    if (currentCategory.equals(e.getCategory())) {
+                        filtered.add(e);
+                    }
+                }
+                entries = filtered;
+            }
         } else if (currentCategory != null) {
             entries = vaultService.getByCategory(currentCategory);
         } else {
             entries = vaultService.search("");
         }
+
         displayedEntries = vaultService.sorted(entries, currentSort);
         tableModel.fireTableDataChanged();
     }
@@ -268,7 +271,7 @@ public class VaultPanel extends JPanel {
         VaultEntry e = displayedEntries.get(row);
         detailTitle.setText(e.getTitle());
         detailUser.setText(e.getUsername() != null ? e.getUsername() : "");
-        detailPassword.setText(e.getPassword() != null ? e.getPassword() : "");
+        detailPassword.setText(e.getPassword() != null ? new String(e.getPassword()) : "");
         detailUrl.setText(e.getUrl() != null ? e.getUrl() : "");
         detailCategory.setText(e.getCategory() != null ? e.getCategory() : "");
         detailNotes.setText(e.getNotes() != null ? e.getNotes() : "");
@@ -294,15 +297,32 @@ public class VaultPanel extends JPanel {
         if (e.getPassword() == null) return;
 
         Toolkit.getDefaultToolkit().getSystemClipboard()
-            .setContents(new StringSelection(e.getPassword()), null);
+            .setContents(new StringSelection(new String(e.getPassword())), null);
 
-        // Auto-clear clipboard
-        new Timer().schedule(new TimerTask() {
+        // Cancel previous clipboard clear timer if any
+        if (clipboardTimer != null) {
+            clipboardTimer.cancel();
+        }
+        clipboardTimer = new Timer();
+        clipboardTimer.schedule(new TimerTask() {
+            @Override
             public void run() {
-                Toolkit.getDefaultToolkit().getSystemClipboard()
-                    .setContents(new StringSelection(""), null);
+                // Clear clipboard on EDT since it interacts with the system toolkit
+                SwingUtilities.invokeLater(() ->
+                    Toolkit.getDefaultToolkit().getSystemClipboard()
+                        .setContents(new StringSelection(""), null));
             }
         }, clipboardClearSeconds * 1000L);
+    }
+
+    /**
+     * Cancels the clipboard clear timer if running.
+     */
+    public void cancelClipboardTimer() {
+        if (clipboardTimer != null) {
+            clipboardTimer.cancel();
+            clipboardTimer = null;
+        }
     }
 
     public VaultEntry getSelectedEntry() {
@@ -356,7 +376,7 @@ public class VaultPanel extends JPanel {
         }
     }
 
-    public void setSortMode(String sort) {
+    public void setSortMode(SortField sort) {
         this.currentSort = sort;
         refreshEntries();
     }
@@ -374,10 +394,11 @@ public class VaultPanel extends JPanel {
             lang.getString("strength.label")
         };
 
-        public int getRowCount() { return displayedEntries.size(); }
-        public int getColumnCount() { return columns.length; }
-        public String getColumnName(int col) { return columns[col]; }
+        @Override public int getRowCount() { return displayedEntries.size(); }
+        @Override public int getColumnCount() { return columns.length; }
+        @Override public String getColumnName(int col) { return columns[col]; }
 
+        @Override
         public Object getValueAt(int row, int col) {
             VaultEntry e = displayedEntries.get(row);
             switch (col) {
@@ -397,6 +418,6 @@ public class VaultPanel extends JPanel {
             }
         }
 
-        public boolean isCellEditable(int row, int col) { return false; }
+        @Override public boolean isCellEditable(int row, int col) { return false; }
     }
 }
