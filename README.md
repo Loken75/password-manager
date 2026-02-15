@@ -1,4 +1,4 @@
-# Gestionnaire de Mots de Passe - Documentation fonctionnelle
+# Password Manager
 
 Application de bureau permettant de stocker, organiser et sécuriser vos mots de passe dans un coffre-fort chiffré. Disponible en français et en anglais.
 
@@ -20,21 +20,35 @@ Application de bureau permettant de stocker, organiser et sécuriser vos mots de
 12. [Paramètres](#paramètres)
 13. [Sécurité](#sécurité)
 14. [Raccourcis clavier](#raccourcis-clavier)
-15. [Structure des fichiers](#structure-des-fichiers)
+15. [Architecture technique](#architecture-technique)
+16. [Tests](#tests)
+17. [Structure des fichiers](#structure-des-fichiers)
 
 ---
 
 ## Prérequis et installation
 
-- **Java** 8 ou supérieur
-- **Maven** pour la compilation
+- **Java** 17 ou supérieur
+- **Maven** 3.8+ pour la compilation
 
-Compiler et lancer l'application :
+### Compilation et lancement
 
 ```bash
 mvn clean package
-java -jar target/password-manager-1.0.jar
+java -jar target/password-manager.jar
 ```
+
+Des scripts de lancement sont également disponibles :
+
+```bash
+# Linux / macOS
+./scripts/run.sh
+
+# Windows
+scripts\run.bat
+```
+
+Ces scripts compilent automatiquement le projet si le JAR n'existe pas.
 
 ---
 
@@ -65,6 +79,8 @@ L'écran de connexion permet de :
 - **Saisir le mot de passe maître** et cliquer sur **Connexion** (ou appuyer sur Entrée)
 - **Créer un nouvel utilisateur** via le lien dédié
 - **Changer la langue** (Français / English) en bas de l'écran — le changement est immédiat
+
+Un mécanisme de **protection anti brute-force** limite le nombre de tentatives de connexion consécutives échouées.
 
 ---
 
@@ -97,7 +113,7 @@ Accès rapide aux actions courantes :
 
 Affiche en bas de la fenêtre :
 
-- Le statut de synchronisation (Mode local / Synchronisé / Hors ligne / Erreur)
+- Le statut de synchronisation (Mode local / Erreur)
 - Le nom de l'utilisateur connecté
 - Le nombre total d'entrées dans le coffre
 
@@ -113,9 +129,9 @@ Le formulaire de création contient les champs suivants :
 
 | Champ | Description |
 |---|---|
-| Titre | Nom du service ou du site (obligatoire) |
+| Titre * | Nom du service ou du site (obligatoire) |
 | Identifiant / Email | Nom d'utilisateur ou adresse email |
-| Mot de passe | Le mot de passe du compte. Un bouton **Générer** ouvre le générateur intégré |
+| Mot de passe * | Le mot de passe du compte (obligatoire). Un bouton **Générer** ouvre le générateur intégré |
 | URL du site | Adresse web du service |
 | Notes | Informations complémentaires (texte libre) |
 | Catégorie | Catégorie de classement (liste déroulante) |
@@ -127,8 +143,6 @@ Un indicateur de force du mot de passe est affiché en temps réel lors de la sa
 
 - **Double-clic** sur une entrée dans le tableau
 - Ou sélectionner l'entrée puis **Menu** : Edition > Modifier l'entrée
-
-Le formulaire de modification reprend les mêmes champs que la création.
 
 ### Supprimer une entrée
 
@@ -206,7 +220,7 @@ Cliquer sur le bouton **Ajouter une catégorie** en bas du panneau gauche. Saisi
 
 **Menu** : Outils > Générateur de mots de passe | **Barre d'outils** : bouton Générateur
 
-Le générateur permet de créer des mots de passe aléatoires cryptographiquement sûrs.
+Le générateur produit des mots de passe aléatoires à partir d'un générateur cryptographique sécurisé (`SecureRandom`).
 
 ### Options
 
@@ -317,6 +331,8 @@ Exporte toutes les entrées au format CSV avec les colonnes : `title,username,pa
 
 > **Attention** : les données exportées ne sont **pas chiffrées**. Un avertissement est affiché avant l'export.
 
+> **Protection** : les champs commençant par `=`, `+`, `-` ou `@` sont automatiquement préfixés par `'` pour empêcher l'injection de formules dans les tableurs.
+
 ### Export JSON
 
 **Menu** : Fichier > Exporter JSON
@@ -363,7 +379,15 @@ Le coffre est synchronisé avec un serveur SFTP. Cela permet :
 
 Le bouton **Tester la connexion** permet de vérifier que la configuration est valide.
 
-> Pour la configuration du serveur, consultez le fichier `GUIDE_SERVEUR.md`.
+#### Configuration du serveur
+
+Pour configurer un serveur SFTP dédié, les étapes recommandées sont :
+
+1. Créer un utilisateur dédié (`adduser --disabled-password vault_user`)
+2. Créer le répertoire de stockage avec les permissions appropriées (`chmod 700`)
+3. Configurer l'authentification par clé SSH (désactiver l'authentification par mot de passe)
+4. Sécuriser SSH : désactiver le login root, restreindre les utilisateurs autorisés
+5. Mettre en place un firewall (UFW) et Fail2Ban pour la protection anti brute-force
 
 #### Synchronisation manuelle
 
@@ -418,21 +442,35 @@ Voir la section [Synchronisation distante](#synchronisation-distante).
 3. Confirmer le nouveau mot de passe
 4. Valider
 
-Le coffre est re-chiffré avec le nouveau mot de passe.
+Le coffre est re-chiffré avec le nouveau mot de passe. Seule la clé d'enveloppe (DEK) est re-chiffrée, ce qui rend l'opération rapide.
 
 ---
 
 ## Sécurité
 
-### Chiffrement
+### Chiffrement par enveloppe (DEK/KEK)
 
-- Algorithme : **AES-256-GCM** (chiffrement authentifié)
-- Dérivation de clé : **PBKDF2-HMAC-SHA256** avec 100 000 itérations et un sel aléatoire de 32 octets
-- Chaque opération de sauvegarde utilise un vecteur d'initialisation (IV) unique
+L'application utilise un schéma de chiffrement par enveloppe à deux niveaux :
+
+1. **KEK (Key Encryption Key)** : dérivée du mot de passe maître via PBKDF2-HMAC-SHA256 (600 000 itérations, sel aléatoire de 32 octets)
+2. **DEK (Data Encryption Key)** : clé AES-256 générée aléatoirement, chiffrée par la KEK
+3. **Données du coffre** : chiffrées avec la DEK en AES-256-GCM (chiffrement authentifié)
+
+Avantages de cette architecture :
+- Les sauvegardes sont rapides (pas de dérivation de clé à chaque écriture)
+- Le changement de mot de passe ne re-chiffre que la DEK, pas toutes les données
+- Le mot de passe maître n'est pas conservé en mémoire après le déverrouillage
+
+### Protection des données sensibles en mémoire
+
+- Les mots de passe sont manipulés en `char[]` (jamais en `String`) pour permettre l'effacement explicite de la mémoire
+- Les clés et données sensibles sont effacées via `SecureWiper` avec une technique de lecture volatile empêchant l'optimisation JIT (dead-store elimination)
+- La session cryptographique (`VaultSession`) implémente `Destroyable` pour garantir le nettoyage à la fermeture
+- Les getters de tableaux retournent des copies défensives pour éviter les fuites de références
 
 ### Verrouillage automatique
 
-Après une période d'inactivité configurable (aucune action clavier ou souris), le coffre se verrouille automatiquement et retourne à l'écran de connexion. Le mot de passe maître est effacé de la mémoire.
+Après une période d'inactivité configurable (aucune action clavier ou souris), le coffre se verrouille automatiquement et retourne à l'écran de connexion. Les clés sont effacées de la mémoire.
 
 ### Effacement du presse-papiers
 
@@ -440,7 +478,15 @@ Lorsqu'un mot de passe est copié dans le presse-papiers, celui-ci est automatiq
 
 ### Masquage des mots de passe
 
-Les mots de passe sont masqués par défaut dans le panneau de détails. Ils ne sont révélés que sur action explicite (case à cocher **Afficher**).
+Les mots de passe sont masqués par défaut dans le panneau de détails et les formulaires. Ils ne sont révélés que sur action explicite (case à cocher **Afficher**).
+
+### Protection anti brute-force
+
+Le nombre de tentatives de connexion échouées est limité. Après trop de tentatives, un délai d'attente est imposé.
+
+### Écriture atomique des fichiers
+
+Les sauvegardes du coffre utilisent une écriture atomique (fichier temporaire + renommage) pour éviter la corruption en cas de crash. Les permissions des fichiers sont restreintes au propriétaire uniquement (POSIX 600).
 
 ### Aucune récupération possible
 
@@ -460,6 +506,96 @@ Par conception, il n'existe aucun mécanisme de récupération du mot de passe m
 
 ---
 
+## Architecture technique
+
+### Technologies
+
+| Composant | Technologie | Version |
+|---|---|---|
+| Langage | Java | 17 |
+| Interface graphique | Swing + FlatLaf | 3.2.5 |
+| Sérialisation JSON | Gson | 2.10.1 |
+| Connexion SFTP | JSch (fork mwiede) | 0.2.18 |
+| Tests | JUnit 5 (Jupiter) | 5.10.2 |
+| Build | Maven | 3.8+ |
+
+### Structure du code source
+
+```
+src/main/java/com/passwordmanager/
+├── Main.java                          # Point d'entrée
+├── config/                            # Configuration
+│   ├── AppConfig.java                 # Modèle de configuration
+│   ├── ConfigManager.java             # Lecture/écriture config.properties
+│   ├── StorageMode.java               # Enum : LOCAL / REMOTE
+│   └── ThemeMode.java                 # Enum : LIGHT / DARK
+├── crypto/                            # Cryptographie
+│   ├── CryptoService.java             # Chiffrement AES-256-GCM + enveloppe DEK/KEK
+│   ├── EncryptedPayload.java          # Structure des données chiffrées
+│   ├── EncryptionService.java         # Interface du service de chiffrement
+│   ├── KeyDerivation.java             # PBKDF2-HMAC-SHA256 (600k itérations)
+│   ├── PasswordGenerator.java         # Générateur de mots de passe (SecureRandom)
+│   ├── PasswordStrengthAnalyzer.java  # Analyse de la force des mots de passe
+│   ├── VaultDecryptionException.java  # Exception de déchiffrement
+│   ├── VaultEncryptionException.java  # Exception de chiffrement
+│   └── VaultSession.java             # Session DEK (implémente Destroyable)
+├── i18n/                              # Internationalisation
+│   └── LanguageManager.java           # Gestion FR/EN via ResourceBundle
+├── sync/                              # Synchronisation distante
+│   ├── ConflictResolver.java          # Résolution de conflits
+│   ├── LocalRepository.java           # Stockage local
+│   ├── SFTPRepository.java            # Client SFTP (StrictHostKeyChecking)
+│   └── SyncService.java              # Orchestration de la synchronisation
+├── ui/                                # Interface graphique Swing
+│   ├── EntryDialog.java               # Formulaire de création/édition
+│   ├── LoginFrame.java                # Écran de connexion
+│   ├── MainFrame.java                 # Fenêtre principale
+│   ├── PasswordGeneratorDialog.java   # Dialogue du générateur
+│   ├── SettingsDialog.java            # Dialogue des paramètres
+│   ├── StrengthBarHelper.java         # Barre de force du mot de passe
+│   └── VaultPanel.java               # Panneau principal du coffre
+├── util/                              # Utilitaires
+│   ├── DateUtils.java                 # Formatage des dates
+│   ├── FileSecurityUtils.java         # Permissions fichiers (POSIX 600)
+│   ├── PasswordValidator.java         # Validation du mot de passe maître
+│   └── SecureWiper.java              # Effacement sécurisé (volatile trick)
+└── vault/                             # Gestion du coffre
+    ├── SortField.java                 # Enum de tri
+    ├── Vault.java                     # Modèle du coffre (liste d'entrées)
+    ├── VaultEntry.java                # Modèle d'une entrée
+    ├── VaultExporter.java             # Export CSV/JSON (protection injection)
+    ├── VaultImporter.java             # Import CSV/JSON (détection auto)
+    ├── VaultLoadResult.java           # Résultat de chargement
+    ├── VaultManager.java              # Persistance chiffrée (format v2.0)
+    └── VaultService.java             # Service métier (CRUD, audit, recherche)
+```
+
+---
+
+## Tests
+
+Le projet dispose de **74 tests unitaires et d'intégration** couvrant les principales fonctionnalités :
+
+```bash
+mvn test
+```
+
+### Couverture des tests
+
+| Module | Classe de test | Tests |
+|---|---|---|
+| Crypto | `CryptoServiceTest` | Chiffrement/déchiffrement, enveloppe DEK/KEK, migration legacy |
+| Crypto | `PasswordGeneratorTest` | Génération, longueur minimum, types de caractères, exclusion ambigus |
+| Crypto | `PasswordStrengthAnalyzerTest` | Scores de force, cas limites (null, vide) |
+| Config | `ConfigManagerTest` | Lecture/écriture configuration, valeurs par défaut |
+| Util | `PasswordValidatorTest` | Validation du mot de passe maître (longueur, complexité) |
+| Vault | `VaultServiceTest` | CRUD entrées, recherche, tri, filtres, audit de sécurité |
+| Vault | `VaultImporterTest` | Import CSV (séparateurs, en-têtes, alias) et JSON |
+| Vault | `VaultExporterTest` | Export CSV (échappement, injection) et JSON, round-trip |
+| Vault | `VaultManagerIntegrationTest` | Cycle complet : création, chargement, changement de mot de passe, import/export |
+
+---
+
 ## Structure des fichiers
 
 ```
@@ -476,4 +612,21 @@ Fichier de configuration en clair (ne contient aucune donnée sensible). Stocke 
 
 ### Fichiers .enc
 
-Fichiers coffre chiffrés. Chaque utilisateur dispose de son propre fichier. Le format interne est un enveloppe JSON contenant la version, le sel, le vecteur d'initialisation et les données chiffrées.
+Fichiers coffre chiffrés au format d'enveloppe (version 2.0). Chaque utilisateur dispose de son propre fichier. Le format interne est un JSON contenant :
+
+```json
+{
+  "version": "2.0",
+  "salt": "...",
+  "kekIv": "...",
+  "encryptedDek": "...",
+  "iv": "...",
+  "data": "..."
+}
+```
+
+- `salt` : sel PBKDF2 (32 octets, Base64)
+- `kekIv` : IV de chiffrement de la DEK (12 octets, Base64)
+- `encryptedDek` : DEK chiffrée par la KEK (Base64)
+- `iv` : IV de chiffrement des données (12 octets, Base64)
+- `data` : données du coffre chiffrées en AES-256-GCM (Base64)
