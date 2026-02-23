@@ -82,7 +82,17 @@ public class LoginFrame extends JFrame {
         passPanel.add(passLabel, BorderLayout.WEST);
         passPanel.add(passwordField, BorderLayout.CENTER);
         mainPanel.add(passPanel);
-        mainPanel.add(Box.createVerticalStrut(20));
+        mainPanel.add(Box.createVerticalStrut(5));
+
+        // Show/hide password checkbox
+        char echoChar = passwordField.getEchoChar();
+        JCheckBox showPasswordCheck = new JCheckBox(lang.getString("entry.show_password"));
+        showPasswordCheck.setAlignmentX(Component.CENTER_ALIGNMENT);
+        showPasswordCheck.addActionListener(e -> {
+            passwordField.setEchoChar(showPasswordCheck.isSelected() ? (char) 0 : echoChar);
+        });
+        mainPanel.add(showPasswordCheck);
+        mainPanel.add(Box.createVerticalStrut(15));
 
         // Login button
         loginButton = new JButton(lang.getString("login.button"));
@@ -135,7 +145,7 @@ public class LoginFrame extends JFrame {
         });
 
         pack();
-        setMinimumSize(new Dimension(450, 420));
+        setMinimumSize(new Dimension(450, 450));
         setLocationRelativeTo(null);
     }
 

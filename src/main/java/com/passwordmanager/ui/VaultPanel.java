@@ -39,6 +39,7 @@ public class VaultPanel extends JPanel {
     private JLabel detailTitle, detailUser, detailUrl, detailCategory, detailCreated, detailUpdated;
     private JPasswordField detailPassword;
     private JCheckBox showDetailPassword;
+    private JButton copyPassBtn;
     private JTextArea detailNotes;
 
     private List<VaultEntry> displayedEntries = new ArrayList<>();
@@ -122,63 +123,114 @@ public class VaultPanel extends JPanel {
         add(centerPanel, BorderLayout.CENTER);
 
         // === Right: Detail panel ===
-        JPanel rightPanel = new JPanel();
-        rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
-        rightPanel.setPreferredSize(new Dimension(260, 0));
+        JPanel rightPanel = new JPanel(new BorderLayout(0, 5));
+        rightPanel.setPreferredSize(new Dimension(300, 0));
         rightPanel.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createTitledBorder(lang.getString("vault.details")),
             BorderFactory.createEmptyBorder(5, 5, 5, 5)));
 
-        detailTitle = new JLabel(" ");
+        // NORTH: Title
+        detailTitle = new JLabel(" ", SwingConstants.CENTER);
         detailTitle.setFont(new Font("SansSerif", Font.BOLD, 16));
-        rightPanel.add(detailTitle);
-        rightPanel.add(Box.createVerticalStrut(10));
+        rightPanel.add(detailTitle, BorderLayout.NORTH);
 
-        rightPanel.add(new JLabel(lang.getString("entry.username")));
+        // CENTER: Table layout with GridBag
+        JPanel tablePanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gl = new GridBagConstraints();
+        gl.insets = new Insets(4, 6, 4, 6);
+        gl.anchor = GridBagConstraints.NORTHWEST;
+        gl.fill = GridBagConstraints.HORIZONTAL;
+
+        Font boldFont = new Font("SansSerif", Font.BOLD, 12);
+        int row = 0;
+
+        // Username
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
+        JLabel lblUser = new JLabel(lang.getString("entry.username"));
+        lblUser.setFont(boldFont);
+        tablePanel.add(lblUser, gl);
+        gl.gridx = 1; gl.weightx = 1;
         detailUser = new JLabel(" ");
-        rightPanel.add(detailUser);
-        rightPanel.add(Box.createVerticalStrut(8));
+        tablePanel.add(detailUser, gl);
 
-        rightPanel.add(new JLabel(lang.getString("entry.password")));
-        JPanel dpPanel = new JPanel(new BorderLayout(3, 0));
+        // Password
+        row++;
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
+        JLabel lblPass = new JLabel(lang.getString("entry.password"));
+        lblPass.setFont(boldFont);
+        tablePanel.add(lblPass, gl);
+        gl.gridx = 1; gl.weightx = 1;
         detailPassword = new JPasswordField();
         detailPassword.setEditable(false);
-        showDetailPassword = new JCheckBox(lang.getString("entry.show_password"));
-        dpPanel.add(detailPassword, BorderLayout.CENTER);
-        dpPanel.add(showDetailPassword, BorderLayout.EAST);
-        rightPanel.add(dpPanel);
+        tablePanel.add(detailPassword, gl);
 
-        JButton copyPassBtn = new JButton(lang.getString("entry.copy"));
-        copyPassBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
-        rightPanel.add(copyPassBtn);
-        rightPanel.add(Box.createVerticalStrut(8));
-
-        rightPanel.add(new JLabel(lang.getString("entry.url")));
+        // URL
+        row++;
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
+        JLabel lblUrl = new JLabel(lang.getString("entry.url"));
+        lblUrl.setFont(boldFont);
+        tablePanel.add(lblUrl, gl);
+        gl.gridx = 1; gl.weightx = 1;
         detailUrl = new JLabel(" ");
-        rightPanel.add(detailUrl);
-        rightPanel.add(Box.createVerticalStrut(8));
+        tablePanel.add(detailUrl, gl);
 
-        rightPanel.add(new JLabel(lang.getString("entry.category")));
+        // Category
+        row++;
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
+        JLabel lblCat = new JLabel(lang.getString("entry.category"));
+        lblCat.setFont(boldFont);
+        tablePanel.add(lblCat, gl);
+        gl.gridx = 1; gl.weightx = 1;
         detailCategory = new JLabel(" ");
-        rightPanel.add(detailCategory);
-        rightPanel.add(Box.createVerticalStrut(8));
+        tablePanel.add(detailCategory, gl);
 
-        rightPanel.add(new JLabel(lang.getString("entry.notes")));
+        // Notes (takes remaining vertical space)
+        row++;
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0; gl.weighty = 0;
+        JLabel lblNotes = new JLabel(lang.getString("entry.notes"));
+        lblNotes.setFont(boldFont);
+        tablePanel.add(lblNotes, gl);
+        gl.gridx = 1; gl.weightx = 1; gl.weighty = 1;
+        gl.fill = GridBagConstraints.BOTH;
         detailNotes = new JTextArea(3, 20);
         detailNotes.setEditable(false);
         detailNotes.setLineWrap(true);
-        rightPanel.add(new JScrollPane(detailNotes));
-        rightPanel.add(Box.createVerticalStrut(8));
+        tablePanel.add(new JScrollPane(detailNotes), gl);
+        gl.fill = GridBagConstraints.HORIZONTAL;
+        gl.weighty = 0;
 
-        rightPanel.add(new JLabel(lang.getString("entry.created")));
+        // Created
+        row++;
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
+        JLabel lblCreated = new JLabel(lang.getString("entry.created"));
+        lblCreated.setFont(boldFont);
+        tablePanel.add(lblCreated, gl);
+        gl.gridx = 1; gl.weightx = 1;
         detailCreated = new JLabel(" ");
-        rightPanel.add(detailCreated);
-        rightPanel.add(Box.createVerticalStrut(4));
-        rightPanel.add(new JLabel(lang.getString("entry.updated")));
-        detailUpdated = new JLabel(" ");
-        rightPanel.add(detailUpdated);
+        tablePanel.add(detailCreated, gl);
 
-        rightPanel.add(Box.createVerticalGlue());
+        // Updated
+        row++;
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
+        JLabel lblUpdated = new JLabel(lang.getString("entry.updated"));
+        lblUpdated.setFont(boldFont);
+        tablePanel.add(lblUpdated, gl);
+        gl.gridx = 1; gl.weightx = 1;
+        detailUpdated = new JLabel(" ");
+        tablePanel.add(detailUpdated, gl);
+
+        tablePanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 1, 0, Color.GRAY),
+            BorderFactory.createEmptyBorder(4, 0, 4, 0)));
+        rightPanel.add(new JScrollPane(tablePanel), BorderLayout.CENTER);
+
+        // SOUTH: Buttons
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+        showDetailPassword = new JCheckBox(lang.getString("entry.show_password"));
+        copyPassBtn = new JButton(lang.getString("entry.copy"));
+        btnPanel.add(showDetailPassword);
+        btnPanel.add(copyPassBtn);
+        rightPanel.add(btnPanel, BorderLayout.SOUTH);
 
         add(rightPanel, BorderLayout.EAST);
 
@@ -408,6 +460,10 @@ public class VaultPanel extends JPanel {
             clearDetails();
             notifyChanged();
         }
+    }
+
+    public void setClipboardClearSeconds(int seconds) {
+        this.clipboardClearSeconds = seconds;
     }
 
     public void setSortMode(SortField sort) {

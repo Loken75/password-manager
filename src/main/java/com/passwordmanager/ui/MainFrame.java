@@ -1,8 +1,12 @@
 package com.passwordmanager.ui;
 
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
+import com.passwordmanager.Main;
 import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.ConfigManager;
 import com.passwordmanager.config.StorageMode;
+import com.passwordmanager.config.ThemeMode;
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer;
 import com.passwordmanager.crypto.VaultSession;
 import com.passwordmanager.i18n.LanguageManager;
@@ -333,12 +337,59 @@ public class MainFrame extends JFrame {
     }
 
     private void doSettings() {
+        String oldLang = appConfig.getLanguage();
+        ThemeMode oldTheme = appConfig.getTheme();
+
         SettingsDialog dlg = new SettingsDialog(this, appConfig, configManager);
         dlg.setVisible(true);
-        if (dlg.isSaved()) {
-            syncService.refreshConfig(appConfig);
-            statusLabel.setText(getStatusText());
+        if (!dlg.isSaved()) return;
+
+        // Always apply: refresh sync, status, clipboard, restart auto-lock
+        syncService.refreshConfig(appConfig);
+        statusLabel.setText(getStatusText());
+        vaultPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
+        if (autoLockTimer != null) autoLockTimer.stop();
+        startAutoLock();
+
+        boolean langChanged = !oldLang.equals(appConfig.getLanguage());
+        boolean themeChanged = oldTheme != appConfig.getTheme();
+
+        if (langChanged) {
+            lang.setLanguage(appConfig.getLanguage());
+            applyTheme();
+            rebuildMainFrame();
+        } else if (themeChanged) {
+            applyTheme();
+            SwingUtilities.updateComponentTreeUI(this);
+            pack();
+            setSize(1100, 700);
         }
+    }
+
+    private void applyTheme() {
+        try {
+            boolean dark;
+            switch (appConfig.getTheme()) {
+                case DARK:
+                    dark = true;
+                    break;
+                case SYSTEM:
+                    dark = Main.isSystemDark();
+                    break;
+                default:
+                    dark = false;
+                    break;
+            }
+            if (dark) FlatDarkLaf.setup();
+            else FlatLightLaf.setup();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void rebuildMainFrame() {
+        cleanup();
+        dispose();
+        new MainFrame(vault, username, session, vaultManager, appConfig, configManager).setVisible(true);
     }
 
     private void doChangeMasterPassword() {

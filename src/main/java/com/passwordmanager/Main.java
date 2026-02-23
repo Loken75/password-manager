@@ -57,7 +57,7 @@ public class Main {
      * Checks AWT desktop property first (works on macOS / GNOME 42+ / KDE),
      * then falls back to the Windows registry key.
      */
-    static boolean isSystemDark() {
+    public static boolean isSystemDark() {
         try {
             Object appearance = Toolkit.getDefaultToolkit().getDesktopProperty("awt.appearance");
             if (appearance != null) {
