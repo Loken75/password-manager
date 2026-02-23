@@ -8,6 +8,7 @@ import java.util.Set;
  * Shared master password validation logic.
  * Requires: min 12 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special.
  * Rejects common passwords that match known weak patterns.
+ * All operations use char[] to avoid leaking passwords as immutable Strings.
  */
 public class PasswordValidator {
 
@@ -33,11 +34,50 @@ public class PasswordValidator {
         }
         if (!(hasUpper && hasLower && hasDigit && hasSpecial)) return false;
 
-        // Reject passwords whose lowercase base matches a common password
-        String lower = new String(password).toLowerCase();
-        // Strip trailing digits and special chars to catch variants like "Password123!"
-        String base = lower.replaceAll("[^a-z]", "");
-        boolean rejected = COMMON_PASSWORDS.contains(lower) || COMMON_PASSWORDS.contains(base);
-        return !rejected;
+        // Build lowercase copy in char[] (no String creation from user password)
+        char[] lower = new char[password.length];
+        for (int i = 0; i < password.length; i++) {
+            lower[i] = Character.toLowerCase(password[i]);
+        }
+        try {
+            if (matchesCommon(lower)) return false;
+
+            // Build alpha-only base to catch variants like "Password123!"
+            int alphaCount = 0;
+            for (char c : lower) {
+                if (c >= 'a' && c <= 'z') alphaCount++;
+            }
+            char[] base = new char[alphaCount];
+            int idx = 0;
+            for (char c : lower) {
+                if (c >= 'a' && c <= 'z') base[idx++] = c;
+            }
+            try {
+                return !matchesCommon(base);
+            } finally {
+                SecureWiper.wipe(base);
+            }
+        } finally {
+            SecureWiper.wipe(lower);
+        }
+    }
+
+    /**
+     * Compares a char[] against each common password without creating
+     * a String from the user's input.
+     */
+    private static boolean matchesCommon(char[] input) {
+        for (String common : COMMON_PASSWORDS) {
+            if (common.length() != input.length) continue;
+            boolean match = true;
+            for (int i = 0; i < input.length; i++) {
+                if (common.charAt(i) != input[i]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) return true;
+        }
+        return false;
     }
 }

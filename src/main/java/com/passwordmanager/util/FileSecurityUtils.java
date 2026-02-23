@@ -9,8 +9,9 @@ import java.nio.file.attribute.AclEntryType;
 import java.nio.file.attribute.AclFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -42,13 +43,14 @@ public final class FileSecurityUtils {
 
     /**
      * Sets Windows ACL to owner-only read/write access.
+     * Preserves SYSTEM principal entries to avoid breaking Windows file access.
      */
     private static void setWindowsOwnerOnly(Path path) throws IOException {
         AclFileAttributeView aclView = Files.getFileAttributeView(path, AclFileAttributeView.class);
         if (aclView == null) return;
 
         UserPrincipal owner = aclView.getOwner();
-        AclEntry entry = AclEntry.newBuilder()
+        AclEntry ownerEntry = AclEntry.newBuilder()
             .setType(AclEntryType.ALLOW)
             .setPrincipal(owner)
             .setPermissions(
@@ -61,7 +63,17 @@ public final class FileSecurityUtils {
                 AclEntryPermission.SYNCHRONIZE
             )
             .build();
-        // Replace all ACL entries with owner-only access
-        aclView.setAcl(Collections.singletonList(entry));
+
+        // Preserve SYSTEM entries, replace everything else with owner-only
+        List<AclEntry> newAcl = new ArrayList<>();
+        newAcl.add(ownerEntry);
+        for (AclEntry existing : aclView.getAcl()) {
+            String principalName = existing.principal().getName();
+            if (principalName.endsWith("\\SYSTEM") || principalName.equals("SYSTEM")
+                    || principalName.endsWith("\\SYSTÈME")) {
+                newAcl.add(existing);
+            }
+        }
+        aclView.setAcl(newAcl);
     }
 }

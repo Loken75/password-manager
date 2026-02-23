@@ -230,11 +230,11 @@ public class VaultManager {
         FileSecurityUtils.setOwnerOnlyPermissions(target);
     }
 
-    public String exportAsJson(Vault vault) {
+    public char[] exportAsJson(Vault vault) {
         return exporter.exportAsJson(vault);
     }
 
-    public String exportAsCsv(Vault vault) {
+    public char[] exportAsCsv(Vault vault) {
         return exporter.exportAsCsv(vault);
     }
 

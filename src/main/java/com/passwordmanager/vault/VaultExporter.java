@@ -5,6 +5,7 @@ import com.passwordmanager.util.SecureWiper;
 
 /**
  * Handles exporting vault data to CSV and JSON formats.
+ * Returns char[] to allow callers to wipe sensitive data after use.
  */
 public class VaultExporter {
     private final Gson gson;
@@ -13,11 +14,12 @@ public class VaultExporter {
         this.gson = gson;
     }
 
-    public String exportAsJson(Vault vault) {
-        return gson.toJson(vault);
+    public char[] exportAsJson(Vault vault) {
+        String json = gson.toJson(vault);
+        return json.toCharArray();
     }
 
-    public String exportAsCsv(Vault vault) {
+    public char[] exportAsCsv(Vault vault) {
         StringBuilder sb = new StringBuilder();
         sb.append("title,username,password,url,notes,category,tags\n");
         for (VaultEntry e : vault.getEntries()) {
@@ -31,8 +33,9 @@ public class VaultExporter {
             sb.append(csvEscape(e.getCategory())).append(",");
             sb.append(csvEscape(e.getTags() != null ? String.join(";", e.getTags()) : "")).append("\n");
         }
-        String result = sb.toString();
-        // Wipe the StringBuilder to remove sensitive data from memory
+        // Extract to char[] and wipe the StringBuilder
+        char[] result = new char[sb.length()];
+        sb.getChars(0, sb.length(), result, 0);
         for (int i = 0; i < sb.length(); i++) {
             sb.setCharAt(i, '\0');
         }

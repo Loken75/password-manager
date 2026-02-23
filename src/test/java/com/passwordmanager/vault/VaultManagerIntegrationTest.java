@@ -174,11 +174,11 @@ class VaultManagerIntegrationTest {
         vault.getEntries().add(new VaultEntry("Exported", "user",
                 "pwd".toCharArray(), "", "", "Cat", null));
 
-        String csv = manager.exportAsCsv(vault);
+        String csv = new String(manager.exportAsCsv(vault));
         assertTrue(csv.contains("Exported"));
         assertTrue(csv.startsWith("title,"));
 
-        String json = manager.exportAsJson(vault);
+        String json = new String(manager.exportAsJson(vault));
         assertTrue(json.contains("Exported"));
 
         result.getSession().destroy();

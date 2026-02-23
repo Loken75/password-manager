@@ -43,7 +43,7 @@ public class Vault {
     }
 
     /**
-     * Securely wipes all entry passwords from memory.
+     * Securely wipes all sensitive data from memory: entries, categories, settings.
      */
     public void wipe() {
         if (entries != null) {
@@ -52,6 +52,15 @@ public class Vault {
             }
             entries.clear();
         }
+        if (categories != null) {
+            categories.clear();
+        }
+        if (settings != null) {
+            settings.clear();
+        }
+        user = null;
+        createdAt = null;
+        updatedAt = null;
     }
 
     public String getVersion() { return version; }

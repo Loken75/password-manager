@@ -44,8 +44,10 @@ public class SyncService {
     }
 
     public void refreshConfig(AppConfig config) {
-        this.config = config;
-        buildSftpRepo();
+        synchronized (lock) {
+            this.config = config;
+            buildSftpRepo();
+        }
     }
 
     public LocalRepository getLocalRepo() { return localRepo; }

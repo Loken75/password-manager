@@ -54,8 +54,17 @@ public class LocalRepository {
 
     public void writeFile(String filename, String content) throws IOException {
         Path path = Paths.get(getFilePath(filename));
-        Files.write(path, content.getBytes(StandardCharsets.UTF_8));
-        FileSecurityUtils.setOwnerOnlyPermissions(path);
+        // Atomic write: write to temp, set permissions, then rename
+        Path tempPath = Paths.get(getFilePath(filename + ".tmp"));
+        Files.write(tempPath, content.getBytes(StandardCharsets.UTF_8));
+        FileSecurityUtils.setOwnerOnlyPermissions(tempPath);
+        try {
+            Files.move(tempPath, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            Files.move(tempPath, path, StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(tempPath);
+        }
     }
 
     public void deleteFile(String filename) throws IOException {

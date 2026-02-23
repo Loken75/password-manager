@@ -70,7 +70,14 @@ public class SFTPRepository {
         sftpChannel.put(localPath, remotePath + "/" + remoteFilename, ChannelSftp.OVERWRITE);
     }
 
+    private static final long MAX_DOWNLOAD_SIZE = 50 * 1024 * 1024; // 50 MB
+
     public void downloadFile(String remoteFilename, String localPath) throws SftpException {
+        // Check remote file size before downloading
+        SftpATTRS attrs = sftpChannel.lstat(remotePath + "/" + remoteFilename);
+        if (attrs.getSize() > MAX_DOWNLOAD_SIZE) {
+            throw new SftpException(0, "Remote file exceeds maximum size (" + MAX_DOWNLOAD_SIZE / (1024 * 1024) + " MB)");
+        }
         sftpChannel.get(remotePath + "/" + remoteFilename, localPath);
     }
 

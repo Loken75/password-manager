@@ -3,7 +3,7 @@ package com.passwordmanager.config;
 import java.io.File;
 
 /**
- * Application configuration holder.
+ * Application configuration holder with validated setters.
  */
 public class AppConfig {
     private String language = "fr";
@@ -24,25 +24,59 @@ public class AppConfig {
     }
 
     public String getLanguage() { return language; }
-    public void setLanguage(String language) { this.language = language; }
+    public void setLanguage(String language) {
+        this.language = language != null ? language.trim() : "fr";
+    }
+
     public StorageMode getStorageMode() { return storageMode; }
-    public void setStorageMode(StorageMode storageMode) { this.storageMode = storageMode; }
+    public void setStorageMode(StorageMode storageMode) {
+        this.storageMode = storageMode != null ? storageMode : StorageMode.LOCAL;
+    }
+
     public String getSftpHost() { return sftpHost; }
-    public void setSftpHost(String sftpHost) { this.sftpHost = sftpHost; }
+    public void setSftpHost(String sftpHost) {
+        this.sftpHost = sftpHost != null ? sftpHost.trim() : "";
+    }
+
     public int getSftpPort() { return sftpPort; }
-    public void setSftpPort(int sftpPort) { this.sftpPort = sftpPort; }
+    public void setSftpPort(int sftpPort) {
+        this.sftpPort = Math.max(1, Math.min(sftpPort, 65535));
+    }
+
     public String getSftpUser() { return sftpUser; }
-    public void setSftpUser(String sftpUser) { this.sftpUser = sftpUser; }
+    public void setSftpUser(String sftpUser) {
+        this.sftpUser = sftpUser != null ? sftpUser.trim() : "";
+    }
+
     public String getSftpKeyPath() { return sftpKeyPath; }
-    public void setSftpKeyPath(String sftpKeyPath) { this.sftpKeyPath = sftpKeyPath; }
+    public void setSftpKeyPath(String sftpKeyPath) {
+        this.sftpKeyPath = sftpKeyPath != null ? sftpKeyPath.trim() : "";
+    }
+
     public String getSftpRemotePath() { return sftpRemotePath; }
-    public void setSftpRemotePath(String sftpRemotePath) { this.sftpRemotePath = sftpRemotePath; }
+    public void setSftpRemotePath(String sftpRemotePath) {
+        this.sftpRemotePath = sftpRemotePath != null ? sftpRemotePath.trim() : "/vault/data";
+    }
+
     public String getLocalVaultDirectory() { return localVaultDirectory; }
-    public void setLocalVaultDirectory(String localVaultDirectory) { this.localVaultDirectory = localVaultDirectory; }
+    public void setLocalVaultDirectory(String localVaultDirectory) {
+        if (localVaultDirectory != null && !localVaultDirectory.trim().isEmpty()) {
+            this.localVaultDirectory = localVaultDirectory.trim();
+        }
+    }
+
     public int getAutoLockMinutes() { return autoLockMinutes; }
-    public void setAutoLockMinutes(int autoLockMinutes) { this.autoLockMinutes = autoLockMinutes; }
+    public void setAutoLockMinutes(int autoLockMinutes) {
+        this.autoLockMinutes = Math.max(1, Math.min(autoLockMinutes, 60));
+    }
+
     public int getClipboardClearSeconds() { return clipboardClearSeconds; }
-    public void setClipboardClearSeconds(int clipboardClearSeconds) { this.clipboardClearSeconds = clipboardClearSeconds; }
+    public void setClipboardClearSeconds(int clipboardClearSeconds) {
+        this.clipboardClearSeconds = Math.max(5, Math.min(clipboardClearSeconds, 120));
+    }
+
     public ThemeMode getTheme() { return theme; }
-    public void setTheme(ThemeMode theme) { this.theme = theme; }
+    public void setTheme(ThemeMode theme) {
+        this.theme = theme != null ? theme : ThemeMode.LIGHT;
+    }
 }

@@ -350,7 +350,7 @@ class SecurityAuditTest {
                 "pass".toCharArray(), "", "", "Cat", null));
         }
 
-        String csv = exporter.exportAsCsv(vault);
+        String csv = new String(exporter.exportAsCsv(vault));
         for (String title : formulaChars) {
             assertTrue(csv.contains("'" + title),
                 "Formula character in '" + title + "' must be prefixed with single quote");

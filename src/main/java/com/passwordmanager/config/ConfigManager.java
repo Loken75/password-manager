@@ -3,6 +3,8 @@ package com.passwordmanager.config;
 import com.passwordmanager.util.FileSecurityUtils;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -78,12 +80,26 @@ public class ConfigManager {
 
         File file = new File(configPath);
         file.getParentFile().mkdirs();
-        try (FileOutputStream fos = new FileOutputStream(file)) {
+        // Atomic write: write to temp, set permissions, then rename
+        File tempFile = new File(configPath + ".tmp");
+        try (FileOutputStream fos = new FileOutputStream(tempFile)) {
             props.store(fos, "Password Manager Configuration");
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Failed to save config", e);
+            return;
         }
-        FileSecurityUtils.setOwnerOnlyPermissions(file.toPath());
+        FileSecurityUtils.setOwnerOnlyPermissions(tempFile.toPath());
+        try {
+            Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            try {
+                Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException ex) {
+                LOGGER.log(Level.SEVERE, "Failed to rename config file", ex);
+            }
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "Failed to rename config file", e);
+        }
     }
 
     private static int parseIntSafe(String value, int defaultValue) {

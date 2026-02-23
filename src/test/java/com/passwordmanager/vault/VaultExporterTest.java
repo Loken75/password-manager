@@ -27,7 +27,7 @@ class VaultExporterTest {
 
     @Test
     void exportCsvHeader() {
-        String csv = exporter.exportAsCsv(vault);
+        String csv = new String(exporter.exportAsCsv(vault));
         assertTrue(csv.startsWith("title,username,password,url,notes,category,tags\n"));
     }
 
@@ -37,7 +37,7 @@ class VaultExporterTest {
                 "pass123".toCharArray(), "https://gmail.com", "notes", "Email",
                 Arrays.asList("tag1", "tag2")));
 
-        String csv = exporter.exportAsCsv(vault);
+        String csv = new String(exporter.exportAsCsv(vault));
         String[] lines = csv.split("\n");
         assertEquals(2, lines.length);
         assertTrue(lines[1].contains("Gmail"));
@@ -51,7 +51,7 @@ class VaultExporterTest {
         vault.getEntries().add(new VaultEntry("My, Site", "user",
                 "pass".toCharArray(), "", "", "Cat", null));
 
-        String csv = exporter.exportAsCsv(vault);
+        String csv = new String(exporter.exportAsCsv(vault));
         assertTrue(csv.contains("\"My, Site\""));
     }
 
@@ -60,7 +60,7 @@ class VaultExporterTest {
         vault.getEntries().add(new VaultEntry("=FORMULA", "user",
                 "pass".toCharArray(), "", "", "Cat", null));
 
-        String csv = exporter.exportAsCsv(vault);
+        String csv = new String(exporter.exportAsCsv(vault));
         // Formula-triggering characters should be prefixed with single quote
         assertTrue(csv.contains("\"'=FORMULA\""));
     }
@@ -70,7 +70,7 @@ class VaultExporterTest {
         vault.getEntries().add(new VaultEntry("NoPass", "user",
                 null, "", "", "Cat", null));
 
-        String csv = exporter.exportAsCsv(vault);
+        String csv = new String(exporter.exportAsCsv(vault));
         // Should not throw, empty password field
         assertNotNull(csv);
         String[] lines = csv.split("\n");
@@ -82,7 +82,7 @@ class VaultExporterTest {
         vault.getEntries().add(new VaultEntry("Test", "user",
                 "pass".toCharArray(), "http://test.com", "", "Cat", null));
 
-        String json = exporter.exportAsJson(vault);
+        String json = new String(exporter.exportAsJson(vault));
         assertNotNull(json);
         assertTrue(json.contains("\"Test\""));
         assertTrue(json.contains("\"user\""));
@@ -90,7 +90,7 @@ class VaultExporterTest {
 
     @Test
     void exportJsonEmptyVault() {
-        String json = exporter.exportAsJson(vault);
+        String json = new String(exporter.exportAsJson(vault));
         assertNotNull(json);
         assertTrue(json.contains("\"entries\""));
     }
@@ -105,7 +105,7 @@ class VaultExporterTest {
                 "pass2".toCharArray(), "http://site2.com", "", "Work",
                 Arrays.asList("important")));
 
-        String csv = exporter.exportAsCsv(vault);
+        String csv = new String(exporter.exportAsCsv(vault));
 
         Vault importVault = new Vault("importuser");
         int count = importer.importFromCsv(importVault, csv);

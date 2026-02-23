@@ -291,14 +291,15 @@ public class MainFrame extends JFrame {
         fc.setSelectedFile(new File("vault_export." + format));
         if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
         try {
-            String content;
+            char[] content;
             if ("csv".equals(format)) {
                 content = vaultManager.exportAsCsv(vault);
             } else {
                 content = vaultManager.exportAsJson(vault);
             }
             java.nio.file.Path exportPath = fc.getSelectedFile().toPath();
-            byte[] exportBytes = content.getBytes(StandardCharsets.UTF_8);
+            byte[] exportBytes = new String(content).getBytes(StandardCharsets.UTF_8);
+            SecureWiper.wipe(content);
             try {
                 Files.write(exportPath, exportBytes);
             } finally {
