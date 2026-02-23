@@ -39,6 +39,7 @@ public class VaultPanel extends JPanel {
     private JLabel detailTitle, detailUser, detailUrl, detailCategory, detailCreated, detailUpdated;
     private JPasswordField detailPassword;
     private JCheckBox showDetailPassword;
+    private JButton copyUserBtn;
     private JButton copyPassBtn;
     private JTextArea detailNotes;
 
@@ -137,66 +138,64 @@ public class VaultPanel extends JPanel {
         // CENTER: Table layout with GridBag
         JPanel tablePanel = new JPanel(new GridBagLayout());
         GridBagConstraints gl = new GridBagConstraints();
-        gl.insets = new Insets(4, 6, 4, 6);
         gl.anchor = GridBagConstraints.NORTHWEST;
-        gl.fill = GridBagConstraints.HORIZONTAL;
+        gl.fill = GridBagConstraints.BOTH;
 
         Font boldFont = new Font("SansSerif", Font.BOLD, 12);
         int row = 0;
+        int lastRow = 6;
 
         // Username
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblUser = new JLabel(lang.getString("entry.username"));
         lblUser.setFont(boldFont);
-        tablePanel.add(lblUser, gl);
+        tablePanel.add(createCell(lblUser, true, true), gl);
         gl.gridx = 1; gl.weightx = 1;
         detailUser = new JLabel(" ");
-        tablePanel.add(detailUser, gl);
+        tablePanel.add(createCell(detailUser, false, true), gl);
 
         // Password
         row++;
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblPass = new JLabel(lang.getString("entry.password"));
         lblPass.setFont(boldFont);
-        tablePanel.add(lblPass, gl);
+        tablePanel.add(createCell(lblPass, true, true), gl);
         gl.gridx = 1; gl.weightx = 1;
         detailPassword = new JPasswordField();
         detailPassword.setEditable(false);
-        tablePanel.add(detailPassword, gl);
+        tablePanel.add(createCell(detailPassword, false, true), gl);
 
         // URL
         row++;
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblUrl = new JLabel(lang.getString("entry.url"));
         lblUrl.setFont(boldFont);
-        tablePanel.add(lblUrl, gl);
+        tablePanel.add(createCell(lblUrl, true, true), gl);
         gl.gridx = 1; gl.weightx = 1;
         detailUrl = new JLabel(" ");
-        tablePanel.add(detailUrl, gl);
+        tablePanel.add(createCell(detailUrl, false, true), gl);
 
         // Category
         row++;
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblCat = new JLabel(lang.getString("entry.category"));
         lblCat.setFont(boldFont);
-        tablePanel.add(lblCat, gl);
+        tablePanel.add(createCell(lblCat, true, true), gl);
         gl.gridx = 1; gl.weightx = 1;
         detailCategory = new JLabel(" ");
-        tablePanel.add(detailCategory, gl);
+        tablePanel.add(createCell(detailCategory, false, true), gl);
 
         // Notes (takes remaining vertical space)
         row++;
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0; gl.weighty = 0;
         JLabel lblNotes = new JLabel(lang.getString("entry.notes"));
         lblNotes.setFont(boldFont);
-        tablePanel.add(lblNotes, gl);
+        tablePanel.add(createCell(lblNotes, true, true), gl);
         gl.gridx = 1; gl.weightx = 1; gl.weighty = 1;
-        gl.fill = GridBagConstraints.BOTH;
         detailNotes = new JTextArea(3, 20);
         detailNotes.setEditable(false);
         detailNotes.setLineWrap(true);
-        tablePanel.add(new JScrollPane(detailNotes), gl);
-        gl.fill = GridBagConstraints.HORIZONTAL;
+        tablePanel.add(createCell(new JScrollPane(detailNotes), false, true), gl);
         gl.weighty = 0;
 
         // Created
@@ -204,32 +203,32 @@ public class VaultPanel extends JPanel {
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblCreated = new JLabel(lang.getString("entry.created"));
         lblCreated.setFont(boldFont);
-        tablePanel.add(lblCreated, gl);
+        tablePanel.add(createCell(lblCreated, true, true), gl);
         gl.gridx = 1; gl.weightx = 1;
         detailCreated = new JLabel(" ");
-        tablePanel.add(detailCreated, gl);
+        tablePanel.add(createCell(detailCreated, false, true), gl);
 
-        // Updated
+        // Updated (last row — no bottom border)
         row++;
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblUpdated = new JLabel(lang.getString("entry.updated"));
         lblUpdated.setFont(boldFont);
-        tablePanel.add(lblUpdated, gl);
+        tablePanel.add(createCell(lblUpdated, true, false), gl);
         gl.gridx = 1; gl.weightx = 1;
         detailUpdated = new JLabel(" ");
-        tablePanel.add(detailUpdated, gl);
+        tablePanel.add(createCell(detailUpdated, false, false), gl);
 
-        tablePanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(1, 0, 1, 0, Color.GRAY),
-            BorderFactory.createEmptyBorder(4, 0, 4, 0)));
+        tablePanel.setBorder(BorderFactory.createMatteBorder(1, 1, 1, 1, Color.GRAY));
         rightPanel.add(new JScrollPane(tablePanel), BorderLayout.CENTER);
 
         // SOUTH: Buttons
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 5));
+        copyUserBtn = new JButton(lang.getString("entry.copy_username"));
+        copyPassBtn = new JButton(lang.getString("entry.copy_password"));
         showDetailPassword = new JCheckBox(lang.getString("entry.show_password"));
-        copyPassBtn = new JButton(lang.getString("entry.copy"));
-        btnPanel.add(showDetailPassword);
+        btnPanel.add(copyUserBtn);
         btnPanel.add(copyPassBtn);
+        btnPanel.add(showDetailPassword);
         rightPanel.add(btnPanel, BorderLayout.SOUTH);
 
         add(rightPanel, BorderLayout.EAST);
@@ -278,6 +277,7 @@ public class VaultPanel extends JPanel {
             }
         });
 
+        copyUserBtn.addActionListener(e -> copyUsernameToClipboard());
         copyPassBtn.addActionListener(e -> copyPasswordToClipboard());
 
         addCatBtn.addActionListener(e -> {
@@ -368,6 +368,31 @@ public class VaultPanel extends JPanel {
         detailNotes.setText("");
         detailCreated.setText(" ");
         detailUpdated.setText(" ");
+    }
+
+    private void copyUsernameToClipboard() {
+        int row = entryTable.getSelectedRow();
+        if (row < 0 || row >= displayedEntries.size()) return;
+        VaultEntry e = displayedEntries.get(row);
+        String username = e.getUsername();
+        if (username == null || username.isEmpty()) return;
+
+        Toolkit.getDefaultToolkit().getSystemClipboard()
+            .setContents(new StringSelection(username), null);
+
+        // Auto-clear clipboard after configured delay
+        if (clipboardTimer != null) {
+            clipboardTimer.cancel();
+        }
+        clipboardTimer = new Timer();
+        clipboardTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                SwingUtilities.invokeLater(() ->
+                    Toolkit.getDefaultToolkit().getSystemClipboard()
+                        .setContents(new StringSelection(""), null));
+            }
+        }, clipboardClearSeconds * 1000L);
     }
 
     private void copyPasswordToClipboard() {
@@ -514,6 +539,18 @@ public class VaultPanel extends JPanel {
         }
 
         @Override public boolean isCellEditable(int row, int col) { return false; }
+    }
+
+    /**
+     * Wraps a component in a cell panel with border separators.
+     */
+    private static JPanel createCell(Component comp, boolean rightBorder, boolean bottomBorder) {
+        JPanel cell = new JPanel(new BorderLayout());
+        cell.add(comp, BorderLayout.CENTER);
+        cell.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, bottomBorder ? 1 : 0, rightBorder ? 1 : 0, Color.GRAY),
+            BorderFactory.createEmptyBorder(4, 6, 4, 6)));
+        return cell;
     }
 
     /**
