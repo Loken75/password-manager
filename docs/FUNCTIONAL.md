@@ -1,6 +1,6 @@
 # Documentation fonctionnelle
 
-## Table des matières
+## Table des matieres
 
 1. [Presentation](#1-presentation)
 2. [Installation et lancement](#2-installation-et-lancement)
@@ -36,15 +36,16 @@ Password Manager est une application de bureau permettant de stocker, organiser 
 - Sauvegarde chiffree
 - Synchronisation SFTP avec gestion des conflits
 - Interface bilingue (francais / anglais)
-- Themes clair et sombre
+- Themes systeme, clair et sombre
 - Verrouillage automatique apres inactivite
 - Effacement automatique du presse-papiers
+- Distribution autonome avec JRE embarque (aucune installation Java requise)
 
 ---
 
 ## 2. Installation et lancement
 
-### Prerequis
+### Prerequis (version standard)
 
 - **Java 17** ou superieur installe sur le systeme
 - **Maven 3.8+** pour la compilation
@@ -68,7 +69,17 @@ Des scripts sont egalement fournis :
 | Linux / macOS | `./scripts/run.sh` |
 | Windows | `scripts\run.bat` |
 
-Ces scripts compilent automatiquement le projet si le fichier JAR n'existe pas encore.
+Ces scripts utilisent automatiquement le JRE embarque s'il est present (`runtime/`), sinon le Java systeme.
+
+### Version autonome (avec JRE embarque)
+
+La distribution autonome inclut un JRE minimal (~57 Mo). L'utilisateur final n'a pas besoin d'installer Java.
+
+```bash
+mvn clean package -Pdist
+```
+
+Cela produit un dossier `dist/PasswordManager/` contenant tout le necessaire. Il suffit de le partager sous forme d'archive (zip/tar.gz) pour distribuer l'application.
 
 ---
 
@@ -88,6 +99,8 @@ Au premier lancement, aucun utilisateur n'existe. Vous devez en creer un :
 4. Confirmez le mot de passe
 5. Validez la creation
 
+Une case a cocher **Afficher le mot de passe** permet de verifier la saisie lors de la creation.
+
 > **Attention** : en cas d'oubli du mot de passe maitre, aucune recuperation n'est possible. Le chiffrement utilise (AES-256-GCM) rend les donnees definitivement inaccessibles sans ce mot de passe.
 
 ---
@@ -100,12 +113,13 @@ L'ecran de connexion propose les actions suivantes :
 |--------|-------------|
 | Selectionner un utilisateur | Liste deroulante des utilisateurs existants |
 | Saisir le mot de passe maitre | Champ masque, valider avec le bouton **Connexion** ou la touche **Entree** |
+| Afficher / masquer le mot de passe | Case a cocher pour verifier la saisie |
 | Creer un nouvel utilisateur | Lien en bas du formulaire |
 | Changer la langue | Selecteur Francais / English en bas de l'ecran (effet immediat) |
 
 ### Protection anti brute-force
 
-Apres **3 tentatives echouees consecutives** pour un meme utilisateur, le formulaire de connexion est temporairement desactive. Le delai augmente progressivement (jusqu'a 30 secondes) avant de pouvoir reessayer. Le compteur est reinitialise apres une connexion reussie.
+Apres **3 tentatives echouees consecutives** pour un meme utilisateur, le formulaire de connexion est temporairement desactive. Le delai augmente progressivement (jusqu'a 30 secondes) avant de pouvoir reessayer. Le compteur est reinitialise apres une connexion reussie. Ce compteur persiste meme apres un verrouillage/deverrouillage de l'application.
 
 ---
 
@@ -117,10 +131,10 @@ Apres connexion, l'interface se compose de quatre zones :
 
 | Menu | Sous-menus |
 |------|-----------|
-| **Fichier** | Importer CSV, Importer JSON, Exporter CSV, Exporter JSON, Exporter sauvegarde chiffree, Parametres, Verrouiller, Quitter |
-| **Edition** | Nouvelle entree, Modifier l'entree, Supprimer l'entree, Changer mot de passe maitre |
-| **Affichage** | Actualiser, Trier par nom, Trier par date, Trier par categorie, Mots de passe faibles, Mots de passe reutilises |
-| **Outils** | Generateur de mots de passe, Analyse de securite, Synchroniser maintenant |
+| **Fichier** | Importer CSV, Importer JSON, --- , Exporter CSV, Exporter JSON, Exporter sauvegarde chiffree, --- , Parametres, --- , Verrouiller, Quitter |
+| **Edition** | Nouvelle entree, Modifier l'entree, Supprimer l'entree, --- , Changer mot de passe maitre |
+| **Affichage** | Actualiser, --- , Trier par nom, Trier par date, Trier par categorie, --- , Mots de passe faibles, Mots de passe reutilises |
+| **Outils** | Generateur de mots de passe, Analyse de securite, --- , Synchroniser maintenant |
 | **Aide** | A propos |
 
 ### 5.2. Barre d'outils
@@ -138,14 +152,14 @@ Acces rapide aux fonctions courantes :
 
 | Colonne | Contenu |
 |---------|---------|
-| **Gauche** | Liste des categories avec bouton d'ajout |
+| **Gauche** (180 px) | Liste des categories avec bouton d'ajout |
 | **Centre** | Barre de recherche + tableau des entrees (Titre, Identifiant, Categorie, Force) |
-| **Droite** | Details de l'entree selectionnee |
+| **Droite** (300 px) | Details de l'entree selectionnee |
 
 ### 5.4. Barre de statut
 
 Affiche en bas de la fenetre :
-- Le statut de synchronisation (Mode local, Synchronise, Erreur)
+- Le statut de synchronisation (Mode local, Synchronise, Erreur, etc.)
 - Le nom de l'utilisateur connecte
 - Le nombre total d'entrees
 
@@ -166,10 +180,12 @@ Le formulaire contient les champs suivants :
 | Mot de passe | Oui | Mot de passe du compte |
 | URL du site | Non | Adresse web du service |
 | Notes | Non | Informations complementaires |
-| Categorie | Non | Categorie de classement |
+| Categorie | Non | Categorie de classement (liste deroulante) |
 | Tags | Non | Etiquettes separees par des virgules |
 
 Le formulaire affiche en temps reel un **indicateur de force** du mot de passe (barre coloree + texte).
+
+Une case a cocher **Afficher** permet de reveler le mot de passe saisi.
 
 Un bouton **Generer** permet d'ouvrir le generateur integre et d'inserer directement le mot de passe genere dans le champ.
 
@@ -190,11 +206,12 @@ Une boite de confirmation est affichee avant la suppression. L'action est irreve
 
 Cliquer sur une entree dans le tableau affiche ses details dans le panneau droit :
 
-- Titre, identifiant, URL, categorie, notes, tags
-- **Mot de passe masque** par defaut (case a cocher **Afficher** pour le reveler)
+- Titre (en gras, centre)
+- Grille de details : identifiant, mot de passe, URL, categorie, notes, dates de creation et modification
+- **Mot de passe masque** par defaut (case a cocher **Afficher le mot de passe** pour le reveler)
 - Le mot de passe se re-masque automatiquement apres **30 secondes**
-- Bouton **Copier** pour copier le mot de passe dans le presse-papiers
-- Dates de creation et de derniere modification
+- Bouton **Copier l'identifiant** pour copier le nom d'utilisateur dans le presse-papiers
+- Bouton **Copier le mot de passe** pour copier le mot de passe dans le presse-papiers
 
 ---
 
@@ -243,6 +260,8 @@ Recharge l'affichage du coffre depuis les donnees en memoire.
 | Travail |
 | Autre |
 
+Les noms des categories par defaut sont localises selon la langue de l'interface.
+
 ### Actions
 
 | Action | Comment |
@@ -267,8 +286,8 @@ Les categories personnalisees sont sauvegardees dans le coffre et persistent ent
 | Majuscules (A-Z) | Inclure des lettres majuscules | Active |
 | Minuscules (a-z) | Inclure des lettres minuscules | Active |
 | Chiffres (0-9) | Inclure des chiffres | Active |
-| Caracteres speciaux | Inclure `!@#$%^&*()-_=+[]{}` etc. | Active |
-| Exclure caracteres ambigus | Retirer 0/O, 1/l/I | Desactive |
+| Caracteres speciaux | Inclure `!@#$%^&*()-_=+[]{}|;:',.<>?/` | Active |
+| Exclure caracteres ambigus | Retirer 0/O/o, 1/l/I | Desactive |
 
 Le generateur garantit qu'au moins un caractere de chaque type active est present dans le mot de passe.
 
@@ -334,7 +353,7 @@ Selectionnez un fichier CSV (taille max : 10 Mo). L'import detecte automatiqueme
 | Champ | Alias acceptes |
 |-------|---------------|
 | Titre | `title`, `organisme`, `name`, `nom`, `titre` |
-| Identifiant | `username`, `identifiant`, `email`, `adresse mail`, `login` |
+| Identifiant | `username`, `identifiant`, `email`, `adresse mail`, `adresse mail / identifiant`, `login` |
 | Mot de passe | `password`, `mdp`, `mot de passe`, `pass` |
 | URL | `url`, `site`, `website`, `lien` |
 | Notes | `notes`, `description`, `commentaire` |
@@ -352,6 +371,8 @@ Si aucun en-tete n'est reconnu, les colonnes sont interpretees dans l'ordre : ti
 - Maximum **10 000 entrees** par import
 - Maximum **10 000 caracteres** par champ
 - Les caracteres de controle (sauf tabulation et retour a la ligne) sont automatiquement supprimes
+- Categorie par defaut si vide : "Autre"
+- Tags separes par des points-virgules dans le CSV
 
 #### Exemples de formats supportes
 
@@ -371,7 +392,7 @@ Gmail;https://gmail.com;user@example.com;MyP@ssw0rd;Compte principal
 
 **Acces** : Fichier > Importer JSON
 
-Importe un fichier JSON au format d'export de l'application. Chaque entree recoit un nouvel identifiant unique.
+Importe un fichier JSON au format d'export de l'application. Chaque entree recoit un nouvel identifiant unique. Les champs sont assainis et tronques a 10 000 caracteres.
 
 ### 11.3. Export CSV
 
@@ -381,13 +402,15 @@ Exporte toutes les entrees avec les colonnes : `title`, `username`, `password`, 
 
 > **Avertissement** : les donnees exportees ne sont **pas chiffrees**. Un message d'avertissement est affiche avant l'export.
 
-> **Protection anti-injection** : les champs commencant par `=`, `+`, `-` ou `@` sont automatiquement prefixes par `'` pour empecher l'execution de formules dans les tableurs (Excel, Calc).
+> **Protection anti-injection** : les champs commencant par `=`, `+`, `-`, `@`, tabulation ou retour chariot sont automatiquement prefixes par `'` pour empecher l'execution de formules dans les tableurs (Excel, Calc).
+
+Le fichier exporte recoit automatiquement des permissions restrictives (proprietaire uniquement).
 
 ### 11.4. Export JSON
 
 **Acces** : Fichier > Exporter JSON
 
-Exporte le coffre complet au format JSON. Les donnees ne sont pas chiffrees.
+Exporte le coffre complet au format JSON. Les donnees ne sont pas chiffrees. Le fichier exporte recoit des permissions restrictives.
 
 ### 11.5. Export sauvegarde chiffree
 
@@ -413,15 +436,17 @@ Cree une copie du fichier coffre chiffre (`.enc`). Ce fichier ne peut etre ouver
 | Parametre | Description | Defaut |
 |-----------|-------------|--------|
 | Mode de stockage | Local uniquement / Serveur distant | Local |
-| Hote | Adresse du serveur SFTP | — |
+| Hote | Adresse du serveur SFTP | -- |
 | Port | Port SSH | 22 |
-| Utilisateur SSH | Nom d'utilisateur sur le serveur | — |
-| Cle privee SSH | Chemin vers la cle privee (authentification par cle uniquement) | — |
+| Utilisateur SSH | Nom d'utilisateur sur le serveur | -- |
+| Cle privee SSH | Chemin vers la cle privee (authentification par cle uniquement) | -- |
 | Repertoire distant | Dossier de stockage sur le serveur | `/vault/data` |
 
 Le bouton **Tester la connexion** permet de verifier la configuration.
 
 > **Note** : seule l'authentification par cle SSH est supportee. L'authentification par mot de passe n'est pas disponible.
+
+> En mode distant, la validation requiert que le fichier de cle SSH existe et soit lisible.
 
 ### 12.3. Synchronisation manuelle
 
@@ -434,7 +459,7 @@ La synchronisation compare le coffre local et le coffre distant via leurs emprei
 
 ### 12.4. Mode hors-ligne
 
-Si le serveur est injoignable, les modifications sont mises en attente localement. Elles sont automatiquement synchronisees lors de la prochaine connexion reussie.
+Si le serveur est injoignable, les modifications sont mises en attente localement (fichier `.pending`). Elles sont automatiquement synchronisees lors de la prochaine connexion reussie.
 
 ### 12.5. Gestion des conflits
 
@@ -444,7 +469,7 @@ Lorsque le coffre a ete modifie a la fois localement et sur le serveur, un dialo
 |--------|-------------|
 | **Garder mes modifications locales** | Le coffre local ecrase la version distante |
 | **Utiliser la version du serveur** | Le coffre distant remplace la version locale |
-| **Sauvegarder les deux versions** | Une copie de sauvegarde locale est creee, puis la version distante est appliquee |
+| **Sauvegarder les deux versions** | Une copie de sauvegarde locale horodatee est creee, puis la version distante est appliquee |
 
 ---
 
@@ -457,9 +482,12 @@ Lorsque le coffre a ete modifie a la fois localement et sur le serveur, un dialo
 | Parametre | Description | Valeurs |
 |-----------|-------------|---------|
 | Langue | Langue de l'interface | Francais / English |
-| Theme | Apparence visuelle | Clair / Sombre |
+| Theme | Apparence visuelle | Systeme / Clair / Sombre |
+| Repertoire des coffres | Emplacement de stockage des fichiers de coffre | Chemin avec bouton parcourir |
 
-Le changement de langue prend pleinement effet apres un redemarrage. Le changement de theme prend effet apres un redemarrage.
+Le theme **Systeme** detecte automatiquement le theme clair ou sombre de l'OS.
+
+Le changement de theme prend effet immediatement. Le changement de langue reconstruit l'interface. Le changement de repertoire des coffres necessite une deconnexion/reconnexion.
 
 ### 13.2. Onglet Securite
 
@@ -501,9 +529,10 @@ Le changement de mot de passe ne re-chiffre **pas** l'ensemble des donnees. Seul
 
 ### 15.2. Protection du mot de passe maitre
 
-- Politique stricte : minimum 12 caracteres, 4 types requis, rejet des mots de passe courants
+- Politique stricte : minimum 12 caracteres, 4 types requis, rejet des mots de passe courants (44 mots de passe connus)
 - Le mot de passe n'est **jamais conserve en memoire** apres l'authentification
 - Manipulation en `char[]` (pas en `String`) pour permettre l'effacement explicite
+- Comparaison a temps constant contre la liste de mots de passe courants
 
 ### 15.3. Verrouillage automatique
 
@@ -513,7 +542,7 @@ L'inactivite est detectee par l'absence d'evenements clavier et souris.
 
 ### 15.4. Presse-papiers
 
-Lorsqu'un mot de passe est copie :
+Lorsqu'un mot de passe ou un identifiant est copie :
 - Le presse-papiers est automatiquement efface apres le delai configure (defaut : 30 secondes)
 - Le presse-papiers est egalement efface au verrouillage et a la fermeture de l'application
 
@@ -521,14 +550,15 @@ Lorsqu'un mot de passe est copie :
 
 - Les mots de passe sont masques par defaut dans tous les affichages
 - Le devoilement est temporaire : **retour automatique au masquage apres 30 secondes**
-- Les champs de mot de passe dans le generateur utilisent egalement un champ masque
+- L'ecran de connexion et le formulaire de creation d'utilisateur disposent d'une case a cocher pour afficher/masquer le mot de passe
 
 ### 15.6. Securite des fichiers
 
 - Tous les fichiers sensibles (coffres, configuration, cle) ont des permissions restreintes au proprietaire uniquement
   - Linux/macOS : `rw-------` (600) pour les fichiers, `rwx------` (700) pour les repertoires
-  - Windows : ACL limitee au proprietaire
-- Ecriture atomique (fichier temporaire + renommage) pour prevenir la corruption
+  - Windows : ACL limitee au proprietaire (avec preservation de SYSTEM)
+- Ecriture atomique (fichier temporaire + permissions + renommage) pour prevenir la corruption
+- Les fichiers exportes en clair recoivent egalement des permissions restrictives
 
 ### 15.7. Aucune recuperation
 
@@ -554,27 +584,28 @@ Les donnees de l'application sont stockees dans le repertoire `~/.password-manag
 
 ```
 ~/.password-manager/
-├── config.properties              # Configuration de l'application
-├── .config_key                    # Cle de chiffrement de la configuration
-└── vaults/
-    ├── vault_alice.enc            # Coffre chiffre de l'utilisateur "alice"
-    ├── vault_alice.enc.bak        # Sauvegarde automatique
-    └── vault_bob.enc              # Coffre chiffre de l'utilisateur "bob"
++-- data/
+    +-- config.properties              # Configuration de l'application
+    +-- .config_key                    # Cle de chiffrement de la configuration
+    +-- vaults/
+        +-- vault_alice.enc            # Coffre chiffre de l'utilisateur "alice"
+        +-- vault_alice.enc.bak        # Sauvegarde automatique
+        +-- vault_bob.enc              # Coffre chiffre de l'utilisateur "bob"
 ```
 
 ### Fichier de configuration
 
-`config.properties` stocke les preferences (langue, theme, parametres de securite) et la configuration SFTP. Les identifiants SFTP sont chiffres.
+`data/config.properties` stocke les preferences (langue, theme, parametres de securite) et la configuration SFTP. Les identifiants SFTP sont chiffres au repos.
 
 ### Fichiers coffre
 
-Chaque utilisateur dispose d'un fichier `.enc` distinct, chiffre independamment avec son propre mot de passe maitre. Des sauvegardes automatiques (`.bak`) sont creees a chaque modification.
+Chaque utilisateur dispose d'un fichier `.enc` distinct, chiffre independamment avec son propre mot de passe maitre. Des sauvegardes automatiques (`.bak`) sont creees a chaque modification (3 fichiers max conserves).
 
 ### Portabilite
 
 Pour migrer vers un autre poste :
 1. Exportez une **sauvegarde chiffree** (Fichier > Exporter sauvegarde chiffree)
-2. Copiez le fichier `.enc` sur le nouveau poste dans `~/.password-manager/vaults/`
+2. Copiez le fichier `.enc` sur le nouveau poste dans `~/.password-manager/data/vaults/`
 3. Connectez-vous avec votre mot de passe maitre habituel
 
 Alternativement, utilisez la **synchronisation SFTP** pour maintenir le coffre synchronise entre plusieurs machines.
