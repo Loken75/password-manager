@@ -10,6 +10,8 @@ import com.passwordmanager.vault.VaultManager;
 import javax.swing.*;
 import java.awt.*;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Login screen: user selection, master password, user creation, language switch.
@@ -26,8 +28,9 @@ public class LoginFrame extends JFrame {
     private JButton createUserButton;
     private JComboBox<String> languageCombo;
     private JLabel statusLabel;
-    // Static intentionally: persists across LoginFrame instances (lock/unlock cycles)
-    private static int failedAttempts = 0;
+    // Static intentionally: persists across LoginFrame instances (lock/unlock cycles).
+    // Per-username tracking prevents one user's failures from affecting another.
+    private static final Map<String, Integer> failedAttemptsMap = new HashMap<>();
 
     public LoginFrame() {
         appConfig = configManager.loadConfig();
@@ -156,21 +159,22 @@ public class LoginFrame extends JFrame {
         }
         try {
             VaultLoadResult result = vaultManager.loadVault(username, password);
-            failedAttempts = 0;
+            failedAttemptsMap.remove(username);
             statusLabel.setText("");
             dispose();
             new MainFrame(result.getVault(), username, result.getSession(),
                 vaultManager, appConfig, configManager).setVisible(true);
         } catch (Exception ex) {
-            failedAttempts++;
+            int attempts = failedAttemptsMap.getOrDefault(username, 0) + 1;
+            failedAttemptsMap.put(username, attempts);
             statusLabel.setText(lang.getString("error.invalid_password"));
             passwordField.setText("");
             // Rate-limit after 3 consecutive failures
-            if (failedAttempts >= 3) {
+            if (attempts >= 3) {
                 loginButton.setEnabled(false);
                 passwordField.setEnabled(false);
                 statusLabel.setText(lang.getString("error.too_many_attempts"));
-                int delay = Math.min(failedAttempts * 2000, 30000);
+                int delay = Math.min(attempts * 2000, 30000);
                 Timer unlockTimer = new Timer(delay, evt -> {
                     loginButton.setEnabled(true);
                     passwordField.setEnabled(true);

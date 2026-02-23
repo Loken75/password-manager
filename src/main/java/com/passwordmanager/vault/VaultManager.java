@@ -40,7 +40,10 @@ public class VaultManager {
         this.importer = new VaultImporter(gson);
         this.exporter = new VaultExporter(gson);
         File dir = new File(vaultDirectory);
-        if (!dir.exists()) dir.mkdirs();
+        if (!dir.exists()) {
+            dir.mkdirs();
+            FileSecurityUtils.setOwnerOnlyPermissions(dir.toPath());
+        }
     }
 
     public String getVaultDirectory() { return vaultDirectory; }
@@ -48,7 +51,21 @@ public class VaultManager {
     public VaultExporter getExporter() { return exporter; }
 
     public String getVaultPath(String username) {
+        validateUsername(username);
         return vaultDirectory + File.separator + "vault_" + username + ".enc";
+    }
+
+    /**
+     * Validates the username to prevent path traversal at the VaultManager level.
+     * Only alphanumeric characters and underscores are allowed.
+     */
+    private static void validateUsername(String username) {
+        if (username == null || username.isEmpty()) {
+            throw new IllegalArgumentException("Username must not be empty");
+        }
+        if (!username.matches("[a-zA-Z0-9_]+")) {
+            throw new IllegalArgumentException("Username contains invalid characters");
+        }
     }
 
     public boolean vaultExists(String username) {

@@ -86,32 +86,34 @@ public class SyncService {
 
                 long remoteTime = sftpRepo.getRemoteLastModified(vaultFilename);
                 String localHash = hashFile(localPath);
-                // Use content hash to complement timestamp comparison:
-                // if content is identical, no conflict regardless of timestamps
-                if (localTime >= remoteTime) {
-                    sftpRepo.uploadFile(localPath, vaultFilename);
-                    lastSyncTime = System.currentTimeMillis();
-                    syncStatus = "synced";
-                    return new SyncResult(true, "uploaded");
-                } else {
-                    // Download remote to temp, compare hashes
-                    String tempPath = localPath + ".sync_tmp";
-                    try {
-                        sftpRepo.downloadFile(vaultFilename, tempPath);
-                        String remoteHash = hashFile(tempPath);
-                        if (localHash.equals(remoteHash)) {
-                            // Same content despite different timestamps
-                            Files.deleteIfExists(Paths.get(tempPath));
-                            lastSyncTime = System.currentTimeMillis();
-                            syncStatus = "synced";
-                            return new SyncResult(true, "synced");
-                        }
-                        Files.deleteIfExists(Paths.get(tempPath));
-                    } catch (Exception ignored) {
-                        try { Files.deleteIfExists(Paths.get(tempPath)); } catch (IOException e2) { /* best effort */ }
+
+                // Always download remote to temp first, then compare hashes.
+                // This avoids TOCTOU: the hash is computed on the actual downloaded content.
+                String tempPath = localPath + ".sync_tmp";
+                try {
+                    sftpRepo.downloadFile(vaultFilename, tempPath);
+                    String remoteHash = hashFile(tempPath);
+
+                    if (localHash.equals(remoteHash)) {
+                        // Same content — no conflict regardless of timestamps
+                        lastSyncTime = System.currentTimeMillis();
+                        syncStatus = "synced";
+                        return new SyncResult(true, "synced");
                     }
-                    syncStatus = "conflict";
-                    return new SyncResult(false, "CONFLICT");
+
+                    if (localTime >= remoteTime) {
+                        // Local is newer — upload
+                        sftpRepo.uploadFile(localPath, vaultFilename);
+                        lastSyncTime = System.currentTimeMillis();
+                        syncStatus = "synced";
+                        return new SyncResult(true, "uploaded");
+                    } else {
+                        // Remote is newer and content differs — conflict
+                        syncStatus = "conflict";
+                        return new SyncResult(false, "CONFLICT");
+                    }
+                } finally {
+                    try { Files.deleteIfExists(Paths.get(tempPath)); } catch (IOException ignored) {}
                 }
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Sync failed", e);

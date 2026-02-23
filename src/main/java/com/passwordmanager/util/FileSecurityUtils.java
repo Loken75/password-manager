@@ -25,14 +25,23 @@ public final class FileSecurityUtils {
     private FileSecurityUtils() {}
 
     /**
-     * Sets owner-only read/write permissions on a file.
+     * Sets owner-only permissions on a file or directory.
+     * Files get rw------- (600), directories get rwx------ (700).
      * Uses POSIX permissions on Linux/macOS, ACLs on Windows.
      */
     public static void setOwnerOnlyPermissions(Path path) {
         try {
             if (path.getFileSystem().supportedFileAttributeViews().contains("posix")) {
-                Files.setPosixFilePermissions(path, EnumSet.of(
-                    PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
+                if (Files.isDirectory(path)) {
+                    Files.setPosixFilePermissions(path, EnumSet.of(
+                        PosixFilePermission.OWNER_READ,
+                        PosixFilePermission.OWNER_WRITE,
+                        PosixFilePermission.OWNER_EXECUTE));
+                } else {
+                    Files.setPosixFilePermissions(path, EnumSet.of(
+                        PosixFilePermission.OWNER_READ,
+                        PosixFilePermission.OWNER_WRITE));
+                }
             } else if (path.getFileSystem().supportedFileAttributeViews().contains("acl")) {
                 setWindowsOwnerOnly(path);
             }

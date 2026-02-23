@@ -7,18 +7,21 @@ import com.passwordmanager.util.SecureWiper;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * Dialog for generating secure passwords.
  */
 public class PasswordGeneratorDialog extends JDialog {
     private final LanguageManager lang = LanguageManager.getInstance();
-    private JTextField resultField;
+    private JPasswordField resultField;
     private JSpinner lengthSpinner;
     private JCheckBox upperCheck, lowerCheck, digitsCheck, specialCheck, ambiguousCheck;
     private JProgressBar strengthBar;
     private JLabel strengthLabel;
     private char[] generatedPassword;
+    private int clipboardClearSeconds = 30;
 
     public PasswordGeneratorDialog(Dialog owner) {
         super(owner, LanguageManager.getInstance().getString("generator.title"), true);
@@ -39,7 +42,8 @@ public class PasswordGeneratorDialog extends JDialog {
         // Result field
         JPanel resultPanel = new JPanel(new BorderLayout(5, 0));
         resultPanel.setBorder(BorderFactory.createTitledBorder(lang.getString("generator.title")));
-        resultField = new JTextField(25);
+        resultField = new JPasswordField(25);
+        resultField.setEchoChar((char) 0); // Show password in clear by default
         resultField.setEditable(false);
         resultField.setFont(new Font("Monospaced", Font.BOLD, 14));
         resultPanel.add(resultField, BorderLayout.CENTER);
@@ -100,9 +104,20 @@ public class PasswordGeneratorDialog extends JDialog {
         // Actions
         refreshBtn.addActionListener(e -> doGenerate());
         copyBtn.addActionListener(e -> {
-            if (resultField.getText().length() > 0) {
+            char[] pwd = resultField.getPassword();
+            if (pwd != null && pwd.length > 0) {
                 Toolkit.getDefaultToolkit().getSystemClipboard()
-                    .setContents(new StringSelection(resultField.getText()), null);
+                    .setContents(new StringSelection(new String(pwd)), null);
+                SecureWiper.wipe(pwd);
+                // Auto-clear clipboard after delay
+                new Timer().schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        SwingUtilities.invokeLater(() ->
+                            Toolkit.getDefaultToolkit().getSystemClipboard()
+                                .setContents(new StringSelection(""), null));
+                    }
+                }, clipboardClearSeconds * 1000L);
             }
         });
         cancelBtn.addActionListener(e -> {
@@ -129,7 +144,12 @@ public class PasswordGeneratorDialog extends JDialog {
             upperCheck.isSelected(), lowerCheck.isSelected(),
             digitsCheck.isSelected(), specialCheck.isSelected(),
             ambiguousCheck.isSelected());
-        resultField.setText(new String(generatedPassword));
+        // Set via Document model to minimize String interning
+        javax.swing.text.Document doc = resultField.getDocument();
+        try {
+            doc.remove(0, doc.getLength());
+            doc.insertString(0, new String(generatedPassword), null);
+        } catch (javax.swing.text.BadLocationException ignored) {}
         StrengthBarHelper.update(strengthBar, strengthLabel, generatedPassword);
     }
 

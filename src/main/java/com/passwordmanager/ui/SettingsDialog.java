@@ -9,6 +9,7 @@ import com.passwordmanager.sync.SFTPRepository;
 
 import javax.swing.*;
 import java.awt.*;
+import java.io.File;
 
 /**
  * Settings dialog with tabs: General, Security, Synchronization.
@@ -201,6 +202,26 @@ public class SettingsDialog extends JDialog {
     }
 
     private void doSave() {
+        // Validate SSH key file exists when remote mode is selected
+        if (remoteRadio.isSelected()) {
+            String keyPath = keyPathField.getText().trim();
+            if (!keyPath.isEmpty()) {
+                File keyFile = new File(keyPath);
+                if (!keyFile.exists() || !keyFile.isFile()) {
+                    JOptionPane.showMessageDialog(this,
+                        lang.getString("settings.ssh_key") + ": " + lang.getString("error.file_not_found"),
+                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                if (!keyFile.canRead()) {
+                    JOptionPane.showMessageDialog(this,
+                        lang.getString("settings.ssh_key") + ": " + lang.getString("error.file_not_readable"),
+                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            }
+        }
+
         config.setLanguage(langCombo.getSelectedIndex() == 0 ? "fr" : "en");
         config.setTheme(themeCombo.getSelectedIndex() == 0 ? ThemeMode.LIGHT : ThemeMode.DARK);
         config.setAutoLockMinutes((Integer) autoLockSpinner.getValue());

@@ -8,8 +8,9 @@ import javax.security.auth.Destroyable;
 /**
  * Holds the DEK (data encryption key) and envelope metadata for an unlocked vault.
  * Must be destroyed when the vault is locked or the application exits.
+ * Implements AutoCloseable to support try-with-resources patterns.
  */
-public class VaultSession implements Destroyable {
+public class VaultSession implements Destroyable, AutoCloseable {
     private SecretKey dataKey;
     private byte[] salt;
     private byte[] kekIv;
@@ -61,5 +62,13 @@ public class VaultSession implements Destroyable {
     @Override
     public boolean isDestroyed() {
         return destroyed;
+    }
+
+    /**
+     * AutoCloseable implementation delegates to destroy().
+     */
+    @Override
+    public void close() {
+        destroy();
     }
 }

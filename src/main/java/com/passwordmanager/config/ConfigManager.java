@@ -33,7 +33,10 @@ public class ConfigManager {
         File file = new File(configPath);
 
         if (!file.exists()) {
-            file.getParentFile().mkdirs();
+            File parentDir = file.getParentFile();
+            if (parentDir.mkdirs()) {
+                FileSecurityUtils.setOwnerOnlyPermissions(parentDir.toPath());
+            }
             saveConfig(config);
             return config;
         }
@@ -79,7 +82,10 @@ public class ConfigManager {
         props.setProperty("security.clipboard_clear_seconds", String.valueOf(config.getClipboardClearSeconds()));
 
         File file = new File(configPath);
-        file.getParentFile().mkdirs();
+        File parentDir = file.getParentFile();
+        if (parentDir.mkdirs()) {
+            FileSecurityUtils.setOwnerOnlyPermissions(parentDir.toPath());
+        }
         // Atomic write: write to temp, set permissions, then rename
         File tempFile = new File(configPath + ".tmp");
         try (FileOutputStream fos = new FileOutputStream(tempFile)) {

@@ -8,6 +8,8 @@ import com.passwordmanager.util.SecureWiper;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Document;
 import java.awt.*;
 import java.util.Arrays;
 import java.util.List;
@@ -156,7 +158,7 @@ public class EntryDialog extends JDialog {
             gen.setVisible(true);
             char[] gp = gen.getGeneratedPassword();
             if (gp != null) {
-                passwordField.setText(new String(gp));
+                setPasswordFieldValue(passwordField, gp);
                 SecureWiper.wipe(gp);
             }
         });
@@ -199,7 +201,7 @@ public class EntryDialog extends JDialog {
         usernameField.setText(e.getUsername());
         char[] pwd = e.getPassword();
         if (pwd != null) {
-            passwordField.setText(new String(pwd));
+            setPasswordFieldValue(passwordField, pwd);
             SecureWiper.wipe(pwd);
         } else {
             passwordField.setText("");
@@ -254,5 +256,19 @@ public class EntryDialog extends JDialog {
             entry.setTags(tags);
         }
         return entry;
+    }
+
+    /**
+     * Sets a JPasswordField value from char[] without creating an intermediate String.
+     * Uses the Document model directly to avoid String interning.
+     */
+    private static void setPasswordFieldValue(JPasswordField field, char[] value) {
+        Document doc = field.getDocument();
+        try {
+            doc.remove(0, doc.getLength());
+            doc.insertString(0, new String(value), null);
+        } catch (BadLocationException ignored) {
+            // Should not happen with valid offsets
+        }
     }
 }

@@ -12,6 +12,8 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Document;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
@@ -43,6 +45,8 @@ public class VaultPanel extends JPanel {
     private String currentCategory = null;
     private SortField currentSort = SortField.TITLE;
     private Timer clipboardTimer;
+    private Timer passwordVisibilityTimer;
+    private static final int PASSWORD_VISIBILITY_TIMEOUT_MS = 30_000;
 
     // Callbacks
     private Runnable onVaultChanged;
@@ -198,8 +202,29 @@ public class VaultPanel extends JPanel {
         });
 
         final char echoChar = detailPassword.getEchoChar();
-        showDetailPassword.addActionListener(e ->
-            detailPassword.setEchoChar(showDetailPassword.isSelected() ? (char) 0 : echoChar));
+        showDetailPassword.addActionListener(e -> {
+            if (showDetailPassword.isSelected()) {
+                detailPassword.setEchoChar((char) 0);
+                // Auto-hide password after timeout
+                if (passwordVisibilityTimer != null) passwordVisibilityTimer.cancel();
+                passwordVisibilityTimer = new Timer();
+                passwordVisibilityTimer.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        SwingUtilities.invokeLater(() -> {
+                            detailPassword.setEchoChar(echoChar);
+                            showDetailPassword.setSelected(false);
+                        });
+                    }
+                }, PASSWORD_VISIBILITY_TIMEOUT_MS);
+            } else {
+                detailPassword.setEchoChar(echoChar);
+                if (passwordVisibilityTimer != null) {
+                    passwordVisibilityTimer.cancel();
+                    passwordVisibilityTimer = null;
+                }
+            }
+        });
 
         copyPassBtn.addActionListener(e -> copyPasswordToClipboard());
 
@@ -273,7 +298,7 @@ public class VaultPanel extends JPanel {
         detailTitle.setText(e.getTitle());
         detailUser.setText(e.getUsername() != null ? e.getUsername() : "");
         char[] pwd = e.getPassword();
-        detailPassword.setText(pwd != null ? new String(pwd) : "");
+        setPasswordFieldValue(detailPassword, pwd);
         SecureWiper.wipe(pwd);
         detailUrl.setText(e.getUrl() != null ? e.getUrl() : "");
         detailCategory.setText(e.getCategory() != null ? e.getCategory() : "");
@@ -321,12 +346,16 @@ public class VaultPanel extends JPanel {
     }
 
     /**
-     * Cancels the clipboard clear timer if running.
+     * Cancels the clipboard clear timer and password visibility timer if running.
      */
     public void cancelClipboardTimer() {
         if (clipboardTimer != null) {
             clipboardTimer.cancel();
             clipboardTimer = null;
+        }
+        if (passwordVisibilityTimer != null) {
+            passwordVisibilityTimer.cancel();
+            passwordVisibilityTimer = null;
         }
     }
 
@@ -429,5 +458,21 @@ public class VaultPanel extends JPanel {
         }
 
         @Override public boolean isCellEditable(int row, int col) { return false; }
+    }
+
+    /**
+     * Sets a JPasswordField value from char[] without creating an intermediate String.
+     * Uses the Document model directly to minimize String interning.
+     */
+    private static void setPasswordFieldValue(JPasswordField field, char[] value) {
+        Document doc = field.getDocument();
+        try {
+            doc.remove(0, doc.getLength());
+            if (value != null) {
+                doc.insertString(0, new String(value), null);
+            }
+        } catch (BadLocationException ignored) {
+            // Should not happen with valid offsets
+        }
     }
 }
