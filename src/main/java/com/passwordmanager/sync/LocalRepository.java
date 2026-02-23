@@ -6,6 +6,8 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Date;
 
 /**
@@ -23,7 +25,23 @@ public class LocalRepository {
     }
 
     public String getFilePath(String filename) {
+        validateFilename(filename);
         return baseDirectory + File.separator + filename;
+    }
+
+    /**
+     * Validates that a filename does not contain path traversal sequences
+     * or absolute path components.
+     */
+    private void validateFilename(String filename) {
+        if (filename == null || filename.isEmpty()) {
+            throw new IllegalArgumentException("Filename must not be empty");
+        }
+        if (filename.contains("..") || filename.contains(File.separator)
+                || filename.contains("/") || filename.contains("\\")
+                || filename.startsWith("~")) {
+            throw new IllegalArgumentException("Invalid filename: path traversal detected");
+        }
     }
 
     public boolean fileExists(String filename) {
@@ -72,6 +90,23 @@ public class LocalRepository {
             Path backupPath = Paths.get(getFilePath(backupName));
             Files.copy(Paths.get(getFilePath(filename)), backupPath);
             FileSecurityUtils.setOwnerOnlyPermissions(backupPath);
+            cleanupOldBackups(filename, 5);
+        }
+    }
+
+    /**
+     * Retains only the most recent N backup files for the given vault filename,
+     * deleting older ones.
+     */
+    private void cleanupOldBackups(String filename, int maxBackups) {
+        String prefix = filename.replace(".enc", "_backup_");
+        File dir = new File(baseDirectory);
+        File[] backups = dir.listFiles((d, name) -> name.startsWith(prefix) && name.endsWith(".enc"));
+        if (backups == null || backups.length <= maxBackups) return;
+
+        Arrays.sort(backups, Comparator.comparingLong(File::lastModified).reversed());
+        for (int i = maxBackups; i < backups.length; i++) {
+            backups[i].delete();
         }
     }
 }

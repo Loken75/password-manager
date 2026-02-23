@@ -3,6 +3,8 @@ package com.passwordmanager.ui;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.vault.VaultEntry;
 
+import com.passwordmanager.util.SecureWiper;
+
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -155,6 +157,7 @@ public class EntryDialog extends JDialog {
             char[] gp = gen.getGeneratedPassword();
             if (gp != null) {
                 passwordField.setText(new String(gp));
+                SecureWiper.wipe(gp);
             }
         });
 
@@ -173,7 +176,10 @@ public class EntryDialog extends JDialog {
                     lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            if (passwordField.getPassword().length == 0) {
+            char[] checkPwd = passwordField.getPassword();
+            boolean emptyPwd = checkPwd.length == 0;
+            SecureWiper.wipe(checkPwd);
+            if (emptyPwd) {
                 JOptionPane.showMessageDialog(EntryDialog.this,
                     lang.getString("entry.password") + " required",
                     lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
@@ -191,7 +197,13 @@ public class EntryDialog extends JDialog {
     private void populateFields(VaultEntry e) {
         titleField.setText(e.getTitle());
         usernameField.setText(e.getUsername());
-        passwordField.setText(e.getPassword() != null ? new String(e.getPassword()) : "");
+        char[] pwd = e.getPassword();
+        if (pwd != null) {
+            passwordField.setText(new String(pwd));
+            SecureWiper.wipe(pwd);
+        } else {
+            passwordField.setText("");
+        }
         urlField.setText(e.getUrl());
         notesArea.setText(e.getNotes());
         if (e.getCategory() != null) categoryCombo.setSelectedItem(e.getCategory());
@@ -207,7 +219,9 @@ public class EntryDialog extends JDialog {
     }
 
     private void updateStrength() {
-        StrengthBarHelper.update(strengthBar, strengthLabel, passwordField.getPassword());
+        char[] pwd = passwordField.getPassword();
+        StrengthBarHelper.update(strengthBar, strengthLabel, pwd);
+        SecureWiper.wipe(pwd);
     }
 
     public boolean isConfirmed() { return confirmed; }

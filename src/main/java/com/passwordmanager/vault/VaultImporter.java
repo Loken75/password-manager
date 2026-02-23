@@ -59,6 +59,7 @@ public class VaultImporter {
 
         int count = 0;
         for (int i = 1; i < lines.length; i++) {
+            if (count >= MAX_IMPORT_ENTRIES) break;
             String line = lines[i].trim();
             if (line.isEmpty()) continue;
             String[] parts = parseCsvLine(line, separator);
@@ -90,14 +91,41 @@ public class VaultImporter {
     }
 
     public int importFromJson(Vault vault, String jsonContent) {
-        Vault imported = gson.fromJson(jsonContent, Vault.class);
+        Vault imported;
+        try {
+            imported = gson.fromJson(jsonContent, Vault.class);
+        } catch (Exception e) {
+            return 0;
+        }
         if (imported != null && imported.getEntries() != null) {
-            for (VaultEntry entry : imported.getEntries()) {
+            int limit = Math.min(imported.getEntries().size(), MAX_IMPORT_ENTRIES);
+            int count = 0;
+            for (int i = 0; i < limit; i++) {
+                VaultEntry entry = imported.getEntries().get(i);
                 entry.setId(UUID.randomUUID().toString());
+                // Validate mandatory fields exist
+                if (entry.getTitle() != null) {
+                    entry.setTitle(truncateField(sanitizeField(entry.getTitle())));
+                }
+                if (entry.getUsername() != null) {
+                    entry.setUsername(truncateField(sanitizeField(entry.getUsername())));
+                }
+                if (entry.getUrl() != null) {
+                    entry.setUrl(truncateField(sanitizeField(entry.getUrl())));
+                }
+                if (entry.getNotes() != null) {
+                    entry.setNotes(truncateField(sanitizeField(entry.getNotes())));
+                }
+                if (entry.getCategory() != null) {
+                    entry.setCategory(truncateField(sanitizeField(entry.getCategory())));
+                }
+                vault.getEntries().add(entry);
+                count++;
             }
-            vault.getEntries().addAll(imported.getEntries());
-            vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
-            return imported.getEntries().size();
+            if (count > 0) {
+                vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
+            }
+            return count;
         }
         return 0;
     }
@@ -118,6 +146,11 @@ public class VaultImporter {
     private static String sanitizeField(String value) {
         if (value == null) return "";
         return value.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "");
+    }
+
+    private static String truncateField(String value) {
+        if (value == null) return "";
+        return value.length() > MAX_FIELD_LENGTH ? value.substring(0, MAX_FIELD_LENGTH) : value;
     }
 
     private static Map<String, String> buildAliasMap() {
@@ -168,7 +201,19 @@ public class VaultImporter {
                 }
             }
         }
+        // If quotes were never closed, treat the content as a regular field
+        // rather than consuming data from subsequent lines
         fields.add(current.toString());
         return fields.toArray(new String[0]);
     }
+
+    /**
+     * Maximum number of entries that can be imported in a single operation.
+     */
+    private static final int MAX_IMPORT_ENTRIES = 10_000;
+
+    /**
+     * Maximum length of a single field value to prevent memory abuse.
+     */
+    private static final int MAX_FIELD_LENGTH = 10_000;
 }

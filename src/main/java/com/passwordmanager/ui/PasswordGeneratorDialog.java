@@ -2,6 +2,7 @@ package com.passwordmanager.ui;
 
 import com.passwordmanager.crypto.PasswordGenerator;
 import com.passwordmanager.i18n.LanguageManager;
+import com.passwordmanager.util.SecureWiper;
 
 import javax.swing.*;
 import java.awt.*;
@@ -109,7 +110,7 @@ public class PasswordGeneratorDialog extends JDialog {
             dispose();
         });
         useBtn.addActionListener(e -> {
-            generatedPassword = resultField.getText().toCharArray();
+            // generatedPassword is already set by doGenerate(), no need to read from UI field
             dispose();
         });
 
@@ -122,12 +123,14 @@ public class PasswordGeneratorDialog extends JDialog {
 
     private void doGenerate() {
         int length = (Integer) lengthSpinner.getValue();
-        char[] pwd = PasswordGenerator.generate(length,
+        // Wipe previous generated password before generating new one
+        SecureWiper.wipe(generatedPassword);
+        generatedPassword = PasswordGenerator.generate(length,
             upperCheck.isSelected(), lowerCheck.isSelected(),
             digitsCheck.isSelected(), specialCheck.isSelected(),
             ambiguousCheck.isSelected());
-        resultField.setText(new String(pwd));
-        StrengthBarHelper.update(strengthBar, strengthLabel, pwd);
+        resultField.setText(new String(generatedPassword));
+        StrengthBarHelper.update(strengthBar, strengthLabel, generatedPassword);
     }
 
     public char[] getGeneratedPassword() { return generatedPassword; }

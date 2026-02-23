@@ -46,11 +46,11 @@ public class ConfigManager {
 
         config.setLanguage(props.getProperty("app.language", "fr"));
         config.setStorageMode(StorageMode.fromValue(props.getProperty("storage.mode", "local")));
-        config.setSftpHost(props.getProperty("sftp.host", ""));
+        config.setSftpHost(ConfigEncryptor.decrypt(props.getProperty("sftp.host", "")));
         config.setSftpPort(parseIntSafe(props.getProperty("sftp.port"), 22));
-        config.setSftpUser(props.getProperty("sftp.user", ""));
-        config.setSftpKeyPath(props.getProperty("sftp.key_path", ""));
-        config.setSftpRemotePath(props.getProperty("sftp.remote_path", "/vault/data"));
+        config.setSftpUser(ConfigEncryptor.decrypt(props.getProperty("sftp.user", "")));
+        config.setSftpKeyPath(ConfigEncryptor.decrypt(props.getProperty("sftp.key_path", "")));
+        config.setSftpRemotePath(ConfigEncryptor.decrypt(props.getProperty("sftp.remote_path", "/vault/data")));
         config.setLocalVaultDirectory(props.getProperty("local.vault_directory", config.getLocalVaultDirectory()));
         config.setAutoLockMinutes(parseIntSafe(props.getProperty("security.auto_lock_minutes"), 15));
         config.setClipboardClearSeconds(parseIntSafe(props.getProperty("security.clipboard_clear_seconds"), 30));
@@ -67,11 +67,11 @@ public class ConfigManager {
         props.setProperty("app.language", config.getLanguage());
         props.setProperty("app.theme", config.getTheme().getValue());
         props.setProperty("storage.mode", config.getStorageMode().getValue());
-        props.setProperty("sftp.host", config.getSftpHost());
+        props.setProperty("sftp.host", ConfigEncryptor.encrypt(config.getSftpHost()));
         props.setProperty("sftp.port", String.valueOf(config.getSftpPort()));
-        props.setProperty("sftp.user", config.getSftpUser());
-        props.setProperty("sftp.key_path", config.getSftpKeyPath());
-        props.setProperty("sftp.remote_path", config.getSftpRemotePath());
+        props.setProperty("sftp.user", ConfigEncryptor.encrypt(config.getSftpUser()));
+        props.setProperty("sftp.key_path", ConfigEncryptor.encrypt(config.getSftpKeyPath()));
+        props.setProperty("sftp.remote_path", ConfigEncryptor.encrypt(config.getSftpRemotePath()));
         props.setProperty("local.vault_directory", config.getLocalVaultDirectory());
         props.setProperty("security.auto_lock_minutes", String.valueOf(config.getAutoLockMinutes()));
         props.setProperty("security.clipboard_clear_seconds", String.valueOf(config.getClipboardClearSeconds()));

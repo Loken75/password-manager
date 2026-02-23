@@ -31,7 +31,12 @@ public class VaultExporter {
             sb.append(csvEscape(e.getCategory())).append(",");
             sb.append(csvEscape(e.getTags() != null ? String.join(";", e.getTags()) : "")).append("\n");
         }
-        return sb.toString();
+        String result = sb.toString();
+        // Wipe the StringBuilder to remove sensitive data from memory
+        for (int i = 0; i < sb.length(); i++) {
+            sb.setCharAt(i, '\0');
+        }
+        return result;
     }
 
     /**

@@ -18,9 +18,74 @@ public class PasswordStrengthAnalyzer {
         int types = countCharTypes(password);
 
         if (len < 8 || types <= 1) return Strength.WEAK;
-        if (len >= 16 && types >= 4) return Strength.VERY_STRONG;
-        if (len >= 12 && types >= 3) return Strength.STRONG;
+
+        // Penalize weak patterns
+        int penalty = 0;
+        if (hasSequentialChars(password, 4)) penalty++;
+        if (hasRepeatedChars(password, 4)) penalty++;
+        if (isAllSameCase(password)) penalty++;
+
+        int effectiveTypes = Math.max(1, types - penalty);
+        int effectiveLen = len;
+        if (penalty > 0) effectiveLen = Math.max(8, effectiveLen - penalty * 4);
+
+        if (effectiveLen >= 16 && effectiveTypes >= 4) return Strength.VERY_STRONG;
+        if (effectiveLen >= 12 && effectiveTypes >= 3) return Strength.STRONG;
+        if (effectiveTypes <= 1) return Strength.WEAK;
         return Strength.MEDIUM;
+    }
+
+    /**
+     * Detects sequential characters (e.g. "abcd", "1234", "dcba").
+     */
+    static boolean hasSequentialChars(char[] password, int threshold) {
+        if (password.length < threshold) return false;
+        int ascending = 1, descending = 1;
+        for (int i = 1; i < password.length; i++) {
+            if (password[i] == password[i - 1] + 1) {
+                ascending++;
+                if (ascending >= threshold) return true;
+            } else {
+                ascending = 1;
+            }
+            if (password[i] == password[i - 1] - 1) {
+                descending++;
+                if (descending >= threshold) return true;
+            } else {
+                descending = 1;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Detects repeated characters (e.g. "aaaa", "1111").
+     */
+    static boolean hasRepeatedChars(char[] password, int threshold) {
+        if (password.length < threshold) return false;
+        int count = 1;
+        for (int i = 1; i < password.length; i++) {
+            if (password[i] == password[i - 1]) {
+                count++;
+                if (count >= threshold) return true;
+            } else {
+                count = 1;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks if all alphabetic characters are the same case.
+     */
+    private static boolean isAllSameCase(char[] password) {
+        boolean hasUpper = false, hasLower = false;
+        for (char c : password) {
+            if (Character.isUpperCase(c)) hasUpper = true;
+            if (Character.isLowerCase(c)) hasLower = true;
+            if (hasUpper && hasLower) return false;
+        }
+        return true;
     }
 
     /** Convenience overload for non-sensitive contexts (e.g. generator preview). */
@@ -48,7 +113,11 @@ public class PasswordStrengthAnalyzer {
         if (len >= 16) score += 10;
         if (len >= 20) score += 10;
 
-        return Math.min(score, 100);
+        // Penalize detected patterns
+        if (hasSequentialChars(password, 4)) score -= 15;
+        if (hasRepeatedChars(password, 4)) score -= 15;
+
+        return Math.max(0, Math.min(score, 100));
     }
 
     /** Convenience overload for non-sensitive contexts. */

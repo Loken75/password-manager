@@ -146,11 +146,12 @@ public class VaultManager {
 
         Path path = Paths.get(getVaultPath(username));
 
-        // Backup existing file before overwriting
+        // Backup existing file before overwriting (single rolling .bak)
         if (Files.exists(path)) {
             Path backupPath = Paths.get(getVaultPath(username) + ".bak");
             Files.copy(path, backupPath, StandardCopyOption.REPLACE_EXISTING);
             FileSecurityUtils.setOwnerOnlyPermissions(backupPath);
+            cleanupOldBackups(username);
         }
 
         // Atomic write: write to temp file then rename
@@ -243,6 +244,21 @@ public class VaultManager {
 
     public int importFromJson(Vault vault, String jsonContent) {
         return importer.importFromJson(vault, jsonContent);
+    }
+
+    /**
+     * Retains only the most recent backup files per user, deleting older ones.
+     */
+    private void cleanupOldBackups(String username) {
+        File dir = new File(vaultDirectory);
+        String prefix = "vault_" + username;
+        File[] backups = dir.listFiles((d, name) ->
+            name.startsWith(prefix) && name.endsWith(".bak"));
+        if (backups == null || backups.length <= 3) return;
+        java.util.Arrays.sort(backups, java.util.Comparator.comparingLong(File::lastModified).reversed());
+        for (int i = 3; i < backups.length; i++) {
+            backups[i].delete();
+        }
     }
 
     /**

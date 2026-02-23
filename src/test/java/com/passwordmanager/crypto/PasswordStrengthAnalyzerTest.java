@@ -27,12 +27,12 @@ class PasswordStrengthAnalyzerTest {
 
     @Test
     void strong() {
-        assertEquals(PasswordStrengthAnalyzer.Strength.STRONG, PasswordStrengthAnalyzer.analyze("Abcdefgh123!"));
+        assertEquals(PasswordStrengthAnalyzer.Strength.STRONG, PasswordStrengthAnalyzer.analyze("Kx9m!pRwZn3q"));
     }
 
     @Test
     void veryStrong() {
-        assertEquals(PasswordStrengthAnalyzer.Strength.VERY_STRONG, PasswordStrengthAnalyzer.analyze("Abcdefgh1234!@#$"));
+        assertEquals(PasswordStrengthAnalyzer.Strength.VERY_STRONG, PasswordStrengthAnalyzer.analyze("Kx9m!pRwZn3q@Lf7"));
     }
 
     @Test
@@ -45,11 +45,11 @@ class PasswordStrengthAnalyzerTest {
 
     @Test
     void scoreRange() {
-        int score = PasswordStrengthAnalyzer.getScore("Abcdefgh1234!@#$");
+        int score = PasswordStrengthAnalyzer.getScore("Kx9m!pRwZn3q@Lf7");
         assertTrue(score >= 0, "Score should be >= 0");
         assertTrue(score <= 100, "Score should be <= 100");
 
-        int scoreChar = PasswordStrengthAnalyzer.getScore("Abcdefgh1234!@#$".toCharArray());
+        int scoreChar = PasswordStrengthAnalyzer.getScore("Kx9m!pRwZn3q@Lf7".toCharArray());
         assertEquals(score, scoreChar);
     }
 
@@ -63,7 +63,7 @@ class PasswordStrengthAnalyzerTest {
 
     @Test
     void charArrayAndStringProduceSameResults() {
-        String pwd = "TestP@ss123!";
+        String pwd = "Tx9m!pRw3qZn";
         char[] chars = pwd.toCharArray();
 
         assertEquals(PasswordStrengthAnalyzer.analyze(pwd), PasswordStrengthAnalyzer.analyze(chars));
