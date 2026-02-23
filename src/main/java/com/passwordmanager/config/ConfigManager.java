@@ -17,8 +17,9 @@ public class ConfigManager {
     private final String configPath;
 
     public ConfigManager() {
-        String home = System.getProperty("user.home");
-        this.configPath = home + File.separator + ".password-manager" + File.separator + "config.properties";
+        String appHome = System.getProperty("app.home",
+            System.getProperty("user.home") + File.separator + ".password-manager");
+        this.configPath = appHome + File.separator + "data" + File.separator + "config.properties";
     }
 
     public ConfigManager(String configPath) {

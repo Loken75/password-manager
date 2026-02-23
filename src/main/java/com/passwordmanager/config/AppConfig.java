@@ -19,8 +19,9 @@ public class AppConfig {
     private ThemeMode theme = ThemeMode.LIGHT;
 
     public AppConfig() {
-        String home = System.getProperty("user.home");
-        this.localVaultDirectory = home + File.separator + ".password-manager" + File.separator + "vaults";
+        String appHome = System.getProperty("app.home",
+            System.getProperty("user.home") + File.separator + ".password-manager");
+        this.localVaultDirectory = appHome + File.separator + "data" + File.separator + "vaults";
     }
 
     public String getLanguage() { return language; }

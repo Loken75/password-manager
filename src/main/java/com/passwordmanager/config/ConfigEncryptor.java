@@ -125,8 +125,9 @@ final class ConfigEncryptor {
      * where the key file is world-readable before permissions are applied.
      */
     private static byte[] getOrCreateKeyFile() throws IOException {
-        String home = System.getProperty("user.home");
-        Path keyPath = Paths.get(home, ".password-manager", ".config_key");
+        String appHome = System.getProperty("app.home",
+            System.getProperty("user.home") + File.separator + ".password-manager");
+        Path keyPath = Paths.get(appHome, "data", ".config_key");
 
         if (Files.exists(keyPath)) {
             return Files.readAllBytes(keyPath);
