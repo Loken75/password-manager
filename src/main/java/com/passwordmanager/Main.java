@@ -8,7 +8,10 @@ import com.passwordmanager.config.ThemeMode;
 import com.passwordmanager.ui.LoginFrame;
 
 import javax.swing.*;
+import java.awt.Toolkit;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -25,11 +28,19 @@ public class Main {
         AppConfig config = configManager.loadConfig();
 
         try {
-            if (config.getTheme() == ThemeMode.DARK) {
-                UIManager.setLookAndFeel(new FlatDarkLaf());
-            } else {
-                UIManager.setLookAndFeel(new FlatLightLaf());
+            boolean dark;
+            switch (config.getTheme()) {
+                case DARK:
+                    dark = true;
+                    break;
+                case SYSTEM:
+                    dark = isSystemDark();
+                    break;
+                default:
+                    dark = false;
+                    break;
             }
+            UIManager.setLookAndFeel(dark ? new FlatDarkLaf() : new FlatLightLaf());
         } catch (Exception e) {
             try {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
@@ -39,6 +50,46 @@ public class Main {
         }
 
         SwingUtilities.invokeLater(() -> new LoginFrame().setVisible(true));
+    }
+
+    /**
+     * Detects whether the OS is using a dark theme.
+     * Checks AWT desktop property first (works on macOS / GNOME 42+ / KDE),
+     * then falls back to the Windows registry key.
+     */
+    static boolean isSystemDark() {
+        try {
+            Object appearance = Toolkit.getDefaultToolkit().getDesktopProperty("awt.appearance");
+            if (appearance != null) {
+                return "dark".equalsIgnoreCase(appearance.toString());
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.FINE, "Could not read awt.appearance", e);
+        }
+
+        // Windows: HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize -> AppsUseLightTheme (0 = dark)
+        String os = System.getProperty("os.name", "").toLowerCase();
+        if (os.contains("win")) {
+            try {
+                Process proc = Runtime.getRuntime().exec(new String[]{
+                    "reg", "query",
+                    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                    "/v", "AppsUseLightTheme"
+                });
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (line.contains("AppsUseLightTheme")) {
+                            return line.trim().endsWith("0x0");
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.log(Level.FINE, "Could not read Windows theme from registry", e);
+            }
+        }
+
+        return false;
     }
 
     /**

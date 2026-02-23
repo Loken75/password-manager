@@ -63,10 +63,15 @@ public class SettingsDialog extends JDialog {
         generalPanel.add(new JLabel(lang.getString("settings.theme")), g);
         g.gridx = 1; g.weightx = 1;
         themeCombo = new JComboBox<>(new String[]{
+            lang.getString("settings.theme_system"),
             lang.getString("settings.theme_light"),
             lang.getString("settings.theme_dark")
         });
-        themeCombo.setSelectedIndex(config.getTheme() == ThemeMode.DARK ? 1 : 0);
+        switch (config.getTheme()) {
+            case SYSTEM: themeCombo.setSelectedIndex(0); break;
+            case LIGHT:  themeCombo.setSelectedIndex(1); break;
+            case DARK:   themeCombo.setSelectedIndex(2); break;
+        }
         generalPanel.add(themeCombo, g);
 
         g.gridx = 0; g.gridy = 2; g.weightx = 0;
@@ -246,7 +251,8 @@ public class SettingsDialog extends JDialog {
         String newVaultDir = vaultDirField.getText().trim();
 
         config.setLanguage(langCombo.getSelectedIndex() == 0 ? "fr" : "en");
-        config.setTheme(themeCombo.getSelectedIndex() == 0 ? ThemeMode.LIGHT : ThemeMode.DARK);
+        ThemeMode[] themes = { ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK };
+        config.setTheme(themes[themeCombo.getSelectedIndex()]);
         config.setAutoLockMinutes((Integer) autoLockSpinner.getValue());
         config.setClipboardClearSeconds((Integer) clipboardSpinner.getValue());
         config.setStorageMode(remoteRadio.isSelected() ? StorageMode.REMOTE : StorageMode.LOCAL);

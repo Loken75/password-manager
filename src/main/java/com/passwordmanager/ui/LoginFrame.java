@@ -200,6 +200,15 @@ public class LoginFrame extends JFrame {
         panel.add(pass1);
         panel.add(new JLabel(lang.getString("security.confirm_password")));
         panel.add(pass2);
+
+        char echoChar = pass1.getEchoChar();
+        JCheckBox showPasswordCheck = new JCheckBox(lang.getString("entry.show_password"));
+        showPasswordCheck.addActionListener(e -> {
+            char c = showPasswordCheck.isSelected() ? (char) 0 : echoChar;
+            pass1.setEchoChar(c);
+            pass2.setEchoChar(c);
+        });
+        panel.add(showPasswordCheck);
         panel.add(new JLabel(" "));
         panel.add(new JLabel("<html><font color='red'><b>" + lang.getString("security.no_recovery") + "</b></font></html>"));
         panel.add(new JLabel("<html><i>" + lang.getString("security.password_requirements") + "</i></html>"));
