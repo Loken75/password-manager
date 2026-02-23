@@ -46,6 +46,7 @@ public class MainFrame extends JFrame {
     private Timer autoLockTimer;
     private AWTEventListener activityListener;
     private long lastActivity;
+    private Thread shutdownHook;
 
     public MainFrame(Vault vault, String username, VaultSession session,
                      VaultManager vaultManager, AppConfig appConfig, ConfigManager configManager) {
@@ -60,10 +61,11 @@ public class MainFrame extends JFrame {
         this.lastActivity = System.currentTimeMillis();
         initComponents();
         startAutoLock();
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        shutdownHook = new Thread(() -> {
             if (vault != null) vault.wipe();
             if (session != null && !session.isDestroyed()) session.destroy();
-        }));
+        });
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
     }
 
     private void initComponents() {
@@ -344,25 +346,28 @@ public class MainFrame extends JFrame {
         dlg.setVisible(true);
         if (!dlg.isSaved()) return;
 
-        // Always apply: refresh sync, status, clipboard, restart auto-lock
-        syncService.refreshConfig(appConfig);
-        statusLabel.setText(getStatusText());
-        vaultPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
-        if (autoLockTimer != null) autoLockTimer.stop();
-        startAutoLock();
-
         boolean langChanged = !oldLang.equals(appConfig.getLanguage());
         boolean themeChanged = oldTheme != appConfig.getTheme();
 
         if (langChanged) {
+            // Rebuild entirely: the new MainFrame handles sync/status/clipboard/timer
             lang.setLanguage(appConfig.getLanguage());
             applyTheme();
             rebuildMainFrame();
-        } else if (themeChanged) {
-            applyTheme();
-            SwingUtilities.updateComponentTreeUI(this);
-            pack();
-            setSize(1100, 700);
+        } else {
+            // Apply live on current frame
+            syncService.refreshConfig(appConfig);
+            statusLabel.setText(getStatusText());
+            vaultPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
+            if (autoLockTimer != null) autoLockTimer.stop();
+            startAutoLock();
+
+            if (themeChanged) {
+                applyTheme();
+                SwingUtilities.updateComponentTreeUI(this);
+                pack();
+                setSize(1100, 700);
+            }
         }
     }
 
@@ -387,6 +392,7 @@ public class MainFrame extends JFrame {
     }
 
     private void rebuildMainFrame() {
+        Runtime.getRuntime().removeShutdownHook(shutdownHook);
         cleanup();
         dispose();
         new MainFrame(vault, username, session, vaultManager, appConfig, configManager).setVisible(true);
