@@ -221,14 +221,18 @@ public class VaultPanel extends JPanel {
         tablePanel.setBorder(BorderFactory.createMatteBorder(1, 1, 1, 1, Color.GRAY));
         rightPanel.add(new JScrollPane(tablePanel), BorderLayout.CENTER);
 
-        // SOUTH: Buttons
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 5));
+        // SOUTH: Buttons (two rows to fit within 300px width)
+        JPanel btnPanel = new JPanel(new GridLayout(2, 1, 0, 2));
+        JPanel copyRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 2));
         copyUserBtn = new JButton(lang.getString("entry.copy_username"));
         copyPassBtn = new JButton(lang.getString("entry.copy_password"));
+        copyRow.add(copyUserBtn);
+        copyRow.add(copyPassBtn);
+        JPanel showRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 2));
         showDetailPassword = new JCheckBox(lang.getString("entry.show_password"));
-        btnPanel.add(copyUserBtn);
-        btnPanel.add(copyPassBtn);
-        btnPanel.add(showDetailPassword);
+        showRow.add(showDetailPassword);
+        btnPanel.add(copyRow);
+        btnPanel.add(showRow);
         rightPanel.add(btnPanel, BorderLayout.SOUTH);
 
         add(rightPanel, BorderLayout.EAST);
