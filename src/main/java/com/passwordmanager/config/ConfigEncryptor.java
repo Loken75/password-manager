@@ -33,7 +33,8 @@ final class ConfigEncryptor {
     private static final String PREFIX = "ENC:";
     private static final int GCM_IV_LENGTH = 12;
     private static final int GCM_TAG_BITS = 128;
-    private static final int KDF_ITERATIONS = 10_000;
+    private static final int KDF_ITERATIONS = 100_000;
+    private static final int LEGACY_KDF_ITERATIONS = 10_000;
     private static final int KEY_LENGTH = 256;
     private static final int KEY_FILE_SIZE = 64;
 
@@ -46,7 +47,7 @@ final class ConfigEncryptor {
     static String encrypt(String plaintext) {
         if (plaintext == null || plaintext.isEmpty()) return plaintext;
         try {
-            SecretKey key = deriveKey();
+            SecretKey key = deriveKey(KDF_ITERATIONS);
             byte[] iv = new byte[GCM_IV_LENGTH];
             new SecureRandom().nextBytes(iv);
 
@@ -67,6 +68,7 @@ final class ConfigEncryptor {
 
     /**
      * Decrypts an "ENC:..." value. If not prefixed, returns as-is (backward compat).
+     * Tries current iterations first, then falls back to legacy iterations for migration.
      */
     static String decrypt(String stored) {
         if (stored == null || stored.isEmpty() || !stored.startsWith(PREFIX)) {
@@ -82,17 +84,25 @@ final class ConfigEncryptor {
             System.arraycopy(combined, 0, iv, 0, GCM_IV_LENGTH);
             System.arraycopy(combined, GCM_IV_LENGTH, ciphertext, 0, ciphertext.length);
 
-            SecretKey key = deriveKey();
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(GCM_TAG_BITS, iv));
-            byte[] plaintext = cipher.doFinal(ciphertext);
-
-            return new String(plaintext, StandardCharsets.UTF_8);
+            // Try current iterations first
+            try {
+                return doDecrypt(iv, ciphertext, KDF_ITERATIONS);
+            } catch (Exception ignored) {
+                // Fall back to legacy iterations for migration
+            }
+            return doDecrypt(iv, ciphertext, LEGACY_KDF_ITERATIONS);
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Config decryption failed, returning raw value", e);
-            // Backward compat: try to return usable value
             return stored.startsWith(PREFIX) ? "" : stored;
         }
+    }
+
+    private static String doDecrypt(byte[] iv, byte[] ciphertext, int iterations) throws Exception {
+        SecretKey key = deriveKey(iterations);
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(GCM_TAG_BITS, iv));
+        byte[] plaintext = cipher.doFinal(ciphertext);
+        return new String(plaintext, StandardCharsets.UTF_8);
     }
 
     /**
@@ -100,14 +110,14 @@ final class ConfigEncryptor {
      * The key file is generated once with SecureRandom and protected by
      * file permissions. This avoids predictable keys from system properties.
      */
-    private static SecretKey deriveKey() throws Exception {
+    private static SecretKey deriveKey(int iterations) throws Exception {
         byte[] keyMaterial = getOrCreateKeyFile();
         // Use the key material as password for PBKDF2, with a fixed salt
         // (the randomness comes from the key file, not the salt)
         char[] password = Base64.getEncoder().encodeToString(keyMaterial).toCharArray();
         byte[] salt = "pm-config-key-derivation".getBytes(StandardCharsets.UTF_8);
 
-        PBEKeySpec spec = new PBEKeySpec(password, salt, KDF_ITERATIONS, KEY_LENGTH);
+        PBEKeySpec spec = new PBEKeySpec(password, salt, iterations, KEY_LENGTH);
         try {
             SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
             byte[] keyBytes = factory.generateSecret(spec).getEncoded();

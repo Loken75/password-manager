@@ -65,19 +65,18 @@ public class PasswordValidator {
     /**
      * Compares a char[] against each common password without creating
      * a String from the user's input.
+     * Uses constant-time comparison to prevent timing side-channels.
      */
     private static boolean matchesCommon(char[] input) {
+        boolean found = false;
         for (String common : COMMON_PASSWORDS) {
             if (common.length() != input.length) continue;
-            boolean match = true;
+            int diff = 0;
             for (int i = 0; i < input.length; i++) {
-                if (common.charAt(i) != input[i]) {
-                    match = false;
-                    break;
-                }
+                diff |= common.charAt(i) ^ input[i];
             }
-            if (match) return true;
+            if (diff == 0) found = true;
         }
-        return false;
+        return found;
     }
 }

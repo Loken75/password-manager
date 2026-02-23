@@ -67,7 +67,10 @@ public class VaultEntry {
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
     public char[] getPassword() { return password != null ? password.clone() : null; }
-    public void setPassword(char[] password) { this.password = password; }
+    public void setPassword(char[] password) {
+        SecureWiper.wipe(this.password);
+        this.password = password != null ? password.clone() : null;
+    }
     public String getUrl() { return url; }
     public void setUrl(String url) { this.url = url; }
     public String getNotes() { return notes; }

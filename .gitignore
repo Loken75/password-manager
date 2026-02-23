@@ -42,6 +42,7 @@ build/
 .mvn/
 
 ### Application data ###
+data/
 *.enc
 *.bak
 tmp_*
