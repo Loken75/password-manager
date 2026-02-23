@@ -1,5 +1,7 @@
 package com.passwordmanager.sync;
 
+import com.passwordmanager.util.FileSecurityUtils;
+
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -33,7 +35,9 @@ public class LocalRepository {
     }
 
     public void writeFile(String filename, String content) throws IOException {
-        Files.write(Paths.get(getFilePath(filename)), content.getBytes(StandardCharsets.UTF_8));
+        Path path = Paths.get(getFilePath(filename));
+        Files.write(path, content.getBytes(StandardCharsets.UTF_8));
+        FileSecurityUtils.setOwnerOnlyPermissions(path);
     }
 
     public void deleteFile(String filename) throws IOException {
@@ -65,7 +69,9 @@ public class LocalRepository {
         if (fileExists(filename)) {
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
             String backupName = filename.replace(".enc", "_backup_" + timestamp + ".enc");
-            Files.copy(Paths.get(getFilePath(filename)), Paths.get(getFilePath(backupName)));
+            Path backupPath = Paths.get(getFilePath(backupName));
+            Files.copy(Paths.get(getFilePath(filename)), backupPath);
+            FileSecurityUtils.setOwnerOnlyPermissions(backupPath);
         }
     }
 }

@@ -64,15 +64,15 @@ public class VaultImporter {
             String[] parts = parseCsvLine(line, separator);
 
             VaultEntry entry = new VaultEntry();
-            entry.setTitle(getField(parts, titleIdx));
-            entry.setUsername(getField(parts, usernameIdx));
-            String pwd = getField(parts, passwordIdx);
+            entry.setTitle(sanitizeField(getField(parts, titleIdx)));
+            entry.setUsername(sanitizeField(getField(parts, usernameIdx)));
+            String pwd = sanitizeField(getField(parts, passwordIdx));
             entry.setPassword(pwd.isEmpty() ? null : pwd.toCharArray());
-            entry.setUrl(getField(parts, urlIdx));
-            entry.setNotes(getField(parts, notesIdx));
-            String cat = getField(parts, categoryIdx);
+            entry.setUrl(sanitizeField(getField(parts, urlIdx)));
+            entry.setNotes(sanitizeField(getField(parts, notesIdx)));
+            String cat = sanitizeField(getField(parts, categoryIdx));
             entry.setCategory(cat.isEmpty() ? "Autre" : cat);
-            String tagsVal = getField(parts, tagsIdx);
+            String tagsVal = sanitizeField(getField(parts, tagsIdx));
             if (!tagsVal.isEmpty()) {
                 entry.setTags(Arrays.asList(tagsVal.split(";")));
             }
@@ -109,6 +109,15 @@ public class VaultImporter {
     private static String stripAccents(String input) {
         String normalized = Normalizer.normalize(input, Normalizer.Form.NFD);
         return normalized.replaceAll("\\p{M}", "");
+    }
+
+    /**
+     * Strips control characters from imported data to prevent display
+     * corruption and potential injection attacks.
+     */
+    private static String sanitizeField(String value) {
+        if (value == null) return "";
+        return value.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "");
     }
 
     private static Map<String, String> buildAliasMap() {

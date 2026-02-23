@@ -1,5 +1,7 @@
 package com.passwordmanager.crypto;
 
+import com.passwordmanager.util.SecureWiper;
+
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -36,7 +38,12 @@ public class KeyDerivation {
             PBEKeySpec spec = new PBEKeySpec(password, salt, iterations, KEY_SIZE);
             try {
                 SecretKey tmp = factory.generateSecret(spec);
-                return new SecretKeySpec(tmp.getEncoded(), "AES");
+                byte[] encoded = tmp.getEncoded();
+                try {
+                    return new SecretKeySpec(encoded, "AES");
+                } finally {
+                    SecureWiper.wipe(encoded);
+                }
             } finally {
                 spec.clearPassword();
             }

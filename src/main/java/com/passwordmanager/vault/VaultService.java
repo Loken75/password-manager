@@ -144,6 +144,9 @@ public class VaultService {
             throw new RuntimeException(e);
         } finally {
             SecureWiper.wipe(bytes);
+            if (bb.hasArray()) {
+                SecureWiper.wipe(bb.array());
+            }
         }
     }
 

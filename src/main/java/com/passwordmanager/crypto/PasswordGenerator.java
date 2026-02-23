@@ -36,18 +36,24 @@ public class PasswordGenerator {
 
         if (useUpper) {
             String chars = excludeAmbiguous ? removeAmbiguous(UPPER) : UPPER;
-            pool.append(chars);
-            requiredSets.add(chars);
+            if (!chars.isEmpty()) {
+                pool.append(chars);
+                requiredSets.add(chars);
+            }
         }
         if (useLower) {
             String chars = excludeAmbiguous ? removeAmbiguous(LOWER) : LOWER;
-            pool.append(chars);
-            requiredSets.add(chars);
+            if (!chars.isEmpty()) {
+                pool.append(chars);
+                requiredSets.add(chars);
+            }
         }
         if (useDigits) {
             String chars = excludeAmbiguous ? removeAmbiguous(DIGITS) : DIGITS;
-            pool.append(chars);
-            requiredSets.add(chars);
+            if (!chars.isEmpty()) {
+                pool.append(chars);
+                requiredSets.add(chars);
+            }
         }
         if (useSpecial) {
             pool.append(SPECIAL);

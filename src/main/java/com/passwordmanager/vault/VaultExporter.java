@@ -1,6 +1,7 @@
 package com.passwordmanager.vault;
 
 import com.google.gson.Gson;
+import com.passwordmanager.util.SecureWiper;
 
 /**
  * Handles exporting vault data to CSV and JSON formats.
@@ -22,7 +23,9 @@ public class VaultExporter {
         for (VaultEntry e : vault.getEntries()) {
             sb.append(csvEscape(e.getTitle())).append(",");
             sb.append(csvEscape(e.getUsername())).append(",");
-            sb.append(csvEscape(e.getPassword() != null ? new String(e.getPassword()) : "")).append(",");
+            char[] pwd = e.getPassword();
+            sb.append(csvEscape(pwd != null ? new String(pwd) : "")).append(",");
+            SecureWiper.wipe(pwd);
             sb.append(csvEscape(e.getUrl())).append(",");
             sb.append(csvEscape(e.getNotes())).append(",");
             sb.append(csvEscape(e.getCategory())).append(",");

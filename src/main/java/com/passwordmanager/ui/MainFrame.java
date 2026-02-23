@@ -8,6 +8,7 @@ import com.passwordmanager.crypto.VaultSession;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.sync.SyncService;
 import com.passwordmanager.util.FileSecurityUtils;
+import com.passwordmanager.util.SecureWiper;
 import com.passwordmanager.util.PasswordValidator;
 import com.passwordmanager.vault.*;
 
@@ -55,6 +56,10 @@ public class MainFrame extends JFrame {
         this.lastActivity = System.currentTimeMillis();
         initComponents();
         startAutoLock();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (vault != null) vault.wipe();
+            if (session != null && !session.isDestroyed()) session.destroy();
+        }));
     }
 
     private void initComponents() {
@@ -252,7 +257,12 @@ public class MainFrame extends JFrame {
         JFileChooser fc = new JFileChooser();
         if (fc.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
         try {
-            String content = new String(Files.readAllBytes(fc.getSelectedFile().toPath()), StandardCharsets.UTF_8);
+            File importFile = fc.getSelectedFile();
+            if (importFile.length() > 10 * 1024 * 1024) {
+                showError(lang.getString("import.error") + " (max 10 MB)");
+                return;
+            }
+            String content = new String(Files.readAllBytes(importFile.toPath()), StandardCharsets.UTF_8);
             int count;
             if ("csv".equals(format)) {
                 count = vaultManager.importFromCsv(vault, content);
@@ -288,7 +298,12 @@ public class MainFrame extends JFrame {
                 content = vaultManager.exportAsJson(vault);
             }
             java.nio.file.Path exportPath = fc.getSelectedFile().toPath();
-            Files.write(exportPath, content.getBytes(StandardCharsets.UTF_8));
+            byte[] exportBytes = content.getBytes(StandardCharsets.UTF_8);
+            try {
+                Files.write(exportPath, exportBytes);
+            } finally {
+                SecureWiper.wipe(exportBytes);
+            }
             FileSecurityUtils.setOwnerOnlyPermissions(exportPath);
             JOptionPane.showMessageDialog(this,
                 lang.getString("export.success"),
@@ -460,7 +475,9 @@ public class MainFrame extends JFrame {
     private void doFilterWeak() {
         StringBuilder sb = new StringBuilder();
         for (VaultEntry e : vault.getEntries()) {
-            PasswordStrengthAnalyzer.Strength s = PasswordStrengthAnalyzer.analyze(e.getPassword());
+            char[] pwd = e.getPassword();
+            PasswordStrengthAnalyzer.Strength s = PasswordStrengthAnalyzer.analyze(pwd);
+            SecureWiper.wipe(pwd);
             if (s == PasswordStrengthAnalyzer.Strength.WEAK) {
                 sb.append("- ").append(e.getTitle()).append("\n");
             }
@@ -487,7 +504,10 @@ public class MainFrame extends JFrame {
         // Weak passwords
         sb.append("=== ").append(lang.getString("audit.weak_passwords")).append(" ===\n");
         for (VaultEntry e : vault.getEntries()) {
-            if (PasswordStrengthAnalyzer.analyze(e.getPassword()) == PasswordStrengthAnalyzer.Strength.WEAK) {
+            char[] auditPwd = e.getPassword();
+            PasswordStrengthAnalyzer.Strength strength = PasswordStrengthAnalyzer.analyze(auditPwd);
+            SecureWiper.wipe(auditPwd);
+            if (strength == PasswordStrengthAnalyzer.Strength.WEAK) {
                 sb.append("  - ").append(e.getTitle()).append("\n");
                 issues++;
             }

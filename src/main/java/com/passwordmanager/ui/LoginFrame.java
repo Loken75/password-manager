@@ -26,6 +26,7 @@ public class LoginFrame extends JFrame {
     private JButton createUserButton;
     private JComboBox<String> languageCombo;
     private JLabel statusLabel;
+    // Static intentionally: persists across LoginFrame instances (lock/unlock cycles)
     private static int failedAttempts = 0;
 
     public LoginFrame() {

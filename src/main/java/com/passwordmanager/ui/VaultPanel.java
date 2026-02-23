@@ -4,6 +4,7 @@ import com.passwordmanager.crypto.PasswordStrengthAnalyzer;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.vault.SortField;
 import com.passwordmanager.vault.VaultEntry;
+import com.passwordmanager.util.SecureWiper;
 import com.passwordmanager.vault.VaultService;
 
 import javax.swing.*;
@@ -271,7 +272,9 @@ public class VaultPanel extends JPanel {
         VaultEntry e = displayedEntries.get(row);
         detailTitle.setText(e.getTitle());
         detailUser.setText(e.getUsername() != null ? e.getUsername() : "");
-        detailPassword.setText(e.getPassword() != null ? new String(e.getPassword()) : "");
+        char[] pwd = e.getPassword();
+        detailPassword.setText(pwd != null ? new String(pwd) : "");
+        SecureWiper.wipe(pwd);
         detailUrl.setText(e.getUrl() != null ? e.getUrl() : "");
         detailCategory.setText(e.getCategory() != null ? e.getCategory() : "");
         detailNotes.setText(e.getNotes() != null ? e.getNotes() : "");
@@ -294,10 +297,12 @@ public class VaultPanel extends JPanel {
         int row = entryTable.getSelectedRow();
         if (row < 0 || row >= displayedEntries.size()) return;
         VaultEntry e = displayedEntries.get(row);
-        if (e.getPassword() == null) return;
+        char[] clipPwd = e.getPassword();
+        if (clipPwd == null) return;
 
         Toolkit.getDefaultToolkit().getSystemClipboard()
-            .setContents(new StringSelection(new String(e.getPassword())), null);
+            .setContents(new StringSelection(new String(clipPwd)), null);
+        SecureWiper.wipe(clipPwd);
 
         // Cancel previous clipboard clear timer if any
         if (clipboardTimer != null) {
@@ -406,14 +411,19 @@ public class VaultPanel extends JPanel {
                 case 1: return e.getUsername();
                 case 2: return e.getCategory();
                 case 3:
-                    PasswordStrengthAnalyzer.Strength st = PasswordStrengthAnalyzer.analyze(e.getPassword());
-                    switch (st) {
-                        case WEAK: return lang.getString("strength.weak");
-                        case MEDIUM: return lang.getString("strength.medium");
-                        case STRONG: return lang.getString("strength.strong");
-                        case VERY_STRONG: return lang.getString("strength.very_strong");
+                    char[] tablePwd = e.getPassword();
+                    try {
+                        PasswordStrengthAnalyzer.Strength st = PasswordStrengthAnalyzer.analyze(tablePwd);
+                        switch (st) {
+                            case WEAK: return lang.getString("strength.weak");
+                            case MEDIUM: return lang.getString("strength.medium");
+                            case STRONG: return lang.getString("strength.strong");
+                            case VERY_STRONG: return lang.getString("strength.very_strong");
+                        }
+                        return "";
+                    } finally {
+                        SecureWiper.wipe(tablePwd);
                     }
-                    return "";
                 default: return "";
             }
         }
