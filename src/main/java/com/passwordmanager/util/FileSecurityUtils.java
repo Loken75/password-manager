@@ -59,18 +59,27 @@ public final class FileSecurityUtils {
         if (aclView == null) return;
 
         UserPrincipal owner = aclView.getOwner();
+
+        // Full owner permissions: read, write, execute, create children, delete
+        // ADD_FILE and ADD_SUBDIRECTORY are required for directories to allow
+        // creating files inside them. EXECUTE is required for directory traversal.
+        EnumSet<AclEntryPermission> perms = EnumSet.of(
+            AclEntryPermission.READ_DATA,
+            AclEntryPermission.WRITE_DATA,
+            AclEntryPermission.APPEND_DATA,
+            AclEntryPermission.READ_ATTRIBUTES,
+            AclEntryPermission.WRITE_ATTRIBUTES,
+            AclEntryPermission.EXECUTE,
+            AclEntryPermission.DELETE,
+            AclEntryPermission.DELETE_CHILD,
+            AclEntryPermission.READ_ACL,
+            AclEntryPermission.SYNCHRONIZE
+        );
+
         AclEntry ownerEntry = AclEntry.newBuilder()
             .setType(AclEntryType.ALLOW)
             .setPrincipal(owner)
-            .setPermissions(
-                AclEntryPermission.READ_DATA,
-                AclEntryPermission.WRITE_DATA,
-                AclEntryPermission.READ_ATTRIBUTES,
-                AclEntryPermission.WRITE_ATTRIBUTES,
-                AclEntryPermission.DELETE,
-                AclEntryPermission.READ_ACL,
-                AclEntryPermission.SYNCHRONIZE
-            )
+            .setPermissions(perms)
             .build();
 
         // Preserve SYSTEM entries, replace everything else with owner-only
