@@ -51,8 +51,10 @@ public final class FileSecurityUtils {
     }
 
     /**
-     * Sets Windows ACL to owner-only read/write access.
-     * Preserves SYSTEM principal entries to avoid breaking Windows file access.
+     * Sets Windows ACL to owner-only full control.
+     * Removes all non-owner, non-SYSTEM entries so that other users have no access.
+     * The owner gets full control (equivalent to POSIX 700/600 where only the
+     * owner has all rights).
      */
     private static void setWindowsOwnerOnly(Path path) throws IOException {
         AclFileAttributeView aclView = Files.getFileAttributeView(path, AclFileAttributeView.class);
@@ -60,26 +62,10 @@ public final class FileSecurityUtils {
 
         UserPrincipal owner = aclView.getOwner();
 
-        // Full owner permissions: read, write, execute, create children, delete
-        // ADD_FILE and ADD_SUBDIRECTORY are required for directories to allow
-        // creating files inside them. EXECUTE is required for directory traversal.
-        EnumSet<AclEntryPermission> perms = EnumSet.of(
-            AclEntryPermission.READ_DATA,
-            AclEntryPermission.WRITE_DATA,
-            AclEntryPermission.APPEND_DATA,
-            AclEntryPermission.READ_ATTRIBUTES,
-            AclEntryPermission.WRITE_ATTRIBUTES,
-            AclEntryPermission.EXECUTE,
-            AclEntryPermission.DELETE,
-            AclEntryPermission.DELETE_CHILD,
-            AclEntryPermission.READ_ACL,
-            AclEntryPermission.SYNCHRONIZE
-        );
-
         AclEntry ownerEntry = AclEntry.newBuilder()
             .setType(AclEntryType.ALLOW)
             .setPrincipal(owner)
-            .setPermissions(perms)
+            .setPermissions(EnumSet.allOf(AclEntryPermission.class))
             .build();
 
         // Preserve SYSTEM entries, replace everything else with owner-only

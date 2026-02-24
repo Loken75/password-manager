@@ -1,5 +1,7 @@
 package com.passwordmanager.config;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -15,6 +17,24 @@ class ConfigManagerTest {
 
     @TempDir
     Path tempDir;
+
+    private String previousAppHome;
+
+    @BeforeEach
+    void setUp() {
+        // Redirect app.home so ConfigEncryptor uses the temp directory
+        previousAppHome = System.getProperty("app.home");
+        System.setProperty("app.home", tempDir.toString());
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (previousAppHome != null) {
+            System.setProperty("app.home", previousAppHome);
+        } else {
+            System.clearProperty("app.home");
+        }
+    }
 
     @Test
     void loadDefaultConfig() {
