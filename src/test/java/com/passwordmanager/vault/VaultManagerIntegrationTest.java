@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.File;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -182,5 +183,76 @@ class VaultManagerIntegrationTest {
         assertTrue(json.contains("Exported"));
 
         result.getSession().destroy();
+    }
+
+    // === Username validation (path traversal prevention) ===
+
+    @Test
+    void rejectsNullUsername() {
+        assertThrows(IllegalArgumentException.class, () -> manager.getVaultPath(null));
+    }
+
+    @Test
+    void rejectsEmptyUsername() {
+        assertThrows(IllegalArgumentException.class, () -> manager.getVaultPath(""));
+    }
+
+    @Test
+    void rejectsUsernameWithDots() {
+        assertThrows(IllegalArgumentException.class, () -> manager.getVaultPath("../etc"));
+    }
+
+    @Test
+    void rejectsUsernameWithSlash() {
+        assertThrows(IllegalArgumentException.class, () -> manager.getVaultPath("user/admin"));
+    }
+
+    @Test
+    void rejectsUsernameWithSpecialChars() {
+        assertThrows(IllegalArgumentException.class, () -> manager.getVaultPath("user@host"));
+        assertThrows(IllegalArgumentException.class, () -> manager.getVaultPath("user name"));
+        assertThrows(IllegalArgumentException.class, () -> manager.getVaultPath("user;drop"));
+    }
+
+    @Test
+    void acceptsValidUsername() {
+        String path = manager.getVaultPath("alice_123");
+        assertTrue(path.endsWith("vault_alice_123.enc"));
+    }
+
+    // === deleteVault also removes backups ===
+
+    @Test
+    void deleteVaultRemovesBackups() throws Exception {
+        char[] password = "DeleteBak@ss!123".toCharArray();
+
+        VaultLoadResult result = manager.createVault("backupuser", password);
+        Vault vault = result.getVault();
+        VaultSession session = result.getSession();
+
+        // Save multiple times to generate a .bak file
+        vault.getEntries().add(new VaultEntry("E1", "u", "p".toCharArray(), "", "", "C", null));
+        manager.saveVault(vault, "backupuser", session);
+        vault.getEntries().add(new VaultEntry("E2", "u", "p".toCharArray(), "", "", "C", null));
+        manager.saveVault(vault, "backupuser", session);
+
+        // Verify backup exists
+        File dir = tempDir.toFile();
+        File[] backups = dir.listFiles((d, name) ->
+            name.startsWith("vault_backupuser") && name.endsWith(".bak"));
+        assertNotNull(backups);
+        assertTrue(backups.length > 0, "Should have at least one backup file");
+
+        // Delete vault
+        assertTrue(manager.deleteVault("backupuser"));
+
+        // Verify vault and backups are gone
+        assertFalse(manager.vaultExists("backupuser"));
+        File[] remainingBackups = dir.listFiles((d, name) ->
+            name.startsWith("vault_backupuser") && name.endsWith(".bak"));
+        assertTrue(remainingBackups == null || remainingBackups.length == 0,
+            "All backup files should be deleted");
+
+        session.destroy();
     }
 }
