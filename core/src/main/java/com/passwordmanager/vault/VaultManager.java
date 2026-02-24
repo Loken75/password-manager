@@ -73,11 +73,23 @@ public class VaultManager {
     }
 
     /**
-     * Creates a new vault with DEK/KEK envelope encryption.
+     * Creates a new vault with DEK/KEK envelope encryption (English default categories).
      */
     public VaultLoadResult createVault(String username, char[] masterPassword)
             throws VaultEncryptionException, IOException {
-        Vault vault = new Vault(username);
+        return createVault(username, masterPassword, null);
+    }
+
+    /**
+     * Creates a new vault with DEK/KEK envelope encryption.
+     * @param defaultCategories localized categories, or null for English defaults
+     */
+    public VaultLoadResult createVault(String username, char[] masterPassword,
+                                       List<String> defaultCategories)
+            throws VaultEncryptionException, IOException {
+        Vault vault = (defaultCategories != null)
+                ? new Vault(username, defaultCategories)
+                : new Vault(username);
         VaultSession session = cryptoService.createSession(masterPassword);
         saveVault(vault, username, session);
         return new VaultLoadResult(vault, session);

@@ -11,6 +11,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -252,7 +253,14 @@ public class LoginFrame extends JFrame {
                     showError(lang.getString("security.password_requirements"));
                     return;
                 }
-                vaultManager.createVault(newUser, p1);
+                List<String> localizedCategories = List.of(
+                    lang.getString("category.default.email"),
+                    lang.getString("category.default.banking"),
+                    lang.getString("category.default.social"),
+                    lang.getString("category.default.work"),
+                    lang.getString("category.default.other")
+                );
+                vaultManager.createVault(newUser, p1, localizedCategories);
                 refreshUserList();
                 userCombo.setSelectedItem(newUser);
                 JOptionPane.showMessageDialog(this, lang.getString("login.user_created"),

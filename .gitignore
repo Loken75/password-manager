@@ -41,6 +41,9 @@ build/
 ### Maven wrapper ###
 .mvn/
 
+### Gradle ###
+.gradle/
+
 ### Application data ###
 data/
 *.enc
