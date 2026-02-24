@@ -417,7 +417,7 @@ public static void wipe(char[] data) {
 
 **FileSecurityUtils — comportement :**
 - POSIX : fichiers -> `rw-------` (600), repertoires -> `rwx------` (700)
-- Windows : ACL owner-only (READ_DATA, WRITE_DATA, READ_ATTRIBUTES, WRITE_ATTRIBUTES, DELETE, READ_ACL, SYNCHRONIZE) + preservation des entrees SYSTEM/SYSTEME
+- Windows : ACL owner-only avec controle total (`EnumSet.allOf(AclEntryPermission.class)`) + preservation des entrees SYSTEM/SYSTEME. La securite repose sur la suppression de toutes les autres entrees ACL (non-owner, non-SYSTEM).
 - Echec silencieux (log FINE) pour ne pas bloquer l'application sur les systemes sans support
 
 **PasswordValidator — politique :**
