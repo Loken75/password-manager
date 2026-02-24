@@ -32,7 +32,7 @@ Password Manager est une application de bureau Java 17 permettant de stocker et 
 - Synchronisation SFTP avec gestion des conflits et mode hors-ligne
 - Interface bilingue francais/anglais
 - Themes systeme, clair et sombre
-- 105 tests unitaires et d'integration
+- 150 tests unitaires et d'integration
 
 ---
 
@@ -176,7 +176,7 @@ byte[] decryptLegacy(byte[] salt, byte[] iv, byte[] ciphertext, char[] masterPas
 Implemente `EncryptionService` avec AES-256-GCM. Points cles :
 - `createSession()` : genere une DEK aleatoire, derive la KEK, chiffre la DEK avec la KEK, efface `rawDek` et detruit la KEK dans le bloc `finally`.
 - `openSession()` : derive la KEK, dechiffre la DEK, retourne une `VaultSession`. Efface la KEK dans le `finally`.
-- `changePassword()` : genere un nouveau sel + KEK, re-chiffre la DEK existante, met a jour l'enveloppe dans la session. L'ancienne KEK est detruite.
+- `changePassword()` : genere un nouveau sel + KEK, re-chiffre la DEK existante, met a jour l'enveloppe dans la session. Les octets bruts de la DEK (`rawDek`) sont effaces dans le bloc `finally`, et l'ancienne KEK est detruite.
 - `decryptLegacy()` : supporte les coffres v1.0 ou le mot de passe derivait directement la cle de donnees (100 000 iterations).
 
 #### `KeyDerivation`
@@ -267,6 +267,8 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 - Format stocke : `ENC:` + Base64(IV[12] + ciphertext)
 - Sel fixe (`pm-config-key-derivation`) ; l'aleatoire provient du fichier de cle
 - Ecriture atomique du fichier de cle avec permissions restrictives
+- L'echec du chiffrement lance une `RuntimeException` (jamais de retour en clair)
+- Nettoyage memoire : `keyMaterial`, `keyBytes` et `password` sont effaces dans les blocs `finally` de `deriveKey()`
 
 ---
 
@@ -288,8 +290,9 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 **VaultManager — details :**
 - Format de fichier v2.0 : enveloppe JSON contenant `version`, `kdf`, `kdf_iterations`, `salt`, `kek_iv`, `encrypted_dek`, `data_iv`, `encrypted_data`
 - Migration automatique v1.0 -> v2.0 au chargement
-- Ecriture atomique : fichier temporaire -> permissions -> `Files.move(ATOMIC_MOVE)` avec fallback
+- Ecriture atomique : fichier temporaire -> permissions restrictives sur le temporaire -> `Files.move(ATOMIC_MOVE)` avec fallback
 - Backup roulant (3 fichiers `.bak` max par utilisateur)
+- `deleteVault()` supprime aussi tous les fichiers `.bak` de l'utilisateur
 - Validation du nom d'utilisateur : regex `[a-zA-Z0-9_]+`
 - `CharArrayAdapter` interne : `TypeAdapter<char[]>` Gson pour serialiser les mots de passe comme chaines JSON
 - Gson configure avec `setPrettyPrinting()`
@@ -362,9 +365,9 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 
 | Classe | Role |
 |--------|------|
-| `SyncService` | Orchestration de la synchronisation (hash SHA-256, detection de conflit, mode hors-ligne) |
+| `SyncService` | Orchestration de la synchronisation (hash SHA-256, detection de conflit, mode hors-ligne). `hashFile()` propage les `IOException` (jamais de retour silencieux `""`) |
 | `LocalRepository` | Gestion des fichiers locaux (ecritures atomiques, prevention du path traversal, backups) |
-| `SFTPRepository` | Client SFTP via JSch (authentification par cle, `StrictHostKeyChecking=yes`, limite 50 Mo) |
+| `SFTPRepository` | Client SFTP via JSch (authentification par cle, `StrictHostKeyChecking=yes`, limite 50 Mo, validation des noms de fichiers distants contre le path traversal) |
 | `ConflictResolver` | Enum : `KEEP_LOCAL`, `KEEP_REMOTE`, `KEEP_BOTH` |
 
 **Flux de synchronisation :**
@@ -442,11 +445,11 @@ public static void wipe(char[] data) {
 | Classe | Role |
 |--------|------|
 | `LoginFrame` | Ecran de connexion, creation d'utilisateur, toggle visibilite mot de passe, changement de langue |
-| `MainFrame` | Fenetre principale avec menus, barre d'outils, auto-lock, shutdown hook |
-| `VaultPanel` | Panneau 3 colonnes : categories, table d'entrees, details avec boutons copier |
+| `MainFrame` | Fenetre principale avec menus, barre d'outils, auto-lock, shutdown hook (retire au verrouillage) |
+| `VaultPanel` | Panneau 3 colonnes : categories, table d'entrees, details avec boutons copier. Timers `javax.swing.Timer` (pas `java.util.Timer`) |
 | `EntryDialog` | Formulaire modal de creation/edition d'entree |
-| `PasswordGeneratorDialog` | Dialogue du generateur de mots de passe |
-| `SettingsDialog` | Dialogue des parametres (3 onglets : General, Securite, Synchronisation) |
+| `PasswordGeneratorDialog` | Dialogue du generateur de mots de passe. Timer clipboard `javax.swing.Timer` annule a la fermeture |
+| `SettingsDialog` | Dialogue des parametres (3 onglets : General, Securite, Synchronisation). Test SFTP sur `SwingWorker` (hors EDT) |
 | `StrengthBarHelper` | Utilitaire d'affichage de la barre de force (couleurs : rouge/orange/vert/bleu) |
 
 ---
@@ -547,11 +550,13 @@ Emplacement : `~/.password-manager/data/.config_key`
 | Mesure | Implementation |
 |--------|----------------|
 | Permissions restrictives | POSIX 600 (fichiers) / 700 (repertoires) ; ACL owner-only sur Windows |
-| Ecriture atomique | Fichier temporaire -> permissions -> `Files.move(ATOMIC_MOVE)` avec fallback |
+| Ecriture atomique | Fichier temporaire -> permissions restrictives -> `Files.move(ATOMIC_MOVE)` avec fallback |
 | Backup roulant coffre | 3 fichiers `.bak` max par utilisateur (VaultManager) |
 | Backup roulant sync | 5 fichiers horodates max (LocalRepository) |
+| Suppression complete | `deleteVault()` supprime le coffre et tous les fichiers `.bak` associes |
 | Validation des noms d'utilisateur | Regex `[a-zA-Z0-9_]+` pour prevenir le path traversal |
-| Validation des noms de fichiers (sync) | Rejet de `..`, `/`, `\`, `~` dans `LocalRepository` |
+| Validation des noms de fichiers (local) | Rejet de `..`, `/`, `\`, `~` dans `LocalRepository` |
+| Validation des noms de fichiers (distant) | Rejet de `..`, `/`, `\`, `~` dans `SFTPRepository` |
 
 ### 7.3. Protection anti brute-force
 
@@ -580,7 +585,8 @@ Emplacement : `~/.password-manager/data/.config_key`
 ### 7.6. Presse-papiers
 
 - Effacement automatique apres le delai configure (defaut 30s)
-- Timer annule et relance a chaque nouvelle copie
+- `javax.swing.Timer` (EDT-safe) : annule et relance a chaque nouvelle copie, annule a la fermeture du dialogue
+- Pas de fuite de threads : chaque timer est suivi et arrete avant d'en creer un nouveau
 - Effacement au verrouillage et a la fermeture
 
 ---
@@ -695,7 +701,7 @@ La colonne Force du tableau est coloree selon le niveau : rouge (Faible), orange
 
 ### 10.5. Shutdown hook
 
-Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la session (`session.destroy()`) a la fermeture de la JVM. Le hook est recree proprement lors d'un changement de langue (qui reconstruit la fenetre).
+Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la session (`session.destroy()`) a la fermeture de la JVM. Le hook est retire proprement lors du verrouillage (`doLock()`) et lors d'un changement de langue (qui reconstruit la fenetre).
 
 ---
 
@@ -704,23 +710,26 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la ses
 ### 11.1. Vue d'ensemble
 
 **Framework** : JUnit 5 (Jupiter) 5.14.2
-**Total** : 105 tests (unitaires + integration)
+**Total** : 150 tests (unitaires + integration)
 
 ### 11.2. Matrice des tests
 
 | Module | Classe de test | Nombre | Description |
 |--------|---------------|--------|-------------|
 | security | `SecurityAuditTest` | 31 | IV, KDF, memoire, permissions, format, import/export, generateur |
+| sync | `LocalRepositoryTest` | 17 | Path traversal, lecture/ecriture/suppression, pending, backups |
+| vault | `VaultManagerIntegrationTest` | 16 | Cycle complet avec vraie crypto, validation username, suppression backups |
 | vault | `VaultServiceTest` | 13 | CRUD, recherche, tri, doublons, categories |
+| config | `ConfigEncryptorTest` | 11 | Round-trip, caracteres speciaux, null/vide, corruption, unicite IV, reutilisation cle |
 | vault | `VaultImporterTest` | 10 | CSV (separateurs, alias, positionnement), JSON, limites |
-| vault | `VaultManagerIntegrationTest` | 9 | Cycle complet avec vraie crypto (`@TempDir`) |
+| sync | `SFTPRepositoryTest` | 10 | Validation filename sur upload/download/exists/getRemoteLastModified |
 | util | `PasswordValidatorTest` | 9 | Politique de mot de passe maitre |
 | crypto | `PasswordStrengthAnalyzerTest` | 9 | Niveaux de force, score, cas limites |
 | crypto | `CryptoServiceTest` | 8 | Enveloppe DEK/KEK, chiffrement/dechiffrement, changement de mot de passe, lifecycle |
 | vault | `VaultExporterTest` | 8 | CSV, JSON, injection, round-trip |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types de caracteres, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance, auto-creation |
-| | | **105** | |
+| | | **150** | |
 
 ### 11.3. Tests de securite remarquables (`SecurityAuditTest`)
 
@@ -732,6 +741,13 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la ses
 - **Format v2.0** : verification de la presence de tous les champs d'enveloppe, absence de texte clair
 - **Assainissement import** : caracteres de controle supprimes, tabulations preservees
 - **Anti-injection export** : tous les caracteres declencheurs (`=`, `+`, `-`, `@`) sont prefixes
+
+### 11.4. Tests de validation des entrees
+
+- **ConfigEncryptor** : round-trip chiffrement/dechiffrement, caracteres speciaux et Unicode, entrees null/vides, donnees corrompues (prefixe `ENC:` invalide), unicite des IV, reutilisation du fichier de cle entre appels
+- **LocalRepository** : rejet des noms de fichiers malicieux (`..`, `/`, `\`, `~`, null, vide), operations CRUD, pending changes, creation et nettoyage de backups
+- **SFTPRepository** : validation des noms de fichiers distants sur les 4 methodes publiques (upload, download, exists, getRemoteLastModified)
+- **VaultManager** : rejet des noms d'utilisateur malicieux (null, vide, `../etc`, `user/admin`, `user@host`, espaces, points-virgules), suppression des backups lors de `deleteVault()`
 
 ---
 
@@ -826,6 +842,7 @@ password-manager/
     +-- test/
         +-- java/com/passwordmanager/
             |-- config/
+            |   |-- ConfigEncryptorTest.java
             |   +-- ConfigManagerTest.java
             |-- crypto/
             |   |-- CryptoServiceTest.java
@@ -833,6 +850,9 @@ password-manager/
             |   +-- PasswordStrengthAnalyzerTest.java
             |-- security/
             |   +-- SecurityAuditTest.java
+            |-- sync/
+            |   |-- LocalRepositoryTest.java
+            |   +-- SFTPRepositoryTest.java
             |-- util/
             |   +-- PasswordValidatorTest.java
             +-- vault/
