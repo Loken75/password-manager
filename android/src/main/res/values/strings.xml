@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Application -->
+    <string name="app_title">Password Manager</string>
+    <string name="app_version">Version 1.0</string>
+
+    <!-- Login -->
+    <string name="login_username">Username</string>
+    <string name="login_password">Master password</string>
+    <string name="login_button">Login</string>
+    <string name="login_create_user">Create new user</string>
+    <string name="login_new_username">Username</string>
+    <string name="login_user_created">User created successfully</string>
+    <string name="login_no_user">Please select a user</string>
+
+    <!-- Errors -->
+    <string name="error_invalid_password">Invalid password</string>
+    <string name="error_empty_password">Please enter the password</string>
+    <string name="error_empty_username">Username is required</string>
+    <string name="error_invalid_username">Username can only contain letters, numbers and underscores</string>
+    <string name="error_user_exists">This user already exists</string>
+    <string name="error_too_many_attempts">Too many failed attempts. Please wait.</string>
+    <string name="error_file_not_found">File not found</string>
+    <string name="error_file_not_readable">File is not readable</string>
+
+    <!-- Vault -->
+    <string name="vault_new_entry">New entry</string>
+    <string name="vault_edit_entry">Edit entry</string>
+    <string name="vault_delete_entry">Delete entry</string>
+    <string name="vault_delete_confirm">Are you sure you want to delete this entry?</string>
+    <string name="vault_search">Search…</string>
+    <string name="vault_entries">entries</string>
+    <string name="vault_details">Details</string>
+
+    <!-- Entry fields -->
+    <string name="entry_title">Title</string>
+    <string name="entry_username">Username / Email</string>
+    <string name="entry_password">Password</string>
+    <string name="entry_url">Website URL</string>
+    <string name="entry_notes">Notes</string>
+    <string name="entry_category">Category</string>
+    <string name="entry_tags">Tags (comma separated)</string>
+    <string name="entry_created">Created on</string>
+    <string name="entry_updated">Modified on</string>
+    <string name="entry_show_password">Show</string>
+    <string name="entry_generate">Generate</string>
+    <string name="entry_copy">Copy</string>
+    <string name="entry_copy_username">Copy username</string>
+    <string name="entry_copy_password">Copy password</string>
+
+    <!-- Password Generator -->
+    <string name="generator_title">Password Generator</string>
+    <string name="generator_length">Length</string>
+    <string name="generator_uppercase">Uppercase (A-Z)</string>
+    <string name="generator_lowercase">Lowercase (a-z)</string>
+    <string name="generator_digits">Digits (0-9)</string>
+    <string name="generator_special">Special characters (!@#$%…)</string>
+    <string name="generator_exclude_ambiguous">Exclude ambiguous characters (0/O, 1/l)</string>
+    <string name="generator_generate">Generate</string>
+    <string name="generator_use">Use</string>
+    <string name="generator_copy">Copy</string>
+
+    <!-- Password Strength -->
+    <string name="strength_weak">Weak</string>
+    <string name="strength_medium">Medium</string>
+    <string name="strength_strong">Strong</string>
+    <string name="strength_very_strong">Very strong</string>
+    <string name="strength_label">Password strength</string>
+
+    <!-- Categories -->
+    <string name="category_default_email">Email</string>
+    <string name="category_default_banking">Banking</string>
+    <string name="category_default_social">Social networks</string>
+    <string name="category_default_work">Work</string>
+    <string name="category_default_other">Other</string>
+    <string name="category_all">All categories</string>
+    <string name="category_add">Add category</string>
+    <string name="category_new">New category</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_general">General</string>
+    <string name="settings_security">Security</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_auto_lock">Auto-lock (minutes)</string>
+    <string name="settings_clipboard_clear">Clipboard clear (seconds)</string>
+    <string name="settings_change_master">Change master password</string>
+
+    <!-- Menu / Actions -->
+    <string name="menu_import_csv">Import CSV</string>
+    <string name="menu_import_json">Import JSON</string>
+    <string name="menu_export_csv">Export CSV</string>
+    <string name="menu_export_json">Export JSON</string>
+    <string name="menu_export_backup">Export encrypted backup</string>
+    <string name="menu_settings">Settings</string>
+    <string name="menu_lock">Lock</string>
+    <string name="menu_security_audit">Security Audit</string>
+    <string name="menu_sort_name">Sort by name</string>
+    <string name="menu_sort_date">Sort by date</string>
+    <string name="menu_sort_category">Sort by category</string>
+
+    <!-- Import/Export -->
+    <string name="import_title">Import</string>
+    <string name="import_success">Import successful: %1$d entries imported</string>
+    <string name="import_error">Import error</string>
+    <string name="export_title">Export</string>
+    <string name="export_success">Export successful</string>
+    <string name="export_error">Export error</string>
+    <string name="export_warning">Warning: exported data is not encrypted!</string>
+
+    <!-- Common -->
+    <string name="common_cancel">Cancel</string>
+    <string name="common_save">Save</string>
+    <string name="common_error">Error</string>
+    <string name="common_success">Success</string>
+    <string name="common_ok">OK</string>
+    <string name="common_delete">Delete</string>
+
+    <!-- Security -->
+    <string name="security_no_recovery">No recovery possible if forgotten!</string>
+    <string name="security_old_password">Old password</string>
+    <string name="security_new_password">New password</string>
+    <string name="security_confirm_password">Confirm password</string>
+    <string name="security_password_mismatch">Passwords do not match</string>
+    <string name="security_password_changed">Master password changed successfully</string>
+    <string name="security_password_requirements">Min. 12 characters, 1 uppercase, 1 lowercase, 1 digit, 1 special</string>
+
+    <!-- About -->
+    <string name="about_title">About</string>
+    <string name="about_description">Secure Password Manager\nAES-256-GCM Encryption\nVersion 1.0</string>
+
+    <!-- Security Audit -->
+    <string name="audit_title">Security Audit</string>
+    <string name="audit_weak_passwords">Weak passwords</string>
+    <string name="audit_duplicate_passwords">Duplicate passwords</string>
+    <string name="audit_old_passwords">Old passwords (> %1$d days)</string>
+    <string name="audit_no_issues">No issues detected</string>
+    <string name="audit_issues_found">%1$d issue(s) detected</string>
+</resources>

@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Application -->
+    <string name="app_title">Gestionnaire de Mots de Passe</string>
+    <string name="app_version">Version 1.0</string>
+
+    <!-- Login -->
+    <string name="login_username">Nom d\'utilisateur</string>
+    <string name="login_password">Mot de passe maître</string>
+    <string name="login_button">Connexion</string>
+    <string name="login_create_user">Créer un nouvel utilisateur</string>
+    <string name="login_new_username">Nom d\'utilisateur</string>
+    <string name="login_user_created">Utilisateur créé avec succès</string>
+    <string name="login_no_user">Veuillez sélectionner un utilisateur</string>
+
+    <!-- Errors -->
+    <string name="error_invalid_password">Mot de passe incorrect</string>
+    <string name="error_empty_password">Veuillez saisir le mot de passe</string>
+    <string name="error_empty_username">Le nom d\'utilisateur est requis</string>
+    <string name="error_invalid_username">Le nom d\'utilisateur ne peut contenir que des lettres, chiffres et underscores</string>
+    <string name="error_user_exists">Cet utilisateur existe déjà</string>
+    <string name="error_too_many_attempts">Trop de tentatives échouées. Veuillez patienter.</string>
+    <string name="error_file_not_found">Fichier introuvable</string>
+    <string name="error_file_not_readable">Fichier non lisible</string>
+
+    <!-- Vault -->
+    <string name="vault_new_entry">Nouvelle entrée</string>
+    <string name="vault_edit_entry">Modifier l\'entrée</string>
+    <string name="vault_delete_entry">Supprimer l\'entrée</string>
+    <string name="vault_delete_confirm">Êtes-vous sûr de vouloir supprimer cette entrée ?</string>
+    <string name="vault_search">Rechercher…</string>
+    <string name="vault_entries">entrées</string>
+    <string name="vault_details">Détails</string>
+
+    <!-- Entry fields -->
+    <string name="entry_title">Titre</string>
+    <string name="entry_username">Identifiant / Email</string>
+    <string name="entry_password">Mot de passe</string>
+    <string name="entry_url">URL du site</string>
+    <string name="entry_notes">Notes</string>
+    <string name="entry_category">Catégorie</string>
+    <string name="entry_tags">Tags (séparés par des virgules)</string>
+    <string name="entry_created">Créé le</string>
+    <string name="entry_updated">Modifié le</string>
+    <string name="entry_show_password">Afficher</string>
+    <string name="entry_generate">Générer</string>
+    <string name="entry_copy">Copier</string>
+    <string name="entry_copy_username">Copier id</string>
+    <string name="entry_copy_password">Copier mdp</string>
+
+    <!-- Password Generator -->
+    <string name="generator_title">Générateur de mot de passe</string>
+    <string name="generator_length">Longueur</string>
+    <string name="generator_uppercase">Majuscules (A-Z)</string>
+    <string name="generator_lowercase">Minuscules (a-z)</string>
+    <string name="generator_digits">Chiffres (0-9)</string>
+    <string name="generator_special">Caractères spéciaux (!@#$%…)</string>
+    <string name="generator_exclude_ambiguous">Exclure caractères ambigus (0/O, 1/l)</string>
+    <string name="generator_generate">Générer</string>
+    <string name="generator_use">Utiliser</string>
+    <string name="generator_copy">Copier</string>
+
+    <!-- Password Strength -->
+    <string name="strength_weak">Faible</string>
+    <string name="strength_medium">Moyen</string>
+    <string name="strength_strong">Fort</string>
+    <string name="strength_very_strong">Très fort</string>
+    <string name="strength_label">Force du mot de passe</string>
+
+    <!-- Categories -->
+    <string name="category_default_email">Email</string>
+    <string name="category_default_banking">Bancaire</string>
+    <string name="category_default_social">Réseaux sociaux</string>
+    <string name="category_default_work">Travail</string>
+    <string name="category_default_other">Autre</string>
+    <string name="category_all">Toutes les catégories</string>
+    <string name="category_add">Ajouter une catégorie</string>
+    <string name="category_new">Nouvelle catégorie</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Paramètres</string>
+    <string name="settings_general">Général</string>
+    <string name="settings_security">Sécurité</string>
+    <string name="settings_language">Langue</string>
+    <string name="settings_theme">Thème</string>
+    <string name="settings_theme_system">Système</string>
+    <string name="settings_theme_light">Clair</string>
+    <string name="settings_theme_dark">Sombre</string>
+    <string name="settings_auto_lock">Verrouillage automatique (minutes)</string>
+    <string name="settings_clipboard_clear">Effacement presse-papiers (secondes)</string>
+    <string name="settings_change_master">Changer le mot de passe maître</string>
+
+    <!-- Menu / Actions -->
+    <string name="menu_import_csv">Importer CSV</string>
+    <string name="menu_import_json">Importer JSON</string>
+    <string name="menu_export_csv">Exporter CSV</string>
+    <string name="menu_export_json">Exporter JSON</string>
+    <string name="menu_export_backup">Exporter sauvegarde chiffrée</string>
+    <string name="menu_settings">Paramètres</string>
+    <string name="menu_lock">Verrouiller</string>
+    <string name="menu_security_audit">Analyse de sécurité</string>
+    <string name="menu_sort_name">Trier par nom</string>
+    <string name="menu_sort_date">Trier par date</string>
+    <string name="menu_sort_category">Trier par catégorie</string>
+
+    <!-- Import/Export -->
+    <string name="import_title">Importer</string>
+    <string name="import_success">Import réussi : %1$d entrées importées</string>
+    <string name="import_error">Erreur lors de l\'import</string>
+    <string name="export_title">Exporter</string>
+    <string name="export_success">Export réussi</string>
+    <string name="export_error">Erreur lors de l\'export</string>
+    <string name="export_warning">Attention : les données exportées ne sont pas chiffrées !</string>
+
+    <!-- Common -->
+    <string name="common_cancel">Annuler</string>
+    <string name="common_save">Enregistrer</string>
+    <string name="common_error">Erreur</string>
+    <string name="common_success">Succès</string>
+    <string name="common_ok">OK</string>
+    <string name="common_delete">Supprimer</string>
+
+    <!-- Security -->
+    <string name="security_no_recovery">Aucune récupération possible en cas d\'oubli !</string>
+    <string name="security_old_password">Ancien mot de passe</string>
+    <string name="security_new_password">Nouveau mot de passe</string>
+    <string name="security_confirm_password">Confirmer le mot de passe</string>
+    <string name="security_password_mismatch">Les mots de passe ne correspondent pas</string>
+    <string name="security_password_changed">Mot de passe maître modifié avec succès</string>
+    <string name="security_password_requirements">Min. 12 caractères, 1 majuscule, 1 minuscule, 1 chiffre, 1 spécial</string>
+
+    <!-- About -->
+    <string name="about_title">À propos</string>
+    <string name="about_description">Gestionnaire de mots de passe sécurisé\nChiffrement AES-256-GCM\nVersion 1.0</string>
+
+    <!-- Security Audit -->
+    <string name="audit_title">Analyse de sécurité</string>
+    <string name="audit_weak_passwords">Mots de passe faibles</string>
+    <string name="audit_duplicate_passwords">Mots de passe réutilisés</string>
+    <string name="audit_old_passwords">Mots de passe anciens (> %1$d jours)</string>
+    <string name="audit_no_issues">Aucun problème détecté</string>
+    <string name="audit_issues_found">%1$d problème(s) détecté(s)</string>
+</resources>

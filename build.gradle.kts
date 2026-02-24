@@ -1,20 +1,18 @@
 subprojects {
-    apply(plugin = "java")
+    if (name != "android") {
+        apply(plugin = "java")
 
-    repositories {
-        mavenCentral()
-    }
+        configure<JavaPluginExtension> {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
+        }
 
-    configure<JavaPluginExtension> {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
+        tasks.withType<JavaCompile> {
+            options.encoding = "UTF-8"
+        }
 
-    tasks.withType<JavaCompile> {
-        options.encoding = "UTF-8"
-    }
-
-    tasks.withType<Test> {
-        useJUnitPlatform()
+        tasks.withType<Test> {
+            useJUnitPlatform()
+        }
     }
 }
