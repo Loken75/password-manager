@@ -61,8 +61,7 @@ final class ConfigEncryptor {
 
             return PREFIX + Base64.getEncoder().encodeToString(combined);
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Config encryption failed, storing plaintext", e);
-            return plaintext;
+            throw new RuntimeException("Config encryption failed", e);
         }
     }
 
@@ -121,10 +120,15 @@ final class ConfigEncryptor {
         try {
             SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
             byte[] keyBytes = factory.generateSecret(spec).getEncoded();
-            return new SecretKeySpec(keyBytes, "AES");
+            try {
+                return new SecretKeySpec(keyBytes, "AES");
+            } finally {
+                java.util.Arrays.fill(keyBytes, (byte) 0);
+            }
         } finally {
             spec.clearPassword();
             java.util.Arrays.fill(password, '\0');
+            java.util.Arrays.fill(keyMaterial, (byte) 0);
         }
     }
 

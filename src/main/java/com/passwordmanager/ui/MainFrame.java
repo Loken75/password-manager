@@ -474,6 +474,7 @@ public class MainFrame extends JFrame {
         clearClipboard();
         vault.wipe();
         session.destroy();
+        Runtime.getRuntime().removeShutdownHook(shutdownHook);
         dispose();
         new LoginFrame().setVisible(true);
     }

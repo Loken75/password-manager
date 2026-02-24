@@ -67,12 +67,14 @@ public class SFTPRepository {
     }
 
     public void uploadFile(String localPath, String remoteFilename) throws SftpException {
+        validateFilename(remoteFilename);
         sftpChannel.put(localPath, remotePath + "/" + remoteFilename, ChannelSftp.OVERWRITE);
     }
 
     private static final long MAX_DOWNLOAD_SIZE = 50 * 1024 * 1024; // 50 MB
 
     public void downloadFile(String remoteFilename, String localPath) throws SftpException {
+        validateFilename(remoteFilename);
         // Check remote file size before downloading
         SftpATTRS attrs = sftpChannel.lstat(remotePath + "/" + remoteFilename);
         if (attrs.getSize() > MAX_DOWNLOAD_SIZE) {
@@ -82,6 +84,7 @@ public class SFTPRepository {
     }
 
     public boolean remoteFileExists(String remoteFilename) {
+        validateFilename(remoteFilename);
         try {
             sftpChannel.lstat(remotePath + "/" + remoteFilename);
             return true;
@@ -91,6 +94,7 @@ public class SFTPRepository {
     }
 
     public long getRemoteLastModified(String remoteFilename) {
+        validateFilename(remoteFilename);
         try {
             SftpATTRS attrs = sftpChannel.lstat(remotePath + "/" + remoteFilename);
             return (long) attrs.getMTime() * 1000L;
@@ -108,6 +112,16 @@ public class SFTPRepository {
         } catch (Exception e) {
             LOGGER.log(Level.FINE, "Connection test failed", e);
             return false;
+        }
+    }
+
+    private static void validateFilename(String filename) {
+        if (filename == null || filename.isEmpty()) {
+            throw new IllegalArgumentException("Remote filename must not be empty");
+        }
+        if (filename.contains("..") || filename.contains("/") || filename.contains("\\")
+                || filename.startsWith("~")) {
+            throw new IllegalArgumentException("Invalid remote filename: path traversal detected");
         }
     }
 

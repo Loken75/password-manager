@@ -20,8 +20,6 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
 
 /**
  * Main panel displaying vault entries with search, categories, and entry details.
@@ -46,8 +44,8 @@ public class VaultPanel extends JPanel {
     private List<VaultEntry> displayedEntries = new ArrayList<>();
     private String currentCategory = null;
     private SortField currentSort = SortField.TITLE;
-    private Timer clipboardTimer;
-    private Timer passwordVisibilityTimer;
+    private javax.swing.Timer clipboardTimer;
+    private javax.swing.Timer passwordVisibilityTimer;
     private static final int PASSWORD_VISIBILITY_TIMEOUT_MS = 30_000;
 
     // Callbacks
@@ -261,21 +259,17 @@ public class VaultPanel extends JPanel {
             if (showDetailPassword.isSelected()) {
                 detailPassword.setEchoChar((char) 0);
                 // Auto-hide password after timeout
-                if (passwordVisibilityTimer != null) passwordVisibilityTimer.cancel();
-                passwordVisibilityTimer = new Timer();
-                passwordVisibilityTimer.schedule(new TimerTask() {
-                    @Override
-                    public void run() {
-                        SwingUtilities.invokeLater(() -> {
-                            detailPassword.setEchoChar(echoChar);
-                            showDetailPassword.setSelected(false);
-                        });
-                    }
-                }, PASSWORD_VISIBILITY_TIMEOUT_MS);
+                if (passwordVisibilityTimer != null) passwordVisibilityTimer.stop();
+                passwordVisibilityTimer = new javax.swing.Timer(PASSWORD_VISIBILITY_TIMEOUT_MS, evt -> {
+                    detailPassword.setEchoChar(echoChar);
+                    showDetailPassword.setSelected(false);
+                });
+                passwordVisibilityTimer.setRepeats(false);
+                passwordVisibilityTimer.start();
             } else {
                 detailPassword.setEchoChar(echoChar);
                 if (passwordVisibilityTimer != null) {
-                    passwordVisibilityTimer.cancel();
+                    passwordVisibilityTimer.stop();
                     passwordVisibilityTimer = null;
                 }
             }
@@ -384,19 +378,7 @@ public class VaultPanel extends JPanel {
         Toolkit.getDefaultToolkit().getSystemClipboard()
             .setContents(new StringSelection(username), null);
 
-        // Auto-clear clipboard after configured delay
-        if (clipboardTimer != null) {
-            clipboardTimer.cancel();
-        }
-        clipboardTimer = new Timer();
-        clipboardTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                SwingUtilities.invokeLater(() ->
-                    Toolkit.getDefaultToolkit().getSystemClipboard()
-                        .setContents(new StringSelection(""), null));
-            }
-        }, clipboardClearSeconds * 1000L);
+        scheduleClipboardClear();
     }
 
     private void copyPasswordToClipboard() {
@@ -410,20 +392,18 @@ public class VaultPanel extends JPanel {
             .setContents(new StringSelection(new String(clipPwd)), null);
         SecureWiper.wipe(clipPwd);
 
-        // Cancel previous clipboard clear timer if any
+        scheduleClipboardClear();
+    }
+
+    private void scheduleClipboardClear() {
         if (clipboardTimer != null) {
-            clipboardTimer.cancel();
+            clipboardTimer.stop();
         }
-        clipboardTimer = new Timer();
-        clipboardTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                // Clear clipboard on EDT since it interacts with the system toolkit
-                SwingUtilities.invokeLater(() ->
-                    Toolkit.getDefaultToolkit().getSystemClipboard()
-                        .setContents(new StringSelection(""), null));
-            }
-        }, clipboardClearSeconds * 1000L);
+        clipboardTimer = new javax.swing.Timer(clipboardClearSeconds * 1000, evt ->
+            Toolkit.getDefaultToolkit().getSystemClipboard()
+                .setContents(new StringSelection(""), null));
+        clipboardTimer.setRepeats(false);
+        clipboardTimer.start();
     }
 
     /**
@@ -431,11 +411,11 @@ public class VaultPanel extends JPanel {
      */
     public void cancelClipboardTimer() {
         if (clipboardTimer != null) {
-            clipboardTimer.cancel();
+            clipboardTimer.stop();
             clipboardTimer = null;
         }
         if (passwordVisibilityTimer != null) {
-            passwordVisibilityTimer.cancel();
+            passwordVisibilityTimer.stop();
             passwordVisibilityTimer = null;
         }
     }

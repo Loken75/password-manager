@@ -171,9 +171,10 @@ public class VaultManager {
             cleanupOldBackups(username);
         }
 
-        // Atomic write: write to temp file then rename
+        // Atomic write: write to temp file, set permissions, then rename
         Path tempPath = Paths.get(getVaultPath(username) + ".tmp");
         Files.write(tempPath, envelopeJson.getBytes(StandardCharsets.UTF_8));
+        FileSecurityUtils.setOwnerOnlyPermissions(tempPath);
         try {
             Files.move(tempPath, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
@@ -199,8 +200,21 @@ public class VaultManager {
     }
 
     public boolean deleteVault(String username) {
+        validateUsername(username);
         File file = new File(getVaultPath(username));
-        return file.exists() && file.delete();
+        boolean deleted = file.exists() && file.delete();
+
+        // Also delete all backup files for this user
+        File dir = new File(vaultDirectory);
+        String prefix = "vault_" + username;
+        File[] backups = dir.listFiles((d, name) ->
+            name.startsWith(prefix) && name.endsWith(".bak"));
+        if (backups != null) {
+            for (File backup : backups) {
+                backup.delete();
+            }
+        }
+        return deleted;
     }
 
     /**

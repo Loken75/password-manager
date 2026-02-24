@@ -102,6 +102,7 @@ public class CryptoService implements EncryptionService {
     @Override
     public VaultSession changePassword(VaultSession session, char[] newPassword) throws VaultEncryptionException {
         SecretKey newKek = null;
+        byte[] rawDek = null;
         try {
             byte[] newSalt = KeyDerivation.generateSalt();
             int iterations = KeyDerivation.getDefaultIterations();
@@ -109,7 +110,8 @@ public class CryptoService implements EncryptionService {
 
             byte[] newKekIv = new byte[GCM_IV_LENGTH];
             RANDOM.nextBytes(newKekIv);
-            EncryptedPayload encDek = doEncrypt(session.getDataKey().getEncoded(), newKek, newKekIv);
+            rawDek = session.getDataKey().getEncoded();
+            EncryptedPayload encDek = doEncrypt(rawDek, newKek, newKekIv);
 
             session.updateEnvelope(newSalt, newKekIv, encDek.getCiphertext(), iterations);
             return session;
@@ -118,6 +120,7 @@ public class CryptoService implements EncryptionService {
         } catch (Exception e) {
             throw new VaultEncryptionException("Password change failed", e);
         } finally {
+            SecureWiper.wipe(rawDek);
             destroyKey(newKek);
         }
     }

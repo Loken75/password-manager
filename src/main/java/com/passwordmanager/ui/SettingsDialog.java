@@ -208,14 +208,34 @@ public class SettingsDialog extends JDialog {
         });
 
         testBtn.addActionListener(e -> {
+            testBtn.setEnabled(false);
+            testBtn.setText(lang.getString("settings.test_connection") + "...");
             SFTPRepository repo = new SFTPRepository(
                 hostField.getText(), (Integer) portSpinner.getValue(),
                 userField.getText(), keyPathField.getText(), remotePathField.getText());
-            boolean ok = repo.testConnection();
-            JOptionPane.showMessageDialog(SettingsDialog.this,
-                ok ? lang.getString("settings.connection_ok") : lang.getString("settings.connection_fail"),
-                lang.getString("settings.test_connection"),
-                ok ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
+            new SwingWorker<Boolean, Void>() {
+                @Override
+                protected Boolean doInBackground() {
+                    return repo.testConnection();
+                }
+                @Override
+                protected void done() {
+                    testBtn.setEnabled(true);
+                    testBtn.setText(lang.getString("settings.test_connection"));
+                    try {
+                        boolean ok = get();
+                        JOptionPane.showMessageDialog(SettingsDialog.this,
+                            ok ? lang.getString("settings.connection_ok") : lang.getString("settings.connection_fail"),
+                            lang.getString("settings.test_connection"),
+                            ok ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(SettingsDialog.this,
+                            lang.getString("settings.connection_fail"),
+                            lang.getString("settings.test_connection"),
+                            JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            }.execute();
         });
 
         cancelBtn.addActionListener(e -> dispose());

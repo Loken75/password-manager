@@ -177,7 +177,7 @@ public class SyncService {
     /**
      * Computes SHA-256 hash of a file for integrity verification.
      */
-    private static String hashFile(String path) {
+    private static String hashFile(String path) throws IOException {
         try {
             byte[] data = Files.readAllBytes(Paths.get(path));
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -187,8 +187,8 @@ public class SyncService {
                 sb.append(String.format("%02x", b));
             }
             return sb.toString();
-        } catch (IOException | NoSuchAlgorithmException e) {
-            return "";
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException("SHA-256 algorithm not available", e);
         }
     }
 

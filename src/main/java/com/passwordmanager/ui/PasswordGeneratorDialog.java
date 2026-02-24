@@ -7,8 +7,6 @@ import com.passwordmanager.util.SecureWiper;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
-import java.util.Timer;
-import java.util.TimerTask;
 
 /**
  * Dialog for generating secure passwords.
@@ -22,6 +20,7 @@ public class PasswordGeneratorDialog extends JDialog {
     private JLabel strengthLabel;
     private char[] generatedPassword;
     private int clipboardClearSeconds = 30;
+    private Timer clipboardTimer;
 
     public PasswordGeneratorDialog(Dialog owner) {
         super(owner, LanguageManager.getInstance().getString("generator.title"), true);
@@ -109,23 +108,26 @@ public class PasswordGeneratorDialog extends JDialog {
                 Toolkit.getDefaultToolkit().getSystemClipboard()
                     .setContents(new StringSelection(new String(pwd)), null);
                 SecureWiper.wipe(pwd);
-                // Auto-clear clipboard after delay
-                new Timer().schedule(new TimerTask() {
-                    @Override
-                    public void run() {
-                        SwingUtilities.invokeLater(() ->
-                            Toolkit.getDefaultToolkit().getSystemClipboard()
-                                .setContents(new StringSelection(""), null));
-                    }
-                }, clipboardClearSeconds * 1000L);
+                // Cancel any previous clipboard clear timer
+                if (clipboardTimer != null) {
+                    clipboardTimer.stop();
+                }
+                // Auto-clear clipboard after delay (Swing Timer runs on EDT)
+                clipboardTimer = new Timer(clipboardClearSeconds * 1000, evt ->
+                    Toolkit.getDefaultToolkit().getSystemClipboard()
+                        .setContents(new StringSelection(""), null));
+                clipboardTimer.setRepeats(false);
+                clipboardTimer.start();
             }
         });
         cancelBtn.addActionListener(e -> {
             generatedPassword = null;
+            cancelClipboardTimer();
             dispose();
         });
         useBtn.addActionListener(e -> {
             // generatedPassword is already set by doGenerate(), no need to read from UI field
+            cancelClipboardTimer();
             dispose();
         });
 
@@ -151,6 +153,13 @@ public class PasswordGeneratorDialog extends JDialog {
             doc.insertString(0, new String(generatedPassword), null);
         } catch (javax.swing.text.BadLocationException ignored) {}
         StrengthBarHelper.update(strengthBar, strengthLabel, generatedPassword);
+    }
+
+    private void cancelClipboardTimer() {
+        if (clipboardTimer != null) {
+            clipboardTimer.stop();
+            clipboardTimer = null;
+        }
     }
 
     public char[] getGeneratedPassword() { return generatedPassword; }
