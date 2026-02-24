@@ -43,6 +43,7 @@ build/
 
 ### Gradle ###
 .gradle/
+local.properties
 
 ### Application data ###
 data/
