@@ -41,6 +41,15 @@ build/
 ### Maven wrapper ###
 .mvn/
 
+### Gradle ###
+.gradle/
+local.properties
+
+### Android signing ###
+keystore.properties
+*.p12
+*.jks
+
 ### Application data ###
 data/
 *.enc

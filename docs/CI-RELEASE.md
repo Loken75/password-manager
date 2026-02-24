@@ -3,8 +3,8 @@
 ## Vue d'ensemble
 
 Ce document decrit le workflow GitHub Actions pour construire et publier
-automatiquement des releases du Password Manager pour **Linux**, **Windows**
-et **macOS** a chaque creation d'un tag de version.
+automatiquement des releases du Password Manager pour **Linux**, **Windows**,
+**macOS** et **Android** a chaque creation d'un tag de version.
 
 ```
                          git tag v1.0.0 && git push --tags
@@ -15,43 +15,46 @@ et **macOS** a chaque creation d'un tag de version.
                         |   on: push tags: v*.*.*    |
                         +---------------------------+
                                       |
-                    +-----------------+-----------------+
-                    |                 |                 |
-                    v                 v                 v
-            +-------------+  +---------------+  +-------------+
-            |   Ubuntu     |  |   Windows     |  |   macOS      |
-            |   latest     |  |   latest      |  |   latest     |
-            +-------------+  +---------------+  +-------------+
-            | 1. Checkout  |  | 1. Checkout   |  | 1. Checkout  |
-            | 2. Setup JDK |  | 2. Setup JDK  |  | 2. Setup JDK |
-            | 3. mvn build |  | 3. mvn build  |  | 3. mvn build |
-            | 4. jlink     |  | 4. jlink      |  | 4. jlink     |
-            | 5. Package   |  | 5. Package    |  | 5. Package   |
-            |    .tar.gz   |  |    .zip       |  |    .tar.gz   |
-            +------+------+  +-------+-------+  +------+------+
-                    |                 |                 |
-                    v                 v                 v
-              Upload artifact   Upload artifact   Upload artifact
-                    |                 |                 |
-                    +-----------------+-----------------+
-                                      |
-                                      v
-                        +---------------------------+
-                        |     Job: Release          |
-                        |  needs: [build]           |
-                        +---------------------------+
-                        | 1. Download artifacts     |
-                        | 2. gh release create      |
-                        |    + attach 3 archives    |
-                        +---------------------------+
-                                      |
-                                      v
-                        +---------------------------+
-                        |   GitHub Release v1.0.0          |
-                        |   - 1.0.0-linux-x64.tar.gz      |
-                        |   - 1.0.0-windows-x64.zip       |
-                        |   - 1.0.0-macos-aarch64.tar.gz  |
-                        +----------------------------------+
+              +-----------+-----------+-----------+
+              |           |           |           |
+              v           v           v           v
+      +----------+ +----------+ +----------+ +----------+
+      |  Ubuntu  | | Windows  | |  macOS   | | Android  |
+      |  latest  | | latest   | | latest   | | (Ubuntu) |
+      +----------+ +----------+ +----------+ +----------+
+      | JDK 21   | | JDK 21   | | JDK 21   | | JDK 17   |
+      | Gradle   | | Gradle   | | Gradle   | | Gradle   |
+      | core+dsk | | core+dsk | | core+dsk | | Android  |
+      | test     | | test     | | test     | | SDK      |
+      | fatJar   | | fatJar   | | fatJar   | | assemble |
+      | jlink    | | jlink    | | jlink    | | Debug    |
+      | .tar.gz  | | .zip     | | .tar.gz  | | .apk     |
+      +----+-----+ +----+-----+ +----+-----+ +----+-----+
+           |             |            |            |
+           v             v            v            v
+      Upload art.   Upload art.  Upload art.  Upload art.
+           |             |            |            |
+           +------+------+------+-----+
+                  |
+                  v
+        +---------------------------+
+        |     Job: Release          |
+        | needs: [build-desktop,    |
+        |         build-android]    |
+        +---------------------------+
+        | 1. Download all artifacts |
+        | 2. gh release create      |
+        |    + attach 4 archives    |
+        +---------------------------+
+                  |
+                  v
+        +------------------------------------+
+        |   GitHub Release v1.0.0            |
+        |   - 1.0.0-linux-x64.tar.gz        |
+        |   - 1.0.0-windows-x64.zip         |
+        |   - 1.0.0-macos-aarch64.tar.gz    |
+        |   - 1.0.0-android.apk             |
+        +------------------------------------+
 ```
 
 ---
@@ -78,43 +81,43 @@ git push origin v1.0.0
 
 ## Structure du workflow
 
-Le workflow contient **deux jobs** :
+Le workflow contient **trois jobs** :
 
-| Job       | Runs-on              | Role                                          |
-|-----------|----------------------|-----------------------------------------------|
-| `build`   | matrix (3 OS)        | Compile, package et upload les artifacts       |
-| `release` | ubuntu-latest        | Cree la release GitHub et attache les archives |
+| Job             | Runs-on              | JDK | Role                                          |
+|-----------------|----------------------|-----|-----------------------------------------------|
+| `build-desktop` | matrix (3 OS)        | 21  | Compile core+desktop, teste, package avec JRE  |
+| `build-android` | ubuntu-latest        | 17  | Compile core+android, produit l'APK            |
+| `release`       | ubuntu-latest        | -   | Cree la release GitHub et attache les archives  |
 
 ### Dependance entre jobs
 
 ```
-build (3 runners en parallele) --> release (attend que les 3 finissent)
+build-desktop (3 runners en parallele) --+
+                                         +--> release (attend que tous finissent)
+build-android (1 runner) ----------------+
 ```
 
-Le job `release` declare `needs: [build]`, il ne demarre que lorsque les
-3 builds de la matrice ont reussi.
+Le job `release` declare `needs: [build-desktop, build-android]`, il ne demarre que lorsque les 4 builds ont reussi.
 
 ---
 
-## Job 1 : Build (matrice multi-OS)
+## Job 1 : Build Desktop (matrice multi-OS)
 
 ### Strategie matricielle
 
 ```yaml
 strategy:
+  fail-fast: false
   matrix:
     include:
       - os: ubuntu-latest
         label: linux-x64
-        archive_cmd: tar -czf
         archive_ext: tar.gz
       - os: windows-latest
         label: windows-x64
-        archive_cmd: powershell Compress-Archive
         archive_ext: zip
       - os: macos-latest
         label: macos-aarch64
-        archive_cmd: tar -czf
         archive_ext: tar.gz
 ```
 
@@ -122,7 +125,7 @@ GitHub Actions lance **3 runners en parallele**, un par OS. Chaque runner
 execute exactement les memes etapes mais sur son systeme natif, ce qui
 garantit une distribution native pour chaque plateforme.
 
-### Etapes du job build
+### Etapes du job build-desktop
 
 #### 1. Checkout du code
 
@@ -130,57 +133,54 @@ garantit une distribution native pour chaque plateforme.
 - uses: actions/checkout@v4
 ```
 
-Clone le repository sur le runner.
-
-#### 2. Installation du JDK
+#### 2. Installation du JDK + Gradle
 
 ```yaml
 - uses: actions/setup-java@v4
   with:
     distribution: 'temurin'
     java-version: '21'
+
+- uses: gradle/actions/setup-gradle@v4
 ```
 
-Installe Temurin JDK 21 (Eclipse Adoptium). Cette distribution est choisie
-car elle est gratuite, maintenue, et disponible sur les 3 OS. Le JDK (pas
-le JRE) est necessaire car `jlink` n'est disponible que dans le JDK.
+Temurin JDK 21 (Eclipse Adoptium). Le JDK (pas le JRE) est necessaire car
+`jlink` n'est disponible que dans le JDK.
 
-#### 3. Build Maven
+#### 3. Tests (core + desktop)
 
 ```yaml
-- run: mvn clean package -DskipTests=false
+- run: ./gradlew :core:test :desktop:test
 ```
 
-- Compile le code source
-- Execute les 150 tests unitaires et d'integration
-- Produit le fat JAR (`target/password-manager.jar`) via maven-assembly-plugin
+Execute les 150 tests unitaires et d'integration. Si les tests echouent,
+le build s'arrete et la release n'est pas creee.
 
-Si les tests echouent, le build s'arrete et la release n'est pas creee.
+> **Note** : on specifie `:core:test :desktop:test` et non `test` pour eviter
+> de declencher la configuration du module `:android` (qui necessite le SDK Android).
 
-#### 4. Creation du JRE minimal avec jlink
+#### 4. Build fat JAR
 
 ```yaml
-# Linux/macOS
+- run: ./gradlew :desktop:fatJar
+```
+
+Produit `desktop/build/libs/password-manager.jar` — fat JAR avec toutes les dependances (~2 Mo).
+
+#### 5. Creation du JRE minimal avec jlink
+
+```yaml
 - run: |
     jlink \
       --add-modules java.base,java.desktop,java.logging,java.naming,java.security.jgss,java.sql,java.xml \
       --strip-debug \
       --no-man-pages \
+      --no-header-files \
       --compress zip-6 \
-      --output dist/runtime
-
-# Windows
-- run: |
-    jlink `
-      --add-modules java.base,java.desktop,java.logging,java.naming,java.security.jgss,java.sql,java.xml `
-      --strip-debug `
-      --no-man-pages `
-      --compress zip-6 `
       --output dist/runtime
 ```
 
-`jlink` analyse les modules Java requis et cree un JRE minimal (~57 Mo)
-contenant uniquement ces modules, au lieu du JDK complet (~300 Mo).
+`jlink` cree un JRE minimal (~57 Mo) contenant uniquement les modules requis.
 
 **Modules inclus :**
 
@@ -194,12 +194,13 @@ contenant uniquement ces modules, au lieu du JDK complet (~300 Mo).
 | `java.sql`              | Dependance transitive                         |
 | `java.xml`              | Parsing XML (dependance transitive)           |
 
-#### 5. Assemblage de la distribution
+#### 6. Assemblage et archivage
 
 ```yaml
 - run: |
-    cp target/password-manager.jar dist/
-    # Copier le script de lancement adapte a l'OS
+    cp desktop/build/libs/password-manager.jar dist/
+    cp scripts/run.sh dist/
+    cp scripts/run.bat dist/
 ```
 
 La distribution finale contient :
@@ -207,36 +208,8 @@ La distribution finale contient :
 dist/
   password-manager.jar    # Fat JAR avec toutes les dependances
   runtime/                # JRE minimal (jlink)
-  password-manager        # Script de lancement (Linux/macOS)
-  password-manager.bat    # Script de lancement (Windows)
-```
-
-**Scripts de lancement :**
-
-Linux/macOS (`password-manager`) :
-```bash
-#!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-"$SCRIPT_DIR/runtime/bin/java" -jar "$SCRIPT_DIR/password-manager.jar"
-```
-
-Windows (`password-manager.bat`) :
-```batch
-@echo off
-set SCRIPT_DIR=%~dp0
-"%SCRIPT_DIR%runtime\bin\java.exe" -jar "%SCRIPT_DIR%password-manager.jar"
-```
-
-#### 6. Archivage
-
-Le numero de version est extrait du tag Git (`v1.0.2` -> `1.0.2`) et integre au nom de l'archive :
-
-```yaml
-# Linux/macOS
-- run: tar -czf password-manager-<version>-${{ matrix.label }}.${{ matrix.archive_ext }} -C dist .
-
-# Windows
-- run: Compress-Archive -Path dist\* -DestinationPath password-manager-<version>-windows-x64.zip
+  run.sh                  # Script de lancement (Linux/macOS)
+  run.bat                 # Script de lancement (Windows)
 ```
 
 #### 7. Upload de l'artifact
@@ -246,16 +219,59 @@ Le numero de version est extrait du tag Git (`v1.0.2` -> `1.0.2`) et integre au 
   with:
     name: password-manager-<version>-${{ matrix.label }}
     path: password-manager-<version>-${{ matrix.label }}.${{ matrix.archive_ext }}
+    retention-days: 1
 ```
-
-Les artifacts sont stockes temporairement par GitHub Actions et seront
-telecharges par le job `release`.
 
 ---
 
-## Job 2 : Release
+## Job 2 : Build Android
 
-Ce job s'execute sur `ubuntu-latest` apres que les 3 builds aient reussi.
+Ce job s'execute en parallele du build desktop, sur `ubuntu-latest`.
+
+### Etapes
+
+#### 1. Setup JDK 17 + Android SDK + Gradle
+
+```yaml
+- uses: actions/setup-java@v4
+  with:
+    distribution: 'temurin'
+    java-version: '17'
+
+- uses: android-actions/setup-android@v3
+
+- uses: gradle/actions/setup-gradle@v4
+```
+
+Le JDK 17 est suffisant pour la compilation Android (AGP 8.7.3 le requiert).
+L'action `android-actions/setup-android@v3` installe le SDK Android et les
+build tools necessaires.
+
+#### 2. Build APK debug
+
+```yaml
+- run: ./gradlew :android:assembleDebug
+```
+
+Produit `android/build/outputs/apk/debug/android-debug.apk`.
+
+#### 3. Renommage et upload
+
+```yaml
+- run: mv android/build/outputs/apk/debug/android-debug.apk password-manager-<version>-android.apk
+
+- uses: actions/upload-artifact@v4
+  with:
+    name: password-manager-<version>-android
+    path: password-manager-<version>-android.apk
+    retention-days: 1
+```
+
+---
+
+## Job 3 : Release
+
+Ce job s'execute sur `ubuntu-latest` apres que les 4 builds (3 desktop + 1 Android) aient reussi.
 
 ### Etapes
 
@@ -268,7 +284,7 @@ Ce job s'execute sur `ubuntu-latest` apres que les 3 builds aient reussi.
     merge-multiple: true
 ```
 
-Telecharge les 3 archives produites par le job `build` dans `release-assets/`.
+Telecharge les 4 archives produites par les jobs `build-desktop` et `build-android`.
 
 #### 2. Creation de la release GitHub
 
@@ -283,9 +299,8 @@ Telecharge les 3 archives produites par le job `build` dans `release-assets/`.
       release-assets/password-manager-<version>-linux-x64.tar.gz
       release-assets/password-manager-<version>-windows-x64.zip
       release-assets/password-manager-<version>-macos-aarch64.tar.gz
+      release-assets/password-manager-<version>-android.apk
 ```
-
-Le numero de version (`<version>`) est extrait dynamiquement du tag Git (ex: `v1.0.2` -> `1.0.2`).
 
 **`generate_release_notes: true`** genere automatiquement les notes de
 release a partir des commits et PR depuis le dernier tag.
@@ -321,24 +336,32 @@ git push origin v1.0.0
 
 ### Telecharger une release (utilisateur final)
 
+**Desktop :**
 1. Aller sur la page **Releases** du repository
 2. Telecharger l'archive correspondant a son OS
 3. Extraire l'archive
-4. Lancer `password-manager` (Linux/macOS) ou `password-manager.bat` (Windows)
+4. Lancer `run.sh` (Linux/macOS) ou `run.bat` (Windows)
 
 Aucune installation de Java n'est requise : le JRE est embarque.
+
+**Android :**
+1. Telecharger le fichier `.apk` depuis la page Releases
+2. Installer l'APK sur le telephone (activer "Sources inconnues" si necessaire)
 
 ---
 
 ## Points cles
 
-| Aspect              | Detail                                                   |
-|---------------------|----------------------------------------------------------|
-| **Declencheur**     | Push d'un tag `v*.*.*`                                   |
-| **OS supportes**    | Linux x64, Windows x64, macOS aarch64 (Apple Silicon)    |
-| **JDK**             | Temurin 21                                                |
-| **Tests**           | Executes sur chaque OS avant packaging                   |
-| **Taille archive**  | ~20-25 Mo (JAR 2 Mo + JRE compresse ~57 Mo / par OS)    |
-| **Retention**       | Artifacts temporaires : 1 jour / Release : permanente    |
-| **fail-fast**       | `false` — les 3 builds continuent meme si l'un echoue   |
-| **Permissions**     | `contents: write` pour creer la release                  |
+| Aspect              | Detail                                                      |
+|---------------------|-------------------------------------------------------------|
+| **Declencheur**     | Push d'un tag `v*.*.*`                                      |
+| **Plateformes**     | Linux x64, Windows x64, macOS aarch64, Android (APK)        |
+| **JDK desktop**     | Temurin 21 (build + jlink)                                   |
+| **JDK Android**     | Temurin 17 (AGP 8.7.3)                                       |
+| **Build system**    | Gradle 8.11 (wrapper), multi-module `:core`/`:desktop`/`:android` |
+| **Tests**           | `:core:test` + `:desktop:test` sur chaque OS desktop         |
+| **Taille desktop**  | ~20-25 Mo (JAR 2 Mo + JRE compresse ~57 Mo / par OS)        |
+| **Taille APK**      | ~5-10 Mo (debug, non minifie)                                |
+| **Retention**       | Artifacts temporaires : 1 jour / Release : permanente        |
+| **fail-fast**       | `false` — les builds continuent meme si l'un echoue         |
+| **Permissions**     | `contents: write` pour creer la release                      |

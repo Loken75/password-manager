@@ -1,6 +1,6 @@
 # Password Manager
 
-Gestionnaire de mots de passe de bureau securise. Stocke, organise et protege vos identifiants dans un coffre-fort chiffre AES-256-GCM avec chiffrement par enveloppe DEK/KEK. Interface bilingue francais/anglais.
+Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et protege vos identifiants dans un coffre-fort chiffre AES-256-GCM avec chiffrement par enveloppe DEK/KEK. Disponible sur **desktop** (Windows, Linux, macOS) et **Android**. Interface bilingue francais/anglais.
 
 ## Fonctionnalites
 
@@ -10,19 +10,24 @@ Gestionnaire de mots de passe de bureau securise. Stocke, organise et protege vo
 - Analyse de securite (mots de passe faibles, reutilises, anciens)
 - Import/export CSV et JSON avec detection automatique du format
 - Sauvegarde chiffree exportable
-- Synchronisation SFTP avec gestion des conflits et mode hors-ligne
+- Synchronisation SFTP avec gestion des conflits et mode hors-ligne (desktop)
 - Interface bilingue francais / anglais
-- Themes Systeme, Clair et Sombre (FlatLaf)
+- Themes Systeme, Clair et Sombre
 - Verrouillage automatique apres inactivite
 - Effacement automatique du presse-papiers
 - Protection anti brute-force sur l'ecran de connexion
-- Distribution autonome avec JRE embarque (aucune installation Java requise)
+- **Desktop** : distribution autonome avec JRE embarque (aucune installation Java requise)
+- **Android** : application native Jetpack Compose / Material 3 (APK)
 
 ---
 
 ## Telechargement
 
-Les releases pretes a l'emploi sont disponibles sur la page [Releases](../../releases). Chaque release contient un JRE embarque — aucune installation de Java n'est necessaire.
+Les releases pretes a l'emploi sont disponibles sur la page [Releases](../../releases).
+
+### Desktop
+
+Chaque archive desktop contient un JRE embarque — aucune installation de Java n'est necessaire.
 
 | Plateforme | Archive | Systemes supportes |
 |---|---|---|
@@ -30,7 +35,7 @@ Les releases pretes a l'emploi sont disponibles sur la page [Releases](../../rel
 | Windows x64 | `password-manager-<version>-windows-x64.zip` | Windows 10 / 11 |
 | macOS ARM | `password-manager-<version>-macos-aarch64.tar.gz` | macOS 14+ (Apple Silicon M1/M2/M3/M4) |
 
-### Installation
+**Installation desktop :**
 
 1. Telecharger l'archive correspondant a votre systeme
 2. Extraire l'archive
@@ -44,36 +49,57 @@ Les releases pretes a l'emploi sont disponibles sur la page [Releases](../../rel
 run.bat
 ```
 
+### Android
+
+| Plateforme | Archive | Systemes supportes |
+|---|---|---|
+| Android | `password-manager-<version>-android.apk` | Android 8.0+ (API 26) |
+
+**Installation Android :**
+
+1. Telecharger l'APK depuis la page Releases
+2. Activer "Sources inconnues" dans les parametres Android (si necessaire)
+3. Installer l'APK et lancer l'application
+
 ---
 
 ## Compilation depuis les sources
 
 ### Prerequis
 
-| Composant | Version requise |
-|---|---|
-| Java (JDK) | 17 ou superieur |
-| Maven | 3.8+ |
+| Composant | Version requise | Necessaire pour |
+|---|---|---|
+| Java (JDK) | 21 ou superieur | Desktop |
+| Android SDK | API 35 | Android |
+| Gradle | 8.11+ (wrapper inclus) | Tous |
 
-### Compilation et lancement
+### Architecture multi-module
 
-```bash
-mvn clean package
-java -jar target/password-manager.jar
+```
+password-manager/
+  :core       # Logique metier, crypto, vault (Java 17)
+  :desktop    # Interface Swing + FlatLaf (Java 17)
+  :android    # Interface Jetpack Compose / Material 3 (Kotlin)
 ```
 
-### Construction de la distribution avec JRE embarque
+### Compilation et lancement (desktop)
 
 ```bash
-mvn clean package -Pdist
+./gradlew :desktop:fatJar
+java -jar desktop/build/libs/password-manager.jar
 ```
 
-Produit `dist/PasswordManager/` contenant le fat JAR, les scripts de lancement et un JRE minimal cree par jlink.
+### Compilation Android (APK)
+
+```bash
+./gradlew :android:assembleDebug
+# APK dans android/build/outputs/apk/debug/
+```
 
 ### Execution des tests
 
 ```bash
-mvn test
+./gradlew :core:test :desktop:test
 ```
 
 ---
@@ -93,7 +119,9 @@ Au premier lancement, aucun utilisateur n'existe. Cliquez sur **Creer un nouvel 
 
 ---
 
-## Interface principale
+## Interface
+
+### Desktop (Windows, Linux, macOS)
 
 Apres connexion, l'interface se compose de :
 
@@ -104,31 +132,37 @@ Apres connexion, l'interface se compose de :
 - **Panneau droit** (300 px) : details de l'entree selectionnee avec boutons copier identifiant/mot de passe
 - **Barre de statut** : statut de synchronisation, utilisateur connecte, nombre d'entrees
 
-### Gestion des entrees
+### Android
 
-| Action | Acces |
-|---|---|
-| Creer | Edition > Nouvelle entree, `Ctrl+N`, barre d'outils |
-| Modifier | Double-clic sur l'entree, ou Edition > Modifier |
-| Supprimer | Touche `Suppr`, ou Edition > Supprimer |
+Apres connexion, l'interface se compose de :
 
-Champs disponibles : titre, identifiant/email, mot de passe (avec generateur integre), URL, notes, categorie, tags.
+- **TopAppBar** : titre, recherche, menu (import/export, audit, parametres, verrouiller)
+- **FilterChips** horizontaux pour les categories
+- **Liste scrollable** des entrees avec indicateur de force
+- **FAB** pour nouvelle entree
+- **Navigation** : ecrans detail, edition, generateur, parametres, audit
 
-### Recherche, tri et filtres
+### Fonctionnalites communes
 
-- **Recherche** : filtre en temps reel sur tous les champs (insensible a la casse)
-- **Tri** : par nom, date ou categorie (menu Affichage)
-- **Filtres de securite** : mots de passe faibles, mots de passe reutilises
+| Fonctionnalite | Desktop | Android |
+|---|---|---|
+| CRUD entrees | Oui | Oui |
+| Generateur de mots de passe | Oui | Oui |
+| Analyse de securite | Oui | Oui |
+| Import/export CSV/JSON | Oui | Oui (via SAF) |
+| Sauvegarde chiffree | Oui | Oui |
+| Recherche et tri | Oui | Oui |
+| Themes Systeme/Clair/Sombre | Oui (FlatLaf) | Oui (Material 3 / Dynamic Colors) |
+| Verrouillage automatique | Oui | Oui |
+| Synchronisation SFTP | Oui | Non |
 
 ### Generateur de mots de passe
-
-Acces : Outils > Generateur | barre d'outils | bouton Generer dans le formulaire d'entree.
 
 Options : longueur (8-128), majuscules, minuscules, chiffres, caracteres speciaux, exclusion des caracteres ambigus (0/O, 1/l/I). Garantit au moins un caractere de chaque type active.
 
 ### Analyse de securite
 
-Acces : Outils > Analyse de securite. Genere un rapport sur :
+Genere un rapport sur :
 
 - Mots de passe **faibles** (score insuffisant)
 - Mots de passe **reutilises** (partages entre plusieurs entrees)
@@ -140,79 +174,37 @@ Indicateur de force : Faible (rouge), Moyen (orange), Fort (vert), Tres fort (bl
 
 ## Import / Export
 
-### Import CSV
+Detection automatique du separateur (`,` ou `;`) et des colonnes via alias multilingues. Limite : 10 000 entrees par import. Les donnees exportees ne sont **pas chiffrees** (avertissement affiche). Protection anti-injection de formules pour les tableurs.
 
-Acces : Fichier > Importer CSV. Detection automatique du separateur (`,` ou `;`) et des colonnes via alias multilingues :
-
-| Champ | Alias acceptes |
-|---|---|
-| Titre | `title`, `organisme`, `name`, `nom`, `titre` |
-| Identifiant | `username`, `identifiant`, `email`, `adresse mail`, `login` |
-| Mot de passe | `password`, `mdp`, `mot de passe`, `pass` |
-| URL | `url`, `site`, `website`, `lien` |
-| Notes | `notes`, `description`, `commentaire` |
-| Categorie | `category`, `categorie`, `type` |
-| Tags | `tags`, `etiquettes` |
-
-Repli positionnel si aucun en-tete n'est reconnu. Limite : 10 000 entrees par import.
-
-### Import JSON
-
-Acces : Fichier > Importer JSON. Format d'export de l'application.
-
-### Export CSV / JSON
-
-Acces : Fichier > Exporter CSV / JSON. Les donnees exportees ne sont **pas chiffrees**. Protection anti-injection de formules pour les tableurs.
-
-### Sauvegarde chiffree
-
-Acces : Fichier > Exporter sauvegarde chiffree. Copie du fichier `.enc` — ne peut etre ouverte qu'avec le mot de passe maitre.
+Sur Android, l'import/export utilise le Storage Access Framework (SAF) — selecteur de fichiers systeme.
 
 ---
 
-## Synchronisation SFTP
-
-### Configuration
-
-Acces : Fichier > Parametres > onglet Synchronisation.
-
-| Parametre | Description |
-|---|---|
-| Mode de stockage | Local uniquement / Serveur distant |
-| Hote | Adresse du serveur SFTP |
-| Port | Port SSH (defaut : 22) |
-| Utilisateur SSH | Nom d'utilisateur sur le serveur |
-| Cle privee SSH | Chemin vers la cle privee (authentification par cle uniquement) |
-| Repertoire distant | Dossier de stockage sur le serveur |
-
-Bouton **Tester la connexion** pour verifier la configuration (test hors EDT via SwingWorker).
-
-### Fonctionnement
+## Synchronisation SFTP (desktop uniquement)
 
 - Comparaison par empreinte SHA-256 (local vs distant)
 - Mode hors-ligne : modifications mises en attente automatiquement (fichier `.pending`)
 - Gestion des conflits : garder local, garder distant, ou sauvegarder les deux versions
+- Authentification par cle SSH uniquement
 
 ---
 
 ## Parametres
 
-Acces : Fichier > Parametres.
-
-| Onglet | Parametre | Valeurs |
+| Parametre | Desktop | Android |
 |---|---|---|
-| General | Langue | Francais / English |
-| General | Theme | Systeme / Clair / Sombre |
-| General | Repertoire des coffres | Chemin avec bouton parcourir |
-| Securite | Verrouillage automatique | 1 a 60 min (defaut : 15) |
-| Securite | Effacement presse-papiers | 5 a 120 s (defaut : 30) |
-| Synchronisation | Configuration SFTP | Voir section dediee |
+| Langue (FR/EN) | Oui | Oui |
+| Theme (Systeme/Clair/Sombre) | Oui | Oui |
+| Repertoire des coffres | Oui | Non (interne) |
+| Verrouillage automatique (1-60 min) | Oui | Oui |
+| Effacement presse-papiers (5-120 s) | Oui | Oui |
+| Configuration SFTP | Oui | Non |
 
-Changement de mot de passe maitre : Edition > Changer mot de passe maitre. Seule la DEK est re-chiffree (operation quasi instantanee).
+Changement de mot de passe maitre : seule la DEK est re-chiffree (operation quasi instantanee).
 
 ---
 
-## Raccourcis clavier
+## Raccourcis clavier (desktop)
 
 | Raccourci | Action |
 |---|---|
@@ -265,32 +257,40 @@ Par conception, aucun mecanisme de recuperation du mot de passe maitre n'existe.
 
 ### Technologies
 
-| Composant | Technologie | Version |
+| Module | Technologie | Version |
 |---|---|---|
-| Langage | Java | 17 |
-| Interface graphique | Swing + FlatLaf | 3.7 |
+| `:core` | Java | 17 |
+| `:desktop` | Swing + FlatLaf | 3.7 |
+| `:android` | Kotlin + Jetpack Compose + Material 3 | Kotlin 2.1, Compose BOM 2024.12 |
 | Serialisation JSON | Gson | 2.13.2 |
 | Connexion SFTP | JSch (fork mwiede) | 2.27.8 |
 | Tests | JUnit 5 (Jupiter) | 5.14.2 |
-| Build | Maven | 3.8+ |
+| Build | Gradle (Kotlin DSL) | 8.11 |
+| CI/CD | GitHub Actions | - |
 
-### Structure des packages
+### Structure multi-module
 
 ```
-src/main/java/com/passwordmanager/
-|-- Main.java                          # Point d'entree, detection app.home
-|-- config/                            # Configuration (AppConfig, ConfigManager, ConfigEncryptor)
-|-- crypto/                            # Cryptographie (CryptoService, KeyDerivation, VaultSession)
-|-- i18n/                              # Internationalisation (LanguageManager, FR/EN)
-|-- sync/                              # Synchronisation (SyncService, LocalRepository, SFTPRepository)
-|-- ui/                                # Interface Swing (LoginFrame, MainFrame, VaultPanel, dialogs)
-|-- util/                              # Utilitaires (SecureWiper, FileSecurityUtils, PasswordValidator)
-+-- vault/                             # Coffre (Vault, VaultEntry, VaultManager, VaultService)
+password-manager/
+|-- core/                              # Logique metier partagee (Java 17)
+|   +-- crypto/                        # CryptoService, KeyDerivation, VaultSession
+|   +-- vault/                         # Vault, VaultEntry, VaultManager, VaultService
+|   +-- config/                        # AppConfig, ConfigManager, ConfigEncryptor
+|   +-- sync/                          # SyncService, LocalRepository, SFTPRepository
+|   +-- util/                          # SecureWiper, FileSecurityUtils, PasswordValidator
+|   +-- i18n/                          # LanguageManager (FR/EN)
+|
+|-- desktop/                           # Interface Swing (Java 17)
+|   +-- ui/                            # LoginFrame, MainFrame, VaultPanel, dialogs
+|
++-- android/                           # Interface Jetpack Compose (Kotlin)
+    +-- data/                          # AndroidVaultRepository, AndroidConfigRepository, SessionHolder
+    +-- ui/                            # Ecrans Compose (login, vault, generator, settings, audit)
 ```
 
 ### Tests
 
-**150 tests** unitaires et d'integration :
+**150 tests** unitaires et d'integration dans `:core` et `:desktop` :
 
 | Module | Classe de test | Tests | Description |
 |---|---|:---:|---|

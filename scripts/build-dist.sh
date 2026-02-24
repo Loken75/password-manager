@@ -2,7 +2,7 @@
 # Build a portable distribution of Password Manager with an embedded JRE.
 # Output: dist/PasswordManager/
 #
-# Requirements: JDK 17+ with jlink, Maven
+# Requirements: JDK 17+ with jlink, Gradle (via wrapper)
 # Note: jlink produces a JRE for the current OS. Cross-platform builds
 # require running this script on each target OS (or using CI).
 
@@ -14,7 +14,7 @@ DIST_DIR="$PROJECT_DIR/dist/PasswordManager"
 
 echo "=== Building fat JAR ==="
 cd "$PROJECT_DIR"
-mvn clean package -q -DskipTests
+./gradlew :desktop:fatJar -q
 
 echo "=== Creating distribution directory ==="
 rm -rf "$DIST_DIR"
@@ -40,7 +40,7 @@ else
 fi
 
 echo "=== Copying files ==="
-cp "$PROJECT_DIR/target/password-manager.jar" "$DIST_DIR/"
+cp "$PROJECT_DIR/desktop/build/libs/password-manager.jar" "$DIST_DIR/"
 cp "$SCRIPT_DIR/run.sh" "$DIST_DIR/"
 cp "$SCRIPT_DIR/run.bat" "$DIST_DIR/"
 

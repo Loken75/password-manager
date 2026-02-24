@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build - ${{ matrix.label }}
+  build-desktop:
+    name: Desktop - ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -41,8 +41,14 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Build with Maven
-        run: mvn clean package -DskipTests=false
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Test (core + desktop)
+        run: ./gradlew :core:test :desktop:test
+
+      - name: Build fat JAR
+        run: ./gradlew :desktop:fatJar
 
       - name: Create minimal JRE (jlink)
         shell: bash
@@ -58,7 +64,7 @@ jobs:
       - name: Assemble distribution
         shell: bash
         run: |
-          cp target/password-manager.jar dist/
+          cp desktop/build/libs/password-manager.jar dist/
           cp scripts/run.sh dist/
           cp scripts/run.bat dist/
           chmod +x dist/run.sh
@@ -80,9 +86,56 @@ jobs:
           path: password-manager-${{ steps.version.outputs.VERSION }}-${{ matrix.label }}.${{ matrix.archive_ext }}
           retention-days: 1
 
+  build-android:
+    name: Android - APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode keystore
+        run: |
+          mkdir -p android/build
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/build/keystore.p12
+
+      - name: Build signed release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :android:assembleRelease
+
+      - name: Rename APK
+        run: mv android/build/outputs/apk/release/android-release.apk password-manager-${{ steps.version.outputs.VERSION }}-android.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: password-manager-${{ steps.version.outputs.VERSION }}-android
+          path: password-manager-${{ steps.version.outputs.VERSION }}-android.apk
+          retention-days: 1
+
   release:
     name: Create GitHub Release
-    needs: build
+    needs: [build-desktop, build-android]
     runs-on: ubuntu-latest
 
     steps:
@@ -108,3 +161,4 @@ jobs:
             release-assets/password-manager-${{ steps.version.outputs.VERSION }}-linux-x64.tar.gz
             release-assets/password-manager-${{ steps.version.outputs.VERSION }}-windows-x64.zip
             release-assets/password-manager-${{ steps.version.outputs.VERSION }}-macos-aarch64.tar.gz
+            release-assets/password-manager-${{ steps.version.outputs.VERSION }}-android.apk
