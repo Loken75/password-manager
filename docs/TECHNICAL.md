@@ -20,16 +20,17 @@
 
 ## 1. Vue d'ensemble
 
-Password Manager est une application de bureau Java 17 permettant de stocker et gerer des mots de passe dans un coffre-fort chiffre. L'application utilise Swing avec le theme FlatLaf pour l'interface graphique, AES-256-GCM pour le chiffrement, et supporte la synchronisation via SFTP.
+Password Manager est une application multiplateforme (desktop + Android) permettant de stocker et gerer des mots de passe dans un coffre-fort chiffre. Le projet est organise en **trois modules Gradle** : `:core` (logique metier Java 17), `:desktop` (Swing + FlatLaf) et `:android` (Kotlin + Jetpack Compose / Material 3).
 
 **Caracteristiques techniques principales :**
 
+- Architecture multi-module Gradle (core / desktop / android)
 - Chiffrement par enveloppe DEK/KEK (AES-256-GCM + PBKDF2-HMAC-SHA256)
 - Protection memoire des donnees sensibles (`char[]` + effacement securise)
 - Ecriture atomique des fichiers avec permissions POSIX/ACL restrictives
 - Multi-utilisateurs avec coffres isoles
 - Import/export CSV et JSON avec protection contre l'injection de formules
-- Synchronisation SFTP avec gestion des conflits et mode hors-ligne
+- Synchronisation SFTP avec gestion des conflits et mode hors-ligne (desktop)
 - Interface bilingue francais/anglais
 - Themes systeme, clair et sombre
 - 150 tests unitaires et d'integration
@@ -38,55 +39,73 @@ Password Manager est une application de bureau Java 17 permettant de stocker et 
 
 ## 2. Prerequis et compilation
 
-| Composant | Version requise |
-|-----------|-----------------|
-| Java (JDK) | 17 ou superieur |
-| Maven | 3.8+ |
+| Composant | Version requise | Necessaire pour |
+|-----------|-----------------|-----------------|
+| Java (JDK) | 21 ou superieur | Desktop (build + jlink) |
+| Android SDK | API 35 | Android |
+| Gradle | 8.11+ (wrapper inclus) | Tous |
 
-### Compilation
+### Architecture multi-module
 
-```bash
-mvn clean package
+```
+password-manager/          # Projet Gradle racine
+  settings.gradle.kts      # include(":core", ":desktop", ":android")
+  build.gradle.kts          # Configuration commune (Java, JUnit)
+  core/                     # :core — logique metier (Java 17, aucune dep UI)
+  desktop/                  # :desktop — interface Swing (Java 17, dep :core)
+  android/                  # :android — interface Compose (Kotlin, dep :core)
 ```
 
-Produit deux JARs dans `target/` :
-- `password-manager-1.0.jar` : JAR standard (~135 Ko)
-- `password-manager.jar` : fat JAR executable avec toutes les dependances (~2 Mo), via `maven-assembly-plugin` (descripteur `jar-with-dependencies`)
+Le `:core` cible Java 17. AGP sait consommer du bytecode Java 17, avec `coreLibraryDesugaring` active pour `List.of()` et similaires.
 
-### Execution
+### Compilation desktop
 
 ```bash
-java -jar target/password-manager.jar
+./gradlew :desktop:fatJar
+java -jar desktop/build/libs/password-manager.jar
 ```
 
 Des scripts de lancement sont fournis dans `scripts/` :
 - `run.sh` (Linux/macOS) : utilise le JRE embarque (`runtime/bin/java`) s'il est present, sinon le Java systeme
 - `run.bat` (Windows) : idem
 
-### Construction de la distribution avec JRE embarque
+### Compilation Android
 
 ```bash
-mvn clean package -Pdist
+./gradlew :android:assembleDebug
+# APK dans android/build/outputs/apk/debug/
 ```
-
-Ou directement :
-```bash
-./scripts/build-dist.sh
-```
-
-Produit `dist/PasswordManager/` contenant le fat JAR, les scripts de lancement et un JRE minimal (~57 Mo) cree par `jlink`. L'utilisateur final n'a pas besoin d'installer Java.
 
 ### Execution des tests
 
 ```bash
-mvn test
+./gradlew :core:test :desktop:test
 ```
 
 ---
 
 ## 3. Architecture logicielle
 
-### Diagramme des dependances entre packages
+### 3.1. Diagramme des dependances entre modules
+
+```
+:core (Java 17, aucune dependance UI)
+  |-- crypto/     CryptoService, KeyDerivation, VaultSession, PasswordGenerator, PasswordStrengthAnalyzer
+  |-- vault/      Vault, VaultEntry, VaultManager, VaultService, VaultImporter, VaultExporter
+  |-- config/     AppConfig, ConfigManager, ConfigEncryptor
+  |-- sync/       SyncService, LocalRepository, SFTPRepository
+  |-- util/       SecureWiper, FileSecurityUtils, PasswordValidator
+  +-- i18n/       LanguageManager (FR/EN)
+
+:desktop (Java 17, depends on :core)
+  +-- ui/         LoginFrame, MainFrame, VaultPanel, EntryDialog, SettingsDialog, ...
+
+:android (Kotlin 2.1, depends on :core)
+  |-- data/       AndroidVaultRepository, AndroidConfigRepository, SessionHolder
+  +-- ui/         Compose screens (login, vault, generator, settings, audit)
+```
+
+### 3.2. Diagramme desktop
 
 ```
 Main
@@ -108,12 +127,37 @@ Main
                     +-- StrengthBarHelper ---- PasswordStrengthAnalyzer (crypto)
 ```
 
-### Principes architecturaux
+### 3.3. Diagramme Android
 
-- **Separation des responsabilites** : les packages `crypto`, `vault`, `sync`, `config`, `ui`, `util` et `i18n` sont decouples. Le package `ui` ne contient aucune logique metier ou cryptographique.
+```
+PasswordManagerApp (Application)
+  +-- AndroidVaultRepository (wraps VaultManager)
+  +-- SessionHolder (singleton: Vault, VaultSession, VaultService)
+
+MainActivity (single Activity)
+  +-- AppNavigation (NavHost)
+        |-- LoginScreen / LoginViewModel
+        |     +-- VaultManager.listUsers(), VaultManager.loadVault()
+        |-- VaultListScreen / VaultListViewModel
+        |     +-- VaultService.search(), VaultService.sort()
+        |-- EntryDetailScreen / EntryDetailViewModel
+        |-- EntryEditScreen / EntryEditViewModel
+        |-- GeneratorScreen / GeneratorViewModel
+        |     +-- PasswordGenerator.generate()
+        |-- SettingsScreen / SettingsViewModel
+        |     +-- AndroidConfigRepository (EncryptedSharedPreferences)
+        |-- ChangeMasterPasswordScreen / ChangeMasterPasswordViewModel
+        +-- SecurityAuditScreen / SecurityAuditViewModel
+              +-- VaultService.findWeakPasswords(), findDuplicatePasswords(), findOldPasswords()
+```
+
+### 3.4. Principes architecturaux
+
+- **Separation des responsabilites** : le `:core` ne contient aucune dependance UI. Les packages `crypto`, `vault`, `sync`, `config`, `util` et `i18n` sont decouples.
 - **Interface d'abstraction crypto** : `EncryptionService` est une interface permettant d'injecter un service mock dans les tests, sans dependre de l'implementation `CryptoService`.
 - **Aucune retention du mot de passe maitre** : apres l'authentification, seule la `VaultSession` (contenant la DEK) est conservee en memoire. Le mot de passe maitre est efface immediatement.
 - **AutoCloseable / Destroyable** : `VaultSession` implemente les deux interfaces pour garantir l'effacement des cles via `try-with-resources` ou appel explicite.
+- **MVVM (Android)** : chaque ecran a un `ViewModel` avec `StateFlow` pour l'etat UI. Les ecrans Compose collectent l'etat via `collectAsStateWithLifecycle()`.
 
 ---
 
@@ -668,13 +712,13 @@ Le changement de langue est possible depuis l'ecran de connexion (effet immediat
 
 ## 10. Interface graphique
 
-### 10.1. Technologies
+### 10.1. Desktop — Swing + FlatLaf
 
 - **Swing** avec **FlatLaf 3.7** pour un rendu moderne
 - Trois themes : **Systeme** (detecte automatiquement le theme de l'OS), **Clair** (`FlatLightLaf`), **Sombre** (`FlatDarkLaf`)
 - Theme applique au demarrage et modifiable dynamiquement depuis les parametres
 
-### 10.2. Structure des fenetres
+#### Structure des fenetres
 
 | Fenetre | Type | Taille | Description |
 |---------|------|--------|-------------|
@@ -684,7 +728,7 @@ Le changement de langue est possible depuis l'ecran de connexion (effet immediat
 | `PasswordGeneratorDialog` | `JDialog` (modal) | min 450x420 | Generateur avec options et barre de force |
 | `SettingsDialog` | `JDialog` (modal) | min 500x450 | Parametres en 3 onglets |
 
-### 10.3. Panneau 3 colonnes (VaultPanel)
+#### Panneau 3 colonnes (VaultPanel)
 
 | Colonne | Largeur | Contenu |
 |---------|---------|---------|
@@ -694,15 +738,75 @@ Le changement de langue est possible depuis l'ecran de connexion (effet immediat
 
 La colonne Force du tableau est coloree selon le niveau : rouge (Faible), orange (Moyen), vert (Fort), bleu (Tres fort).
 
-### 10.4. Auto-lock
+#### Auto-lock (desktop)
 
 - `Toolkit.addAWTEventListener` sur les evenements clavier et souris
 - `javax.swing.Timer` verifie l'inactivite toutes les 30 secondes
 - Depassement du seuil configurable -> verrouillage (sauvegarde -> nettoyage -> effacement des cles -> ecran de connexion)
 
-### 10.5. Shutdown hook
+#### Shutdown hook
 
 Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la session (`session.destroy()`) a la fermeture de la JVM. Le hook est retire proprement lors du verrouillage (`doLock()`) et lors d'un changement de langue (qui reconstruit la fenetre).
+
+### 10.2. Android — Jetpack Compose + Material 3
+
+#### Technologies
+
+- **Kotlin 2.1.0** avec **Jetpack Compose** (BOM 2024.12.01)
+- **Material 3** (Material You) avec **Dynamic Colors** sur Android 12+
+- **Navigation Compose 2.8.5** pour le routage entre ecrans
+- **ViewModel + StateFlow** (pattern MVVM)
+- **EncryptedSharedPreferences** (security-crypto 1.1.0-alpha06) pour la configuration
+- Min SDK 26 (Android 8.0), Target SDK 35, Compile SDK 35
+
+#### Structure des ecrans
+
+| Ecran | Composable | ViewModel | Description |
+|-------|-----------|-----------|-------------|
+| Login | `LoginScreen` | `LoginViewModel` | Dropdown utilisateurs, creation, anti brute-force |
+| Liste | `VaultListScreen` | `VaultListViewModel` | Recherche, filtres, tri, import/export SAF |
+| Detail | `EntryDetailScreen` | `EntryDetailViewModel` | Lecture seule, copier, supprimer |
+| Edition | `EntryEditScreen` | `EntryEditViewModel` | Formulaire CRUD, lien generateur |
+| Generateur | `GeneratorScreen` | `GeneratorViewModel` | Options, barre de force, copier/utiliser |
+| Parametres | `SettingsScreen` | `SettingsViewModel` | Theme, langue, auto-lock, clipboard |
+| Mot de passe | `ChangeMasterPasswordScreen` | `ChangeMasterPasswordViewModel` | Ancien/nouveau/confirmer |
+| Audit | `SecurityAuditScreen` | `SecurityAuditViewModel` | Faibles, dupliques, anciens |
+
+#### Composants reutilisables (`ui/components/`)
+
+| Composant | Role |
+|-----------|------|
+| `PasswordStrengthBar` | Barre animee de force (rouge/orange/vert/bleu) |
+| `PasswordField` | OutlinedTextField avec toggle visibilite |
+| `EntryCard` | Carte pour la liste (titre, username, categorie, point de force) |
+| `ConfirmDialog` | AlertDialog de confirmation reutilisable |
+
+#### Navigation
+
+8 routes definies dans `AppNavigation.kt` : `Login`, `VaultList`, `EntryDetail(entryId)`, `EntryEdit(entryId?)`, `Generator(returnPassword)`, `Settings`, `ChangeMasterPassword`, `SecurityAudit`.
+
+Le mot de passe genere est passe de `GeneratorScreen` a `EntryEditScreen` via `savedStateHandle`.
+
+#### Auto-lock (Android)
+
+- `ProcessLifecycleOwner` detecte `ON_STOP` (app en arriere-plan)
+- Countdown configurable -> `SessionHolder.lock()` -> retour a l'ecran de connexion via `isUnlockedFlow` (StateFlow)
+
+#### Couche data
+
+| Classe | Role |
+|--------|------|
+| `AndroidVaultRepository` | Encapsule `VaultManager(context.filesDir + "/vaults")` |
+| `AndroidConfigRepository` | Configuration via `EncryptedSharedPreferences` (MasterKey AES256-GCM) |
+| `SessionHolder` | Singleton : tient `Vault`, `VaultSession`, `VaultService`, `username` en memoire. `isUnlockedFlow: StateFlow<Boolean>` |
+
+#### Localisation Android
+
+Les 100+ cles de traduction sont dans les fichiers de ressources Android :
+- `res/values/strings.xml` (anglais, langue par defaut)
+- `res/values-fr/strings.xml` (francais)
+
+La langue suit les parametres systeme du telephone.
 
 ---
 
@@ -754,22 +858,36 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la ses
 
 ## 12. Dependances
 
-| Bibliotheque | GroupId | Version | Usage |
-|--------------|---------|---------|-------|
-| Gson | `com.google.code.gson` | 2.13.2 | Serialisation JSON des coffres et de la configuration |
-| JSch (mwiede) | `com.github.mwiede` | 2.27.8 | Client SFTP pour la synchronisation distante |
-| FlatLaf | `com.formdev` | 3.7 | Look & Feel Swing moderne (themes systeme/clair/sombre) |
-| JUnit 5 | `org.junit.jupiter` | 5.14.2 | Tests unitaires et d'integration (scope test) |
+### 12.1. Core + Desktop
 
-**Plugins Maven :**
+| Bibliotheque | GroupId | Version | Module | Usage |
+|--------------|---------|---------|--------|-------|
+| Gson | `com.google.code.gson` | 2.13.2 | :core | Serialisation JSON des coffres |
+| JSch (mwiede) | `com.github.mwiede` | 2.27.8 | :core | Client SFTP (synchronisation) |
+| FlatLaf | `com.formdev` | 3.7 | :desktop | Look & Feel Swing moderne |
+| JUnit 5 | `org.junit.jupiter` | 5.14.2 | :core, :desktop | Tests (scope test) |
 
-| Plugin | Version | Role |
-|--------|---------|------|
-| `maven-compiler-plugin` | 3.15.0 | Compilation Java 17, encodage UTF-8 |
-| `maven-jar-plugin` | 3.5.0 | Manifest avec `Main-Class` |
-| `maven-assembly-plugin` | 3.8.0 | Fat JAR (`jar-with-dependencies`) |
-| `maven-surefire-plugin` | 3.5.5 | Execution des tests JUnit 5 |
-| `exec-maven-plugin` | 3.6.3 | Execution de `build-dist.sh` (profil `dist`) |
+### 12.2. Android
+
+| Bibliotheque | Version | Usage |
+|--------------|---------|-------|
+| Compose BOM | 2024.12.01 | Versions Compose alignees |
+| Material 3 | (via BOM) | Composants UI Material You |
+| Navigation Compose | 2.8.5 | Routage entre ecrans |
+| Lifecycle ViewModel Compose | 2.8.7 | ViewModel + collectAsStateWithLifecycle |
+| Security Crypto | 1.1.0-alpha06 | EncryptedSharedPreferences |
+| Coroutines Android | 1.9.0 | Concurrence Kotlin |
+| Desugar JDK Libs | 2.1.4 | Backport List.of() etc. |
+
+### 12.3. Build
+
+| Outil | Version | Role |
+|-------|---------|------|
+| Gradle (wrapper) | 8.11.1 | Build multi-module |
+| AGP | 8.7.3 | Build Android |
+| Kotlin plugin | 2.1.0 | Compilation Kotlin |
+| Compose Compiler plugin | 2.1.0 | Compilation Compose |
+| Shadow/fatJar | custom task | Fat JAR desktop |
 
 ---
 
@@ -777,88 +895,60 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la ses
 
 ```
 password-manager/
-|-- pom.xml
+|-- build.gradle.kts                        # Configuration racine (Java, JUnit, subprojects)
+|-- settings.gradle.kts                     # include(":core", ":desktop", ":android")
+|-- gradle.properties                       # android.useAndroidX, jvmargs
 |-- README.md
 |-- docs/
-|   |-- TECHNICAL.md                       # Ce document
-|   |-- FUNCTIONAL.md                      # Documentation fonctionnelle
-|   +-- CI-RELEASE.md                      # Documentation workflow CI/CD
+|   |-- TECHNICAL.md                        # Ce document
+|   |-- FUNCTIONAL.md                       # Documentation fonctionnelle
+|   +-- CI-RELEASE.md                       # Documentation workflow CI/CD
 |-- scripts/
-|   |-- build-dist.sh                      # Construction distribution avec JRE
-|   |-- run.sh                             # Lanceur Linux/macOS
-|   +-- run.bat                            # Lanceur Windows
-+-- src/
-    |-- main/
-    |   |-- java/com/passwordmanager/
-    |   |   |-- Main.java
-    |   |   |-- config/
-    |   |   |   |-- AppConfig.java
-    |   |   |   |-- ConfigEncryptor.java
-    |   |   |   |-- ConfigManager.java
-    |   |   |   |-- StorageMode.java
-    |   |   |   +-- ThemeMode.java
-    |   |   |-- crypto/
-    |   |   |   |-- CryptoService.java
-    |   |   |   |-- EncryptedPayload.java
-    |   |   |   |-- EncryptionService.java
-    |   |   |   |-- KeyDerivation.java
-    |   |   |   |-- PasswordGenerator.java
-    |   |   |   |-- PasswordStrengthAnalyzer.java
-    |   |   |   |-- VaultDecryptionException.java
-    |   |   |   |-- VaultEncryptionException.java
-    |   |   |   +-- VaultSession.java
-    |   |   |-- i18n/
-    |   |   |   +-- LanguageManager.java
-    |   |   |-- sync/
-    |   |   |   |-- ConflictResolver.java
-    |   |   |   |-- LocalRepository.java
-    |   |   |   |-- SFTPRepository.java
-    |   |   |   +-- SyncService.java
-    |   |   |-- ui/
-    |   |   |   |-- EntryDialog.java
-    |   |   |   |-- LoginFrame.java
-    |   |   |   |-- MainFrame.java
-    |   |   |   |-- PasswordGeneratorDialog.java
-    |   |   |   |-- SettingsDialog.java
-    |   |   |   |-- StrengthBarHelper.java
-    |   |   |   +-- VaultPanel.java
-    |   |   |-- util/
-    |   |   |   |-- DateUtils.java
-    |   |   |   |-- FileSecurityUtils.java
-    |   |   |   |-- PasswordValidator.java
-    |   |   |   +-- SecureWiper.java
-    |   |   +-- vault/
-    |   |       |-- SortField.java
-    |   |       |-- Vault.java
-    |   |       |-- VaultEntry.java
-    |   |       |-- VaultExporter.java
-    |   |       |-- VaultImporter.java
-    |   |       |-- VaultLoadResult.java
-    |   |       |-- VaultManager.java
-    |   |       +-- VaultService.java
-    |   +-- resources/
-    |       +-- i18n/
-    |           |-- messages_en.properties
-    |           +-- messages_fr.properties
-    +-- test/
-        +-- java/com/passwordmanager/
-            |-- config/
-            |   |-- ConfigEncryptorTest.java
-            |   +-- ConfigManagerTest.java
-            |-- crypto/
-            |   |-- CryptoServiceTest.java
-            |   |-- PasswordGeneratorTest.java
-            |   +-- PasswordStrengthAnalyzerTest.java
-            |-- security/
-            |   +-- SecurityAuditTest.java
-            |-- sync/
-            |   |-- LocalRepositoryTest.java
-            |   +-- SFTPRepositoryTest.java
-            |-- util/
-            |   +-- PasswordValidatorTest.java
-            +-- vault/
-                |-- VaultExporterTest.java
-                |-- VaultImporterTest.java
-                |-- VaultManagerIntegrationTest.java
-                +-- VaultServiceTest.java
+|   |-- run.sh                              # Lanceur Linux/macOS
+|   +-- run.bat                             # Lanceur Windows
+|
+|-- core/                                   # :core — logique metier (Java 17)
+|   |-- build.gradle.kts
+|   +-- src/
+|       |-- main/java/com/passwordmanager/
+|       |   |-- config/                     # AppConfig, ConfigManager, ConfigEncryptor, StorageMode, ThemeMode
+|       |   |-- crypto/                     # CryptoService, EncryptionService, KeyDerivation, VaultSession,
+|       |   |                               # PasswordGenerator, PasswordStrengthAnalyzer, EncryptedPayload
+|       |   |-- i18n/                       # LanguageManager
+|       |   |-- sync/                       # SyncService, LocalRepository, SFTPRepository, ConflictResolver
+|       |   |-- util/                       # SecureWiper, FileSecurityUtils, PasswordValidator, DateUtils
+|       |   +-- vault/                      # Vault, VaultEntry, VaultManager, VaultService,
+|       |                                   # VaultImporter, VaultExporter, VaultLoadResult, SortField
+|       |-- main/resources/i18n/            # messages_en.properties, messages_fr.properties
+|       +-- test/java/com/passwordmanager/  # 150 tests (13 classes)
+|
+|-- desktop/                                # :desktop — interface Swing (Java 17)
+|   |-- build.gradle.kts
+|   +-- src/main/java/com/passwordmanager/
+|       |-- Main.java                       # Point d'entree, detection app.home
+|       +-- ui/                             # LoginFrame, MainFrame, VaultPanel, EntryDialog,
+|                                           # PasswordGeneratorDialog, SettingsDialog, StrengthBarHelper
+|
++-- android/                                # :android — interface Compose (Kotlin 2.1)
+    |-- build.gradle.kts                    # AGP 8.7.3, Compose BOM 2024.12, minSdk 26
+    |-- proguard-rules.pro
+    +-- src/main/
+        |-- AndroidManifest.xml
+        |-- res/
+        |   |-- values/strings.xml          # 100+ cles EN
+        |   |-- values-fr/strings.xml       # 100+ cles FR
+        |   +-- values/themes.xml
+        +-- kotlin/com/passwordmanager/android/
+            |-- PasswordManagerApp.kt       # Application (init repos)
+            |-- MainActivity.kt             # Single Activity + auto-lock
+            |-- data/                       # AndroidVaultRepository, AndroidConfigRepository, SessionHolder
+            +-- ui/
+                |-- theme/                  # Theme.kt, Color.kt, Type.kt
+                |-- navigation/             # AppNavigation.kt (8 routes)
+                |-- login/                  # LoginScreen, LoginViewModel
+                |-- vault/                  # VaultListScreen/VM, EntryDetailScreen/VM, EntryEditScreen/VM
+                |-- generator/              # GeneratorScreen, GeneratorViewModel
+                |-- settings/               # SettingsScreen/VM, ChangeMasterPasswordScreen/VM
+                |-- audit/                  # SecurityAuditScreen, SecurityAuditViewModel
+                +-- components/             # PasswordStrengthBar, PasswordField, EntryCard, ConfirmDialog
 ```

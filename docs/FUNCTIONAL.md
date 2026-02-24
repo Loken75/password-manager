@@ -19,12 +19,13 @@
 15. [Securite](#15-securite)
 16. [Raccourcis clavier](#16-raccourcis-clavier)
 17. [Structure des donnees utilisateur](#17-structure-des-donnees-utilisateur)
+18. [Differences entre plateformes](#18-differences-entre-plateformes)
 
 ---
 
 ## 1. Presentation
 
-Password Manager est une application de bureau permettant de stocker, organiser et securiser vos mots de passe dans un coffre-fort chiffre. Elle est disponible en francais et en anglais.
+Password Manager est une application multiplateforme permettant de stocker, organiser et securiser vos mots de passe dans un coffre-fort chiffre. Elle est disponible sur **desktop** (Windows, Linux, macOS) et **Android**, en francais et en anglais.
 
 ### Fonctionnalites principales
 
@@ -34,32 +35,30 @@ Password Manager est une application de bureau permettant de stocker, organiser 
 - Analyse de securite (mots de passe faibles, reutilises, anciens)
 - Import/export CSV et JSON
 - Sauvegarde chiffree
-- Synchronisation SFTP avec gestion des conflits
+- Synchronisation SFTP avec gestion des conflits (desktop uniquement)
 - Interface bilingue (francais / anglais)
 - Themes systeme, clair et sombre
 - Verrouillage automatique apres inactivite
 - Effacement automatique du presse-papiers
-- Distribution autonome avec JRE embarque (aucune installation Java requise)
+- Desktop : distribution autonome avec JRE embarque (aucune installation Java requise)
+- Android : application native Jetpack Compose / Material 3 (APK)
 
 ---
 
 ## 2. Installation et lancement
 
-### Prerequis (version standard)
+### 2.1. Desktop (Windows, Linux, macOS)
 
-- **Java 17** ou superieur installe sur le systeme
-- **Maven 3.8+** pour la compilation
+#### Prerequis (compilation)
 
-### Compilation
+- **Java (JDK) 21** ou superieur
+- **Gradle 8.11+** (wrapper inclus)
 
-```bash
-mvn clean package
-```
-
-### Lancement
+#### Compilation et lancement
 
 ```bash
-java -jar target/password-manager.jar
+./gradlew :desktop:fatJar
+java -jar desktop/build/libs/password-manager.jar
 ```
 
 Des scripts sont egalement fournis :
@@ -71,15 +70,28 @@ Des scripts sont egalement fournis :
 
 Ces scripts utilisent automatiquement le JRE embarque s'il est present (`runtime/`), sinon le Java systeme.
 
-### Version autonome (avec JRE embarque)
+#### Version autonome (avec JRE embarque)
 
-La distribution autonome inclut un JRE minimal (~57 Mo). L'utilisateur final n'a pas besoin d'installer Java.
+La distribution autonome inclut un JRE minimal (~57 Mo). L'utilisateur final n'a pas besoin d'installer Java. Les archives sont disponibles sur la page [Releases](../../releases).
+
+### 2.2. Android
+
+#### Installation depuis la release
+
+1. Telecharger l'APK depuis la page [Releases](../../releases)
+2. Activer "Sources inconnues" dans les parametres Android (si necessaire)
+3. Installer l'APK et lancer l'application
+
+**Systemes supportes** : Android 8.0+ (API 26)
+
+#### Compilation depuis les sources
+
+Prerequis : Android SDK (API 35), JDK 17+
 
 ```bash
-mvn clean package -Pdist
+./gradlew :android:assembleDebug
+# APK dans android/build/outputs/apk/debug/
 ```
-
-Cela produit un dossier `dist/PasswordManager/` contenant tout le necessaire. Il suffit de le partager sous forme d'archive (zip/tar.gz) pour distribuer l'application.
 
 ---
 
@@ -125,7 +137,9 @@ Apres **3 tentatives echouees consecutives** pour un meme utilisateur, le formul
 
 ## 5. Interface principale
 
-Apres connexion, l'interface se compose de quatre zones :
+### Desktop
+
+Apres connexion, l'interface desktop se compose de quatre zones :
 
 ### 5.1. Barre de menus
 
@@ -162,6 +176,18 @@ Affiche en bas de la fenetre :
 - Le statut de synchronisation (Mode local, Synchronise, Erreur, etc.)
 - Le nom de l'utilisateur connecte
 - Le nombre total d'entrees
+
+### Android
+
+Apres connexion, l'interface Android se compose de :
+
+- **TopAppBar** avec titre, icone de recherche et menu overflow (import/export CSV/JSON, sauvegarde chiffree, audit de securite, parametres, verrouiller)
+- **FilterChips** horizontaux pour le filtrage par categorie
+- **Liste scrollable** (LazyColumn) des entrees avec indicateur de force, titre, identifiant et categorie
+- **FAB** (bouton flottant) pour creer une nouvelle entree
+- **Navigation** par ecrans : detail, edition, generateur, parametres, changement de mot de passe maitre, audit
+
+La navigation suit le pattern Android standard : appui sur le bouton retour pour revenir a l'ecran precedent.
 
 ---
 
@@ -341,7 +367,7 @@ Le resultat affiche le nombre total de problemes detectes, ou confirme qu'aucun 
 
 ### 11.1. Import CSV
 
-**Acces** : Fichier > Importer CSV
+**Acces** : Fichier > Importer CSV (desktop) | Menu overflow > Importer CSV (Android)
 
 Selectionnez un fichier CSV (taille max : 10 Mo). L'import detecte automatiquement :
 
@@ -414,13 +440,19 @@ Exporte le coffre complet au format JSON. Les donnees ne sont pas chiffrees. Le 
 
 ### 11.5. Export sauvegarde chiffree
 
-**Acces** : Fichier > Exporter sauvegarde chiffree
+**Acces** : Fichier > Exporter sauvegarde chiffree (desktop) | Menu overflow > Sauvegarde chiffree (Android)
 
 Cree une copie du fichier coffre chiffre (`.enc`). Ce fichier ne peut etre ouvert qu'avec le mot de passe maitre correspondant. C'est le **moyen le plus sur** de sauvegarder vos donnees.
 
+### 11.6. Specificites Android
+
+Sur Android, l'import et l'export utilisent le **Storage Access Framework (SAF)** : un selecteur de fichiers systeme permet de choisir l'emplacement. L'application n'a pas besoin de permissions de stockage globales.
+
 ---
 
-## 12. Synchronisation distante
+## 12. Synchronisation distante (desktop uniquement)
+
+> **Note** : la synchronisation SFTP n'est disponible que sur la version desktop. Sur Android, les coffres sont stockes dans le repertoire interne de l'application.
 
 ### 12.1. Modes de stockage
 
@@ -608,4 +640,29 @@ Pour migrer vers un autre poste :
 2. Copiez le fichier `.enc` sur le nouveau poste dans `~/.password-manager/data/vaults/`
 3. Connectez-vous avec votre mot de passe maitre habituel
 
-Alternativement, utilisez la **synchronisation SFTP** pour maintenir le coffre synchronise entre plusieurs machines.
+Alternativement, utilisez la **synchronisation SFTP** (desktop) pour maintenir le coffre synchronise entre plusieurs machines.
+
+---
+
+## 18. Differences entre plateformes
+
+| Fonctionnalite | Desktop | Android |
+|---|---|---|
+| Coffre-fort chiffre AES-256-GCM | Oui | Oui |
+| CRUD entrees | Oui | Oui |
+| Generateur de mots de passe | Oui | Oui |
+| Analyse de securite | Oui | Oui |
+| Import/export CSV/JSON | Fichier > menu | SAF (selecteur systeme) |
+| Sauvegarde chiffree | Oui | Oui |
+| Recherche en temps reel | Oui | Oui |
+| Tri (nom/date/categorie) | Oui | Oui |
+| Filtrage par categorie | Panneau lateral | FilterChips horizontaux |
+| Themes Systeme/Clair/Sombre | FlatLaf | Material 3 (Dynamic Colors Android 12+) |
+| Verrouillage automatique | Oui (evenements AWT) | Oui (ProcessLifecycleOwner) |
+| Effacement presse-papiers | Oui | Oui |
+| Anti brute-force | Oui | Oui |
+| Synchronisation SFTP | Oui | Non |
+| Stockage configuration | `config.properties` chiffre | EncryptedSharedPreferences |
+| Raccourcis clavier | Oui | N/A |
+| Distribution | JRE embarque (jlink) | APK |
+| Langue | Changeable dans l'app | Suit la langue systeme |
