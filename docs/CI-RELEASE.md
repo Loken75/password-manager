@@ -47,11 +47,11 @@ et **macOS** a chaque creation d'un tag de version.
                                       |
                                       v
                         +---------------------------+
-                        |   GitHub Release v1.0.0   |
-                        |   - linux-x64.tar.gz      |
-                        |   - windows-x64.zip       |
-                        |   - macos-x64.tar.gz      |
-                        +---------------------------+
+                        |   GitHub Release v1.0.0          |
+                        |   - 1.0.0-linux-x64.tar.gz      |
+                        |   - 1.0.0-windows-x64.zip       |
+                        |   - 1.0.0-macos-aarch64.tar.gz  |
+                        +----------------------------------+
 ```
 
 ---
@@ -113,7 +113,7 @@ strategy:
         archive_cmd: powershell Compress-Archive
         archive_ext: zip
       - os: macos-latest
-        label: macos-x64
+        label: macos-aarch64
         archive_cmd: tar -czf
         archive_ext: tar.gz
 ```
@@ -229,12 +229,14 @@ set SCRIPT_DIR=%~dp0
 
 #### 6. Archivage
 
+Le numero de version est extrait du tag Git (`v1.0.2` -> `1.0.2`) et integre au nom de l'archive :
+
 ```yaml
 # Linux/macOS
-- run: tar -czf password-manager-${{ matrix.label }}.${{ matrix.archive_ext }} -C dist .
+- run: tar -czf password-manager-<version>-${{ matrix.label }}.${{ matrix.archive_ext }} -C dist .
 
 # Windows
-- run: Compress-Archive -Path dist\* -DestinationPath password-manager-windows-x64.zip
+- run: Compress-Archive -Path dist\* -DestinationPath password-manager-<version>-windows-x64.zip
 ```
 
 #### 7. Upload de l'artifact
@@ -242,8 +244,8 @@ set SCRIPT_DIR=%~dp0
 ```yaml
 - uses: actions/upload-artifact@v4
   with:
-    name: password-manager-${{ matrix.label }}
-    path: password-manager-${{ matrix.label }}.${{ matrix.archive_ext }}
+    name: password-manager-<version>-${{ matrix.label }}
+    path: password-manager-<version>-${{ matrix.label }}.${{ matrix.archive_ext }}
 ```
 
 Les artifacts sont stockes temporairement par GitHub Actions et seront
@@ -278,10 +280,12 @@ Telecharge les 3 archives produites par le job `build` dans `release-assets/`.
     prerelease: false
     generate_release_notes: true
     files: |
-      release-assets/password-manager-linux-x64.tar.gz
-      release-assets/password-manager-windows-x64.zip
-      release-assets/password-manager-macos-x64.tar.gz
+      release-assets/password-manager-<version>-linux-x64.tar.gz
+      release-assets/password-manager-<version>-windows-x64.zip
+      release-assets/password-manager-<version>-macos-aarch64.tar.gz
 ```
+
+Le numero de version (`<version>`) est extrait dynamiquement du tag Git (ex: `v1.0.2` -> `1.0.2`).
 
 **`generate_release_notes: true`** genere automatiquement les notes de
 release a partir des commits et PR depuis le dernier tag.
@@ -290,120 +294,8 @@ release a partir des commits et PR depuis le dernier tag.
 
 ## Workflow YAML complet
 
-Voici le fichier qui sera place dans `.github/workflows/release.yml` :
-
-```yaml
-name: Build & Release
-
-on:
-  push:
-    tags:
-      - 'v*.*.*'
-
-permissions:
-  contents: write
-
-jobs:
-  build:
-    name: Build - ${{ matrix.label }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            label: linux-x64
-            archive_ext: tar.gz
-          - os: windows-latest
-            label: windows-x64
-            archive_ext: zip
-          - os: macos-latest
-            label: macos-x64
-            archive_ext: tar.gz
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Build with Maven
-        run: mvn clean package -DskipTests=false
-
-      - name: Create minimal JRE (jlink)
-        shell: bash
-        run: |
-          jlink \
-            --add-modules java.base,java.desktop,java.logging,java.naming,java.security.jgss,java.sql,java.xml \
-            --strip-debug \
-            --no-man-pages \
-            --compress zip-6 \
-            --output dist/runtime
-
-      - name: Assemble distribution
-        shell: bash
-        run: |
-          cp target/password-manager.jar dist/
-
-          # Script de lancement Linux/macOS
-          cat > dist/password-manager << 'LAUNCHER'
-          #!/bin/bash
-          SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-          "$SCRIPT_DIR/runtime/bin/java" -jar "$SCRIPT_DIR/password-manager.jar"
-          LAUNCHER
-          chmod +x dist/password-manager
-
-          # Script de lancement Windows
-          cat > dist/password-manager.bat << 'LAUNCHER'
-          @echo off
-          set SCRIPT_DIR=%~dp0
-          "%SCRIPT_DIR%runtime\bin\java.exe" -jar "%SCRIPT_DIR%password-manager.jar"
-          LAUNCHER
-
-      - name: Package archive (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: tar -czf password-manager-${{ matrix.label }}.${{ matrix.archive_ext }} -C dist .
-
-      - name: Package archive (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: Compress-Archive -Path dist\* -DestinationPath password-manager-${{ matrix.label }}.${{ matrix.archive_ext }}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: password-manager-${{ matrix.label }}
-          path: password-manager-${{ matrix.label }}.${{ matrix.archive_ext }}
-          retention-days: 1
-
-  release:
-    name: Create GitHub Release
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release-assets/
-          merge-multiple: true
-
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Password Manager ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          files: |
-            release-assets/password-manager-linux-x64.tar.gz
-            release-assets/password-manager-windows-x64.zip
-            release-assets/password-manager-macos-x64.tar.gz
-```
+Le fichier `.github/workflows/release.yml` est la source de verite.
+Consulter directement le fichier pour la version a jour du workflow.
 
 ---
 
@@ -443,7 +335,7 @@ Aucune installation de Java n'est requise : le JRE est embarque.
 | Aspect              | Detail                                                   |
 |---------------------|----------------------------------------------------------|
 | **Declencheur**     | Push d'un tag `v*.*.*`                                   |
-| **OS supportes**    | Linux x64, Windows x64, macOS x64                        |
+| **OS supportes**    | Linux x64, Windows x64, macOS aarch64 (Apple Silicon)    |
 | **JDK**             | Temurin 21                                                |
 | **Tests**           | Executes sur chaque OS avant packaging                   |
 | **Taille archive**  | ~20-25 Mo (JAR 2 Mo + JRE compresse ~57 Mo / par OS)    |
