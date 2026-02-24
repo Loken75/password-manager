@@ -111,11 +111,20 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
-        run: ./gradlew :android:assembleDebug
+      - name: Decode keystore
+        run: |
+          mkdir -p android/build
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/build/keystore.p12
+
+      - name: Build signed release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :android:assembleRelease
 
       - name: Rename APK
-        run: mv android/build/outputs/apk/debug/android-debug.apk password-manager-${{ steps.version.outputs.VERSION }}-android.apk
+        run: mv android/build/outputs/apk/release/android-release.apk password-manager-${{ steps.version.outputs.VERSION }}-android.apk
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
