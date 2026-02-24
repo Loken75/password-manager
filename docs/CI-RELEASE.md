@@ -152,7 +152,7 @@ le JRE) est necessaire car `jlink` n'est disponible que dans le JDK.
 ```
 
 - Compile le code source
-- Execute les 105 tests unitaires
+- Execute les 150 tests unitaires et d'integration
 - Produit le fat JAR (`target/password-manager.jar`) via maven-assembly-plugin
 
 Si les tests echouent, le build s'arrete et la release n'est pas creee.

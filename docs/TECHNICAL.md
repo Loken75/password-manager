@@ -278,7 +278,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 
 | Classe | Role |
 |--------|------|
-| `Vault` | Modele de donnees du coffre (version, utilisateur, entrees, categories, parametres) |
+| `Vault` | Modele de donnees du coffre (version, utilisateur, entrees, categories, parametres). Constructeur prive no-arg pour la deserialisation Gson (les JRE jlink n'incluent pas `jdk.unsupported` / `sun.misc.Unsafe`) |
 | `VaultEntry` | Entree individuelle (titre, identifiant, mot de passe `char[]`, URL, notes, categorie, tags, dates) |
 | `VaultManager` | Persistance : creation, chargement, sauvegarde, migration v1->v2, backup, import/export |
 | `VaultService` | Operations metier : CRUD, recherche, tri, filtrage, detection de doublons/anciens mots de passe |
@@ -296,6 +296,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 - Validation du nom d'utilisateur : regex `[a-zA-Z0-9_]+`
 - `CharArrayAdapter` interne : `TypeAdapter<char[]>` Gson pour serialiser les mots de passe comme chaines JSON
 - Gson configure avec `setPrettyPrinting()`
+- **Compatibilite jlink** : `Vault` et `VaultEntry` disposent de constructeurs no-arg pour que Gson puisse les instancier sans `sun.misc.Unsafe` (absent du module `jdk.unsupported`, non inclus dans le JRE jlink)
 
 **VaultEntry — details :**
 - `getPassword()` retourne un clone (copie defensive)
