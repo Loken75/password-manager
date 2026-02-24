@@ -18,6 +18,14 @@ public class Vault {
     private List<String> categories;
     private Map<String, Object> settings;
 
+    /** No-arg constructor required by Gson deserialization (jlink runtimes lack sun.misc.Unsafe). */
+    @SuppressWarnings("unused")
+    private Vault() {
+        this.entries = new ArrayList<>();
+        this.categories = new ArrayList<>();
+        this.settings = new HashMap<>();
+    }
+
     public Vault(String user) {
         this.version = "2.0";
         this.user = user;
