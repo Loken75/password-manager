@@ -17,11 +17,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
 import com.passwordmanager.android.ui.components.PasswordStrengthBar
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -30,7 +30,7 @@ import kotlinx.coroutines.launch
 fun GeneratorScreen(
     onBack: () -> Unit,
     onUsePassword: ((CharArray) -> Unit)? = null,
-    viewModel: GeneratorViewModel = viewModel()
+    viewModel: GeneratorViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -158,11 +158,11 @@ private fun SwitchRow(label: String, checked: Boolean, onToggle: () -> Unit) {
 
 private fun copyToClipboard(context: Context, password: CharArray) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clip = ClipData.newPlainText("password", String(password))
+    val clip = ClipData.newPlainText("", String(password))
     clipboard.setPrimaryClip(clip)
 
-    // Auto-clear after 30 seconds
-    CoroutineScope(Dispatchers.Main).launch {
+    // Auto-clear after 30 seconds (lifecycle-aware: cancelled if process dies)
+    ProcessLifecycleOwner.get().lifecycleScope.launch {
         delay(30_000)
         clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
     }

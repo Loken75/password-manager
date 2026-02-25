@@ -11,9 +11,15 @@ import java.util.*;
  */
 public class VaultImporter {
     private final Gson gson;
+    private String defaultImportCategory = "Other";
 
     public VaultImporter(Gson gson) {
         this.gson = gson;
+    }
+
+    /** Sets the localized default category for imported entries without a category. */
+    public void setDefaultImportCategory(String category) {
+        this.defaultImportCategory = (category != null && !category.isEmpty()) ? category : "Other";
     }
 
     public int importFromCsv(Vault vault, String csvContent) {
@@ -21,6 +27,10 @@ public class VaultImporter {
         if (lines.length < 2) return 0;
 
         String headerLine = lines[0].trim();
+        // Strip UTF-8 BOM (common in Excel exports on Windows)
+        if (headerLine.startsWith("\uFEFF")) {
+            headerLine = headerLine.substring(1);
+        }
 
         int semicolons = 0, commas = 0;
         for (int i = 0; i < headerLine.length(); i++) {
@@ -72,14 +82,14 @@ public class VaultImporter {
             entry.setUrl(sanitizeField(getField(parts, urlIdx)));
             entry.setNotes(sanitizeField(getField(parts, notesIdx)));
             String cat = sanitizeField(getField(parts, categoryIdx));
-            entry.setCategory(cat.isEmpty() ? "Autre" : cat);
+            entry.setCategory(cat.isEmpty() ? defaultImportCategory : cat);
             String tagsVal = sanitizeField(getField(parts, tagsIdx));
             if (!tagsVal.isEmpty()) {
                 entry.setTags(Arrays.asList(tagsVal.split(";")));
             }
 
             if (!entry.getTitle().isEmpty() || !entry.getUsername().isEmpty() || entry.getPassword() != null) {
-                vault.getEntries().add(entry);
+                vault.addEntry(entry);
                 count++;
             }
         }
@@ -119,7 +129,7 @@ public class VaultImporter {
                 if (entry.getCategory() != null) {
                     entry.setCategory(truncateField(sanitizeField(entry.getCategory())));
                 }
-                vault.getEntries().add(entry);
+                vault.addEntry(entry);
                 count++;
             }
             if (count > 0) {

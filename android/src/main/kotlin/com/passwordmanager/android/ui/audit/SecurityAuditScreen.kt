@@ -17,7 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
 import com.passwordmanager.vault.VaultEntry
 
@@ -26,7 +26,7 @@ import com.passwordmanager.vault.VaultEntry
 fun SecurityAuditScreen(
     onBack: () -> Unit,
     onEntryClick: (String) -> Unit,
-    viewModel: SecurityAuditViewModel = viewModel()
+    viewModel: SecurityAuditViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 

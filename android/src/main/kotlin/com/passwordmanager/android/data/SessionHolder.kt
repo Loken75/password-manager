@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Singleton holding the current unlocked vault session.
  * Acts as the source of truth for authentication state.
+ *
+ * Thread safety: all mutable fields are @Volatile and mutations are synchronized
+ * to prevent races between IO coroutines (login) and Main thread (UI reads, auto-lock).
  */
 object SessionHolder {
 
@@ -18,15 +21,19 @@ object SessionHolder {
     private val _isUnlocked = MutableStateFlow(false)
     val isUnlockedFlow: StateFlow<Boolean> = _isUnlocked.asStateFlow()
 
+    @Volatile
     var vault: Vault? = null
         private set
 
+    @Volatile
     var session: VaultSession? = null
         private set
 
+    @Volatile
     var vaultService: VaultService? = null
         private set
 
+    @Volatile
     var username: String? = null
         private set
 
@@ -36,6 +43,7 @@ object SessionHolder {
 
     fun getRepository(): AndroidVaultRepository = repository
 
+    @Synchronized
     fun unlock(vault: Vault, session: VaultSession, username: String) {
         this.vault = vault
         this.session = session
@@ -44,6 +52,7 @@ object SessionHolder {
         _isUnlocked.value = true
     }
 
+    @Synchronized
     fun lock() {
         vault?.wipe()
         session?.destroy()
@@ -56,6 +65,7 @@ object SessionHolder {
 
     fun isUnlocked(): Boolean = _isUnlocked.value
 
+    @Synchronized
     fun save() {
         val v = vault ?: return
         val s = session ?: return

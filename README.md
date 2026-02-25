@@ -17,7 +17,7 @@ Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et prot
 - Effacement automatique du presse-papiers
 - Protection anti brute-force sur l'ecran de connexion
 - **Desktop** : distribution autonome avec JRE embarque (aucune installation Java requise)
-- **Android** : application native Jetpack Compose / Material 3 (APK)
+- **Android** : application native Jetpack Compose / Material 3 avec injection de dependances Hilt (APK)
 
 ---
 
@@ -99,7 +99,14 @@ java -jar desktop/build/libs/password-manager.jar
 ### Execution des tests
 
 ```bash
+# Tests core + desktop (JVM)
 ./gradlew :core:test :desktop:test
+
+# Tests Android (JVM local)
+./gradlew :android:testDebugUnitTest
+
+# Tous les tests
+./gradlew :core:test :desktop:test :android:testDebugUnitTest
 ```
 
 ---
@@ -246,6 +253,10 @@ DEK (Data Encryption Key) -- AES-256, 32 octets aleatoires
 | Anti brute-force | Backoff progressif apres 3 echecs (jusqu'a 30s), compteur par utilisateur |
 | Masquage temporaire | Mot de passe re-masque automatiquement apres 30 secondes |
 | Presse-papiers | Efface automatiquement apres delai configure + au verrouillage + a la fermeture |
+| Nettoyage ViewModel | `onCleared()` efface les mots de passe des formulaires Android |
+| Thread safety | `SessionHolder` : champs `@Volatile` + methodes `@Synchronized` |
+| Limite taille fichier | Rejet des fichiers coffre > 50 Mo au chargement |
+| Rejet mots de passe courants | 44 mots de passe connus rejetes (comparaison a temps constant) |
 
 ### Aucune recuperation
 
@@ -261,7 +272,7 @@ Par conception, aucun mecanisme de recuperation du mot de passe maitre n'existe.
 |---|---|---|
 | `:core` | Java | 17 |
 | `:desktop` | Swing + FlatLaf | 3.7 |
-| `:android` | Kotlin + Jetpack Compose + Material 3 | Kotlin 2.1, Compose BOM 2024.12 |
+| `:android` | Kotlin + Jetpack Compose + Material 3 + Hilt | Kotlin 2.1, Compose BOM 2024.12, Hilt 2.54 |
 | Serialisation JSON | Gson | 2.13.2 |
 | Connexion SFTP | JSch (fork mwiede) | 2.27.8 |
 | Tests | JUnit 5 (Jupiter) | 5.14.2 |
@@ -284,30 +295,41 @@ password-manager/
 |   +-- ui/                            # LoginFrame, MainFrame, VaultPanel, dialogs
 |
 +-- android/                           # Interface Jetpack Compose (Kotlin)
-    +-- data/                          # AndroidVaultRepository, AndroidConfigRepository, SessionHolder
+    +-- data/                          # AndroidVaultRepository, ConfigRepository, SessionHolder
+    +-- di/                            # AppModule (Hilt DI)
     +-- ui/                            # Ecrans Compose (login, vault, generator, settings, audit)
 ```
 
 ### Tests
 
-**150 tests** unitaires et d'integration dans `:core` et `:desktop` :
+**264 tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
 
 | Module | Classe de test | Tests | Description |
 |---|---|:---:|---|
 | security | `SecurityAuditTest` | 31 | IV, KDF, memoire, permissions, format, import/export, generateur |
+| vault | `VaultServiceTest` | 25 | CRUD, recherche, tri, doublons, categories, timestamps, mots de passe anciens |
+| sync | `SyncServiceTest` | 23 | Synchronisation, hash, conflits, mode hors-ligne |
 | sync | `LocalRepositoryTest` | 17 | Path traversal, CRUD, pending, backups |
+| vault | `VaultImporterTest` | 17 | CSV (separateurs, alias, BOM, sanitisation), JSON, limites |
 | vault | `VaultManagerIntegrationTest` | 16 | Cycle complet avec vraie crypto, validation username |
-| vault | `VaultServiceTest` | 13 | CRUD, recherche, tri, doublons, categories |
+| util | `PasswordValidatorTest` | 15 | Politique mot de passe maitre, rejet des mots de passe courants |
+| crypto | `CryptoServiceTest` | 13 | Enveloppe DEK/KEK, chiffrement, changement mdp, tampering, legacy |
 | config | `ConfigEncryptorTest` | 11 | Round-trip, caracteres speciaux, corruption, unicite IV |
-| vault | `VaultImporterTest` | 10 | CSV (separateurs, alias), JSON, limites |
+| **android** | `GeneratorViewModelTest` | 11 | Etat initial, generation, longueur, toggles, force, nettoyage |
 | sync | `SFTPRepositoryTest` | 10 | Validation filename sur 4 methodes publiques |
-| util | `PasswordValidatorTest` | 9 | Politique mot de passe maitre |
 | crypto | `PasswordStrengthAnalyzerTest` | 9 | Niveaux de force, score, cas limites |
-| crypto | `CryptoServiceTest` | 8 | Enveloppe DEK/KEK, chiffrement, changement mdp |
+| vault | `VaultTest` | 9 | Constructeurs, add/remove, unmodifiable, wipe, settings |
 | vault | `VaultExporterTest` | 8 | CSV, JSON, injection, round-trip |
+| **android** | `EntryEditViewModelTest` | 8 | Formulaire CRUD, sauvegarde, validation |
+| **android** | `ChangeMasterPasswordViewModelTest` | 7 | Validation, mismatch, nettoyage onCleared |
+| i18n | `LanguageManagerTest` | 6 | Singleton, getString, setLanguage, langues disponibles |
+| **android** | `SecurityAuditViewModelTest` | 5 | Audit vide, faibles, dupliques, anciens, total |
+| **android** | `EntryDetailViewModelTest` | 5 | Chargement, visibilite, suppression |
+| **android** | `SettingsViewModelTest` | 5 | Configuration initiale, theme, langue, auto-lock, clipboard |
+| util | `DateUtilsTest` | 5 | ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance |
-| | | **150** | |
+| | | **264** | |
 
 ---
 

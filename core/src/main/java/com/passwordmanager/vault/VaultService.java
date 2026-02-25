@@ -25,15 +25,16 @@ public class VaultService {
 
     public void addEntry(VaultEntry entry) {
         entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
-        vault.getEntries().add(entry);
+        vault.addEntry(entry);
         vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
     }
 
     public boolean updateEntry(VaultEntry updated) {
-        for (int i = 0; i < vault.getEntries().size(); i++) {
-            if (vault.getEntries().get(i).getId().equals(updated.getId())) {
+        List<VaultEntry> entries = vault.getEntriesMutable();
+        for (int i = 0; i < entries.size(); i++) {
+            if (entries.get(i).getId().equals(updated.getId())) {
                 updated.setUpdatedAt(DateUtils.getCurrentTimestamp());
-                vault.getEntries().set(i, updated);
+                entries.set(i, updated);
                 vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
                 return true;
             }
@@ -42,7 +43,7 @@ public class VaultService {
     }
 
     public boolean deleteEntry(String entryId) {
-        Iterator<VaultEntry> it = vault.getEntries().iterator();
+        Iterator<VaultEntry> it = vault.getEntriesMutable().iterator();
         while (it.hasNext()) {
             VaultEntry entry = it.next();
             if (entry.getId().equals(entryId)) {

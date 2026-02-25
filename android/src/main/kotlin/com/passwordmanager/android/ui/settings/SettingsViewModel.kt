@@ -1,12 +1,14 @@
 package com.passwordmanager.android.ui.settings
 
 import androidx.lifecycle.ViewModel
-import com.passwordmanager.android.data.AndroidConfigRepository
+import com.passwordmanager.android.data.ConfigRepository
 import com.passwordmanager.config.ThemeMode
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import javax.inject.Inject
 
 data class SettingsUiState(
     val language: String = "en",
@@ -15,42 +17,40 @@ data class SettingsUiState(
     val clipboardClearSeconds: Int = 30
 )
 
-class SettingsViewModel : ViewModel() {
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    private val configRepo: ConfigRepository
+) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(SettingsUiState())
-    val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
-
-    private var configRepo: AndroidConfigRepository? = null
-
-    fun init(configRepo: AndroidConfigRepository) {
-        this.configRepo = configRepo
-        _uiState.value = SettingsUiState(
+    private val _uiState = MutableStateFlow(
+        SettingsUiState(
             language = configRepo.getLanguage(),
             themeMode = configRepo.getThemeMode(),
             autoLockMinutes = configRepo.getAutoLockMinutes(),
             clipboardClearSeconds = configRepo.getClipboardClearSeconds()
         )
-    }
+    )
+    val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     fun setTheme(mode: ThemeMode) {
-        configRepo?.setThemeMode(mode)
+        configRepo.setThemeMode(mode)
         _uiState.update { it.copy(themeMode = mode) }
     }
 
     fun setLanguage(language: String) {
-        configRepo?.setLanguage(language)
+        configRepo.setLanguage(language)
         _uiState.update { it.copy(language = language) }
     }
 
     fun setAutoLockMinutes(minutes: Int) {
         val clamped = minutes.coerceIn(1, 60)
-        configRepo?.setAutoLockMinutes(clamped)
+        configRepo.setAutoLockMinutes(clamped)
         _uiState.update { it.copy(autoLockMinutes = clamped) }
     }
 
     fun setClipboardClearSeconds(seconds: Int) {
         val clamped = seconds.coerceIn(5, 120)
-        configRepo?.setClipboardClearSeconds(clamped)
+        configRepo.setClipboardClearSeconds(clamped)
         _uiState.update { it.copy(clipboardClearSeconds = clamped) }
     }
 }

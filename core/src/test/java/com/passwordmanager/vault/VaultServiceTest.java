@@ -170,4 +170,124 @@ class VaultServiceTest {
         // After deletion, the entry's password should be wiped
         assertNull(entry.getPassword());
     }
+
+    @Test
+    void findOldPasswordsReturnsOldEntries() {
+        VaultEntry old = new VaultEntry("Old", "u", "p".toCharArray(), "", "", "Cat", null);
+        // Use a fixed timestamp well in the past (>180 days)
+        old.setUpdatedAt("2024-01-01T00:00:00Z");
+        vault.addEntry(old);
+
+        VaultEntry recent = new VaultEntry("Recent", "u", "p".toCharArray(), "", "", "Cat", null);
+        // updatedAt is set to now by constructor
+        vault.addEntry(recent);
+
+        List<VaultEntry> results = service.findOldPasswords(180);
+        assertEquals(1, results.size());
+        assertEquals("Old", results.get(0).getTitle());
+    }
+
+    @Test
+    void findOldPasswordsEmptyForRecentEntries() {
+        VaultEntry entry = new VaultEntry("New", "u", "p".toCharArray(), "", "", "Cat", null);
+        service.addEntry(entry);
+        List<VaultEntry> results = service.findOldPasswords(180);
+        assertTrue(results.isEmpty());
+    }
+
+    @Test
+    void findOldPasswordsSkipsInvalidDates() {
+        VaultEntry entry = new VaultEntry("Bad", "u", "p".toCharArray(), "", "", "Cat", null);
+        entry.setUpdatedAt("not-a-date");
+        vault.addEntry(entry);
+        List<VaultEntry> results = service.findOldPasswords(180);
+        assertTrue(results.isEmpty());
+    }
+
+    @Test
+    void sortByDateDescending() {
+        VaultEntry e1 = new VaultEntry("First", "u", "p".toCharArray(), "", "", "Cat", null);
+        e1.setUpdatedAt("2024-01-01T00:00:00Z");
+        vault.addEntry(e1);
+
+        VaultEntry e2 = new VaultEntry("Second", "u", "p".toCharArray(), "", "", "Cat", null);
+        e2.setUpdatedAt("2024-06-01T00:00:00Z");
+        vault.addEntry(e2);
+
+        List<VaultEntry> sorted = service.sorted(vault.getEntries(), SortField.DATE);
+        assertEquals("Second", sorted.get(0).getTitle());
+        assertEquals("First", sorted.get(1).getTitle());
+    }
+
+    @Test
+    void addEntrySetsTimestamp() {
+        VaultEntry entry = new VaultEntry("TS", "u", "p".toCharArray(), "", "", "Cat", null);
+        // Set timestamp to a known past value so we can verify addEntry updates it
+        entry.setUpdatedAt("2020-01-01T00:00:00Z");
+        service.addEntry(entry);
+        assertNotNull(entry.getUpdatedAt());
+        assertNotEquals("2020-01-01T00:00:00Z", entry.getUpdatedAt(),
+                "addEntry should update the timestamp");
+    }
+
+    @Test
+    void updateNonExistentEntryReturnsFalse() {
+        VaultEntry phantom = new VaultEntry("Ghost", "u", "p".toCharArray(), "", "", "Cat", null);
+        assertFalse(service.updateEntry(phantom));
+    }
+
+    @Test
+    void findDuplicatePasswordsSkipsNullPasswords() {
+        VaultEntry e1 = new VaultEntry("NoPass", "u", null, "", "", "Cat", null);
+        vault.addEntry(e1);
+        VaultEntry e2 = new VaultEntry("AlsoNoPass", "u", null, "", "", "Cat", null);
+        vault.addEntry(e2);
+        Map<String, List<VaultEntry>> dups = service.findDuplicatePasswords();
+        assertTrue(dups.isEmpty());
+    }
+
+    @Test
+    void findDuplicatePasswordsSkipsEmptyPasswords() {
+        VaultEntry e1 = new VaultEntry("Empty", "u", new char[0], "", "", "Cat", null);
+        vault.addEntry(e1);
+        VaultEntry e2 = new VaultEntry("AlsoEmpty", "u", new char[0], "", "", "Cat", null);
+        vault.addEntry(e2);
+        Map<String, List<VaultEntry>> dups = service.findDuplicatePasswords();
+        assertTrue(dups.isEmpty());
+    }
+
+    @Test
+    void removeCategory() {
+        service.addCategory("ToRemove");
+        assertTrue(vault.getCategories().contains("ToRemove"));
+        assertTrue(service.removeCategory("ToRemove"));
+        assertFalse(vault.getCategories().contains("ToRemove"));
+    }
+
+    @Test
+    void removeCategoryNonExistent() {
+        assertFalse(service.removeCategory("NonExistent"));
+    }
+
+    @Test
+    void searchByUrl() {
+        service.addEntry(new VaultEntry("Google", "u", "p".toCharArray(),
+            "https://google.com", "", "Cat", null));
+        List<VaultEntry> results = service.search("google.com");
+        assertEquals(1, results.size());
+        assertEquals("Google", results.get(0).getTitle());
+    }
+
+    @Test
+    void updateEntrySetsTimestamp() {
+        VaultEntry entry = new VaultEntry("TS", "u", "p".toCharArray(), "", "", "Cat", null);
+        service.addEntry(entry);
+        // Set to a known past value so we can detect the update
+        entry.setUpdatedAt("2020-01-01T00:00:00Z");
+        entry.setTitle("Updated");
+        service.updateEntry(entry);
+        assertNotNull(entry.getUpdatedAt());
+        assertNotEquals("2020-01-01T00:00:00Z", entry.getUpdatedAt(),
+                "updateEntry should update the timestamp");
+    }
 }

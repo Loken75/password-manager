@@ -111,6 +111,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Test (core + android)
+        run: ./gradlew :core:test :android:testDebugUnitTest
+
       - name: Decode keystore
         run: |
           mkdir -p android/build

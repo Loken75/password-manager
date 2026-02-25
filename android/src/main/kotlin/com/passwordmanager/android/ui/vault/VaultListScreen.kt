@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
 import com.passwordmanager.android.ui.components.ConfirmDialog
 import com.passwordmanager.android.ui.components.EntryCard
@@ -30,7 +30,7 @@ fun VaultListScreen(
     onSecurityAudit: () -> Unit,
     onGenerator: () -> Unit,
     onLock: () -> Unit,
-    viewModel: VaultListViewModel = viewModel()
+    viewModel: VaultListViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }

@@ -174,7 +174,7 @@ public class EntryDialog extends JDialog {
         saveBtn.addActionListener(e -> {
             if (titleField.getText().trim().isEmpty()) {
                 JOptionPane.showMessageDialog(EntryDialog.this,
-                    lang.getString("entry.title") + " required",
+                    lang.getString("entry.required").replace("{0}", lang.getString("entry.title")),
                     lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
                 return;
             }
@@ -183,7 +183,7 @@ public class EntryDialog extends JDialog {
             SecureWiper.wipe(checkPwd);
             if (emptyPwd) {
                 JOptionPane.showMessageDialog(EntryDialog.this,
-                    lang.getString("entry.password") + " required",
+                    lang.getString("entry.required").replace("{0}", lang.getString("entry.password")),
                     lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
                 return;
             }

@@ -1,6 +1,7 @@
 package com.passwordmanager.android
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -10,33 +11,42 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
-import com.passwordmanager.android.data.AndroidConfigRepository
+import com.passwordmanager.android.data.ConfigRepository
 import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.android.ui.navigation.AppNavigation
 import com.passwordmanager.android.ui.theme.PasswordManagerTheme
 import com.passwordmanager.config.ThemeMode
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private lateinit var configRepo: AndroidConfigRepository
+    @Inject lateinit var configRepo: ConfigRepository
+    @Inject lateinit var sessionHolder: SessionHolder
+
     private var autoLockJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        configRepo = AndroidConfigRepository(this)
+        // Prevent screenshots and task switcher from showing passwords
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_SECURE,
+            WindowManager.LayoutParams.FLAG_SECURE
+        )
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStop(owner: LifecycleOwner) {
-                if (SessionHolder.isUnlocked()) {
+                if (sessionHolder.isUnlocked()) {
                     val minutes = configRepo.getAutoLockMinutes()
                     autoLockJob = lifecycleScope.launch {
                         delay(minutes * 60_000L)
-                        SessionHolder.lock()
+                        sessionHolder.lock()
                     }
                 }
             }
@@ -53,7 +63,7 @@ class MainActivity : ComponentActivity() {
             )
 
             PasswordManagerTheme(themeMode = themeMode) {
-                AppNavigation(configRepo = configRepo)
+                AppNavigation()
             }
         }
     }

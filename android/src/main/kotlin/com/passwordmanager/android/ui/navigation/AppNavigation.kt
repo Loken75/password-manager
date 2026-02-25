@@ -7,7 +7,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.passwordmanager.android.data.AndroidConfigRepository
 import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.android.ui.audit.SecurityAuditScreen
 import com.passwordmanager.android.ui.generator.GeneratorScreen
@@ -35,7 +34,7 @@ object Routes {
 }
 
 @Composable
-fun AppNavigation(configRepo: AndroidConfigRepository) {
+fun AppNavigation() {
     val navController = rememberNavController()
     val isUnlocked by SessionHolder.isUnlockedFlow.collectAsStateWithLifecycle()
 
@@ -135,9 +134,11 @@ fun AppNavigation(configRepo: AndroidConfigRepository) {
             GeneratorScreen(
                 onBack = { navController.popBackStack() },
                 onUsePassword = if (returnPassword) { password ->
+                    val passwordString = String(password)
                     navController.previousBackStackEntry
                         ?.savedStateHandle
-                        ?.set("generated_password", String(password))
+                        ?.set("generated_password", passwordString)
+                    password.fill('\u0000')
                     navController.popBackStack()
                 } else null
             )
@@ -145,7 +146,6 @@ fun AppNavigation(configRepo: AndroidConfigRepository) {
 
         composable(Routes.SETTINGS) {
             SettingsScreen(
-                configRepo = configRepo,
                 onBack = { navController.popBackStack() },
                 onChangeMasterPassword = {
                     navController.navigate(Routes.CHANGE_MASTER_PASSWORD)

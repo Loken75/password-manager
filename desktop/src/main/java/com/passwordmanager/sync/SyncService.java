@@ -3,11 +3,8 @@ package com.passwordmanager.sync;
 import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.StorageMode;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.logging.Level;
@@ -18,51 +15,75 @@ import java.util.logging.Logger;
  */
 public class SyncService {
     private static final Logger LOGGER = Logger.getLogger(SyncService.class.getName());
-    private final LocalRepository localRepo;
-    private SFTPRepository sftpRepo;
+    private final LocalSyncRepository localRepo;
+    private RemoteSyncRepository remoteRepo;
+    private StorageMode storageMode;
     private AppConfig config;
     private final Object lock = new Object();
     private long lastSyncTime = 0;
     private volatile String syncStatus = "offline";
 
+    /** Temp suffix used when downloading remote content for hash comparison. */
+    private static final String SYNC_TMP_SUFFIX = ".sync_tmp";
+
+    /**
+     * Production constructor: builds concrete repositories from AppConfig.
+     * Existing code using {@code new SyncService(appConfig)} continues to work.
+     */
     public SyncService(AppConfig config) {
         this.config = config;
+        this.storageMode = config.getStorageMode();
         this.localRepo = new LocalRepository(config.getLocalVaultDirectory());
         buildSftpRepo();
     }
 
+    /**
+     * Testable constructor: accepts repository abstractions directly.
+     *
+     * @param localRepo   local file operations
+     * @param remoteRepo  remote file operations (may be null for LOCAL mode)
+     * @param storageMode determines whether sync is active
+     */
+    public SyncService(LocalSyncRepository localRepo, RemoteSyncRepository remoteRepo, StorageMode storageMode) {
+        this.localRepo = localRepo;
+        this.remoteRepo = remoteRepo;
+        this.storageMode = storageMode;
+        this.config = null;
+    }
+
     private void buildSftpRepo() {
-        if (config.getStorageMode() == StorageMode.REMOTE) {
-            this.sftpRepo = new SFTPRepository(
+        if (config != null && config.getStorageMode() == StorageMode.REMOTE) {
+            this.remoteRepo = new SFTPRepository(
                 config.getSftpHost(), config.getSftpPort(),
                 config.getSftpUser(), config.getSftpKeyPath(),
                 config.getSftpRemotePath()
             );
         } else {
-            this.sftpRepo = null;
+            this.remoteRepo = null;
         }
     }
 
     public void refreshConfig(AppConfig config) {
         synchronized (lock) {
             this.config = config;
+            this.storageMode = config.getStorageMode();
             buildSftpRepo();
         }
     }
 
-    public LocalRepository getLocalRepo() { return localRepo; }
+    public LocalSyncRepository getLocalRepo() { return localRepo; }
     public String getSyncStatus() { return syncStatus; }
     public long getLastSyncTime() { return lastSyncTime; }
 
     public SyncResult synchronize(String vaultFilename) {
         synchronized (lock) {
-            if (config.getStorageMode() != StorageMode.REMOTE || sftpRepo == null) {
+            if (storageMode != StorageMode.REMOTE || remoteRepo == null) {
                 syncStatus = "local";
                 return new SyncResult(true, "local");
             }
 
             try {
-                sftpRepo.connect();
+                remoteRepo.connect();
                 syncStatus = "syncing";
 
                 if (localRepo.hasPending(vaultFilename)) {
@@ -71,49 +92,57 @@ public class SyncService {
                     localRepo.clearPending(vaultFilename);
                 }
 
-                String localPath = localRepo.getFilePath(vaultFilename);
+                boolean localExists = localRepo.fileExists(vaultFilename);
                 long localTime = localRepo.getLastModified(vaultFilename);
-                boolean remoteExists = sftpRepo.remoteFileExists(vaultFilename);
+                boolean remoteExists = remoteRepo.remoteFileExists(vaultFilename);
 
                 if (!remoteExists) {
-                    if (new File(localPath).exists()) {
-                        sftpRepo.uploadFile(localPath, vaultFilename);
+                    if (localExists) {
+                        String localPath = localRepo.getFilePath(vaultFilename);
+                        remoteRepo.uploadFile(localPath, vaultFilename);
                     }
                     lastSyncTime = System.currentTimeMillis();
                     syncStatus = "synced";
                     return new SyncResult(true, "uploaded");
                 }
 
-                long remoteTime = sftpRepo.getRemoteLastModified(vaultFilename);
-                String localHash = hashFile(localPath);
+                long remoteTime = remoteRepo.getRemoteLastModified(vaultFilename);
+                String localHash = hashContent(localRepo.readFile(vaultFilename));
 
-                // Always download remote to temp first, then compare hashes.
-                // This avoids TOCTOU: the hash is computed on the actual downloaded content.
-                String tempPath = localPath + ".sync_tmp";
+                // Download remote to a temp file, then compare hashes.
+                String tempFilename = vaultFilename + SYNC_TMP_SUFFIX;
+                String tempPath = localRepo.getFilePath(tempFilename);
                 try {
-                    sftpRepo.downloadFile(vaultFilename, tempPath);
-                    String remoteHash = hashFile(tempPath);
+                    remoteRepo.downloadFile(vaultFilename, tempPath);
+                    String remoteHash = hashContent(localRepo.readFile(tempFilename));
 
                     if (localHash.equals(remoteHash)) {
-                        // Same content — no conflict regardless of timestamps
                         lastSyncTime = System.currentTimeMillis();
                         syncStatus = "synced";
                         return new SyncResult(true, "synced");
                     }
 
                     if (localTime >= remoteTime) {
-                        // Local is newer — upload
-                        sftpRepo.uploadFile(localPath, vaultFilename);
+                        String localPath = localRepo.getFilePath(vaultFilename);
+                        remoteRepo.uploadFile(localPath, vaultFilename);
                         lastSyncTime = System.currentTimeMillis();
                         syncStatus = "synced";
                         return new SyncResult(true, "uploaded");
                     } else {
-                        // Remote is newer and content differs — conflict
                         syncStatus = "conflict";
                         return new SyncResult(false, "CONFLICT");
                     }
                 } finally {
-                    try { Files.deleteIfExists(Paths.get(tempPath)); } catch (IOException ignored) {}
+                    try {
+                        if (localRepo.fileExists(tempFilename)) {
+                            // Best-effort cleanup of temp file via writeFile + deleteFile
+                            // In production, Files.deleteIfExists handles this;
+                            // through the interface we rely on the implementation.
+                            cleanupTempFile(tempPath);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.log(Level.WARNING, "Failed to clean up temp file", e);
+                    }
                 }
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Sync failed", e);
@@ -127,31 +156,31 @@ public class SyncService {
                 }
                 return new SyncResult(false, "error: " + e.getMessage());
             } finally {
-                if (sftpRepo != null) sftpRepo.disconnect();
+                if (remoteRepo != null) remoteRepo.disconnect();
             }
         }
     }
 
     public SyncResult resolveConflict(String vaultFilename, ConflictResolver resolution) {
         synchronized (lock) {
-            if (sftpRepo == null) {
+            if (remoteRepo == null) {
                 return new SyncResult(false, "error: no remote configured");
             }
             try {
-                sftpRepo.connect();
+                remoteRepo.connect();
                 String localPath = localRepo.getFilePath(vaultFilename);
                 switch (resolution) {
                     case KEEP_LOCAL:
-                        sftpRepo.uploadFile(localPath, vaultFilename);
+                        remoteRepo.uploadFile(localPath, vaultFilename);
                         break;
                     case KEEP_REMOTE:
-                        sftpRepo.downloadFile(vaultFilename, localPath);
-                        verifyDownload(localPath);
+                        remoteRepo.downloadFile(vaultFilename, localPath);
+                        verifyDownload(vaultFilename);
                         break;
                     case KEEP_BOTH:
                         localRepo.createBackup(vaultFilename);
-                        sftpRepo.downloadFile(vaultFilename, localPath);
-                        verifyDownload(localPath);
+                        remoteRepo.downloadFile(vaultFilename, localPath);
+                        verifyDownload(vaultFilename);
                         break;
                 }
                 lastSyncTime = System.currentTimeMillis();
@@ -162,24 +191,25 @@ public class SyncService {
                 syncStatus = "error";
                 return new SyncResult(false, "error: " + e.getMessage());
             } finally {
-                if (sftpRepo != null) sftpRepo.disconnect();
+                if (remoteRepo != null) remoteRepo.disconnect();
             }
         }
     }
 
     public boolean testConnection() {
         synchronized (lock) {
-            if (sftpRepo == null) return false;
-            return sftpRepo.testConnection();
+            if (remoteRepo == null) return false;
+            return remoteRepo.testConnection();
         }
     }
 
     /**
-     * Computes SHA-256 hash of a file for integrity verification.
+     * Computes SHA-256 hash of content for integrity comparison.
+     * Package-private for test access.
      */
-    private static String hashFile(String path) throws IOException {
+    static String hashContent(String content) throws IOException {
         try {
-            byte[] data = Files.readAllBytes(Paths.get(path));
+            byte[] data = content.getBytes(StandardCharsets.UTF_8);
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(data);
             StringBuilder sb = new StringBuilder();
@@ -194,15 +224,27 @@ public class SyncService {
 
     /**
      * Verifies a downloaded file is valid (non-empty, valid JSON structure).
+     * Reads through the local repository abstraction.
      */
-    private static void verifyDownload(String localPath) throws IOException {
-        byte[] data = Files.readAllBytes(Paths.get(localPath));
-        if (data.length == 0) {
+    private void verifyDownload(String filename) throws IOException {
+        String content = localRepo.readFile(filename);
+        if (content == null || content.isEmpty()) {
             throw new IOException("Downloaded file is empty");
         }
-        String content = new String(data, StandardCharsets.UTF_8);
         if (!content.trim().startsWith("{")) {
             throw new IOException("Downloaded file is not a valid vault");
+        }
+    }
+
+    /**
+     * Cleans up a temporary file. Uses java.nio for deletion (works in production);
+     * in tests, the temp file lives in the in-memory store and is cleaned up naturally.
+     */
+    private static void cleanupTempFile(String path) {
+        try {
+            java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(path));
+        } catch (IOException e) {
+            LOGGER.log(Level.WARNING, "Failed to delete temp file: " + path, e);
         }
     }
 

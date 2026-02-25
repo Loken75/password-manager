@@ -37,6 +37,7 @@ public class LoginFrame extends JFrame {
         appConfig = configManager.loadConfig();
         lang.setLanguage(appConfig.getLanguage());
         vaultManager = new VaultManager(appConfig.getLocalVaultDirectory());
+        vaultManager.getImporter().setDefaultImportCategory(lang.getString("category.default.other"));
         initComponents();
     }
 
@@ -175,7 +176,7 @@ public class LoginFrame extends JFrame {
             dispose();
             new MainFrame(result.getVault(), username, result.getSession(),
                 vaultManager, appConfig, configManager).setVisible(true);
-        } catch (Exception ex) {
+        } catch (com.passwordmanager.crypto.VaultDecryptionException ex) {
             int attempts = failedAttemptsMap.getOrDefault(username, 0) + 1;
             failedAttemptsMap.put(username, attempts);
             statusLabel.setText(lang.getString("error.invalid_password"));
@@ -185,7 +186,7 @@ public class LoginFrame extends JFrame {
                 loginButton.setEnabled(false);
                 passwordField.setEnabled(false);
                 statusLabel.setText(lang.getString("error.too_many_attempts"));
-                int delay = Math.min(attempts * 2000, 30000);
+                int delay = Math.min(2000 * (1 << Math.min(attempts - 3, 4)), 30000);
                 Timer unlockTimer = new Timer(delay, evt -> {
                     loginButton.setEnabled(true);
                     passwordField.setEnabled(true);
@@ -194,6 +195,8 @@ public class LoginFrame extends JFrame {
                 unlockTimer.setRepeats(false);
                 unlockTimer.start();
             }
+        } catch (Exception ex) {
+            showError(lang.getString("common.error") + ": " + ex.getMessage());
         } finally {
             Arrays.fill(password, '\0');
         }

@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
 import com.passwordmanager.android.ui.components.PasswordField
 import com.passwordmanager.android.ui.components.PasswordStrengthBar
@@ -25,7 +25,7 @@ fun EntryEditScreen(
     onSaved: () -> Unit,
     onNavigateToGenerator: () -> Unit,
     generatedPassword: String? = null,
-    viewModel: EntryEditViewModel = viewModel()
+    viewModel: EntryEditViewModel = hiltViewModel()
 ) {
     LaunchedEffect(entryId) { viewModel.loadEntry(entryId) }
 

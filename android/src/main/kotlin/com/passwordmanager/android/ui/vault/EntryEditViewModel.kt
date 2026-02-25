@@ -3,10 +3,12 @@ package com.passwordmanager.android.ui.vault
 import androidx.lifecycle.ViewModel
 import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.vault.VaultEntry
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import javax.inject.Inject
 
 data class EntryEditUiState(
     val title: String = "",
@@ -21,7 +23,10 @@ data class EntryEditUiState(
     val error: String? = null
 )
 
-class EntryEditViewModel : ViewModel() {
+@HiltViewModel
+class EntryEditViewModel @Inject constructor(
+    private val sessionHolder: SessionHolder
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EntryEditUiState())
     val uiState: StateFlow<EntryEditUiState> = _uiState.asStateFlow()
@@ -29,11 +34,11 @@ class EntryEditViewModel : ViewModel() {
     private var existingEntryId: String? = null
 
     fun loadEntry(entryId: String?) {
-        val vault = SessionHolder.vault ?: return
+        val vault = sessionHolder.vault ?: return
         val categories = vault.categories
 
         if (entryId != null) {
-            val entry = SessionHolder.vaultService?.search("")?.find { it.id == entryId }
+            val entry = sessionHolder.vaultService?.search("")?.find { it.id == entryId }
             if (entry != null) {
                 existingEntryId = entryId
                 _uiState.value = EntryEditUiState(
@@ -68,6 +73,11 @@ class EntryEditViewModel : ViewModel() {
         _uiState.update { it.copy(password = password) }
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        _uiState.update { it.copy(password = "") }
+    }
+
     fun save(): Boolean {
         val state = _uiState.value
         if (state.title.isBlank()) {
@@ -75,7 +85,7 @@ class EntryEditViewModel : ViewModel() {
             return false
         }
 
-        val service = SessionHolder.vaultService ?: return false
+        val service = sessionHolder.vaultService ?: return false
         val tags = state.tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
 
         if (existingEntryId != null) {
@@ -103,7 +113,7 @@ class EntryEditViewModel : ViewModel() {
             service.addEntry(entry)
         }
 
-        SessionHolder.save()
+        sessionHolder.save()
         return true
     }
 }

@@ -7,12 +7,9 @@ import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.ConfigManager;
 import com.passwordmanager.config.StorageMode;
 import com.passwordmanager.config.ThemeMode;
-import com.passwordmanager.crypto.PasswordStrengthAnalyzer;
 import com.passwordmanager.crypto.VaultSession;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.sync.SyncService;
-import com.passwordmanager.util.FileSecurityUtils;
-import com.passwordmanager.util.SecureWiper;
 import com.passwordmanager.util.PasswordValidator;
 import com.passwordmanager.vault.*;
 
@@ -20,16 +17,12 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
-import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Main application window with menu bar, vault panel, and status bar.
  * Holds the VaultSession (DEK) instead of the master password.
+ * Delegates import/export, security audit, and auto-lock to dedicated controllers.
  */
 public class MainFrame extends JFrame {
     private final LanguageManager lang = LanguageManager.getInstance();
@@ -43,10 +36,12 @@ public class MainFrame extends JFrame {
     private SyncService syncService;
     private VaultPanel vaultPanel;
     private JLabel statusLabel;
-    private Timer autoLockTimer;
-    private AWTEventListener activityListener;
-    private long lastActivity;
     private Thread shutdownHook;
+
+    // Extracted controllers
+    private ImportExportController importExportController;
+    private SecurityAuditController securityAuditController;
+    private AutoLockManager autoLockManager;
 
     public MainFrame(Vault vault, String username, VaultSession session,
                      VaultManager vaultManager, AppConfig appConfig, ConfigManager configManager) {
@@ -58,9 +53,16 @@ public class MainFrame extends JFrame {
         this.configManager = configManager;
         this.vaultService = new VaultService(vault);
         this.syncService = new SyncService(appConfig);
-        this.lastActivity = System.currentTimeMillis();
+
+        // Initialize controllers
+        this.importExportController = new ImportExportController(
+            this, vault, username, session, vaultManager,
+            this::saveVault, () -> vaultPanel.refreshAll());
+        this.securityAuditController = new SecurityAuditController(this, vault, vaultService);
+        this.autoLockManager = new AutoLockManager(appConfig, this::doLock);
+
         initComponents();
-        startAutoLock();
+        autoLockManager.startAutoLock();
         shutdownHook = new Thread(() -> {
             if (vault != null) vault.wipe();
             if (session != null && !session.isDestroyed()) session.destroy();
@@ -81,9 +83,7 @@ public class MainFrame extends JFrame {
         });
 
         // Track activity for auto-lock
-        activityListener = event -> lastActivity = System.currentTimeMillis();
-        Toolkit.getDefaultToolkit().addAWTEventListener(activityListener,
-            AWTEvent.KEY_EVENT_MASK | AWTEvent.MOUSE_EVENT_MASK);
+        autoLockManager.installActivityListener();
 
         // Menu bar
         setJMenuBar(createMenuBar());
@@ -191,11 +191,11 @@ public class MainFrame extends JFrame {
         bar.add(helpMenu);
 
         // === Actions ===
-        importCsv.addActionListener(e -> doImport("csv"));
-        importJson.addActionListener(e -> doImport("json"));
-        exportCsv.addActionListener(e -> doExport("csv"));
-        exportJson.addActionListener(e -> doExport("json"));
-        exportBackup.addActionListener(e -> doExportBackup());
+        importCsv.addActionListener(e -> importExportController.doImport("csv"));
+        importJson.addActionListener(e -> importExportController.doImport("json"));
+        exportCsv.addActionListener(e -> importExportController.doExport("csv"));
+        exportJson.addActionListener(e -> importExportController.doExport("json"));
+        exportBackup.addActionListener(e -> importExportController.doExportBackup());
         settings.addActionListener(e -> doSettings());
         lock.addActionListener(e -> doLock());
         quit.addActionListener(e -> doQuit());
@@ -209,12 +209,12 @@ public class MainFrame extends JFrame {
         sortName.addActionListener(e -> vaultPanel.setSortMode(SortField.TITLE));
         sortDate.addActionListener(e -> vaultPanel.setSortMode(SortField.DATE));
         sortCat.addActionListener(e -> vaultPanel.setSortMode(SortField.CATEGORY));
-        filterWeak.addActionListener(e -> doFilterWeak());
-        filterDup.addActionListener(e -> doFilterDuplicate());
+        filterWeak.addActionListener(e -> securityAuditController.doFilterWeak());
+        filterDup.addActionListener(e -> securityAuditController.doFilterDuplicate());
 
         generator.addActionListener(e ->
             new PasswordGeneratorDialog(MainFrame.this).setVisible(true));
-        audit.addActionListener(e -> doSecurityAudit());
+        audit.addActionListener(e -> securityAuditController.doSecurityAudit());
         syncNow.addActionListener(e -> doSync());
         about.addActionListener(e ->
             JOptionPane.showMessageDialog(MainFrame.this,
@@ -259,85 +259,6 @@ public class MainFrame extends JFrame {
         }
     }
 
-    private void doImport(String format) {
-        JFileChooser fc = new JFileChooser();
-        if (fc.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
-        try {
-            File importFile = fc.getSelectedFile();
-            if (importFile.length() > 10 * 1024 * 1024) {
-                showError(lang.getString("import.error") + " (max 10 MB)");
-                return;
-            }
-            String content = new String(Files.readAllBytes(importFile.toPath()), StandardCharsets.UTF_8);
-            int count;
-            if ("csv".equals(format)) {
-                count = vaultManager.importFromCsv(vault, content);
-            } else {
-                count = vaultManager.importFromJson(vault, content);
-            }
-            saveVault();
-            vaultPanel.refreshAll();
-            JOptionPane.showMessageDialog(this,
-                lang.getString("import.success").replace("{0}", String.valueOf(count)),
-                lang.getString("import.title"), JOptionPane.INFORMATION_MESSAGE);
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this,
-                lang.getString("import.error") + ": " + ex.getMessage(),
-                lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void doExport(String format) {
-        int confirm = JOptionPane.showConfirmDialog(this,
-            lang.getString("export.warning"),
-            lang.getString("export.title"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
-        if (confirm != JOptionPane.OK_OPTION) return;
-
-        JFileChooser fc = new JFileChooser();
-        fc.setSelectedFile(new File("vault_export." + format));
-        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
-        try {
-            char[] content;
-            if ("csv".equals(format)) {
-                content = vaultManager.exportAsCsv(vault);
-            } else {
-                content = vaultManager.exportAsJson(vault);
-            }
-            java.nio.file.Path exportPath = fc.getSelectedFile().toPath();
-            byte[] exportBytes = new String(content).getBytes(StandardCharsets.UTF_8);
-            SecureWiper.wipe(content);
-            try {
-                Files.write(exportPath, exportBytes);
-            } finally {
-                SecureWiper.wipe(exportBytes);
-            }
-            FileSecurityUtils.setOwnerOnlyPermissions(exportPath);
-            JOptionPane.showMessageDialog(this,
-                lang.getString("export.success"),
-                lang.getString("export.title"), JOptionPane.INFORMATION_MESSAGE);
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this,
-                lang.getString("export.error") + ": " + ex.getMessage(),
-                lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void doExportBackup() {
-        JFileChooser fc = new JFileChooser();
-        fc.setSelectedFile(new File("vault_" + username + "_backup.enc"));
-        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
-        try {
-            vaultManager.exportBackup(username, session, fc.getSelectedFile().getAbsolutePath());
-            JOptionPane.showMessageDialog(this,
-                lang.getString("export.success"),
-                lang.getString("export.title"), JOptionPane.INFORMATION_MESSAGE);
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this,
-                lang.getString("export.error") + ": " + ex.getMessage(),
-                lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
     private void doSettings() {
         String oldLang = appConfig.getLanguage();
         ThemeMode oldTheme = appConfig.getTheme();
@@ -359,8 +280,7 @@ public class MainFrame extends JFrame {
             syncService.refreshConfig(appConfig);
             statusLabel.setText(getStatusText());
             vaultPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
-            if (autoLockTimer != null) autoLockTimer.stop();
-            startAutoLock();
+            autoLockManager.startAutoLock();
 
             if (themeChanged) {
                 applyTheme();
@@ -448,14 +368,7 @@ public class MainFrame extends JFrame {
     }
 
     private void cleanup() {
-        if (autoLockTimer != null) {
-            autoLockTimer.stop();
-            autoLockTimer = null;
-        }
-        if (activityListener != null) {
-            Toolkit.getDefaultToolkit().removeAWTEventListener(activityListener);
-            activityListener = null;
-        }
+        autoLockManager.cleanup();
         vaultPanel.cancelClipboardTimer();
     }
 
@@ -529,100 +442,6 @@ public class MainFrame extends JFrame {
             }
         }
         statusLabel.setText(getStatusText());
-    }
-
-    private void doFilterWeak() {
-        StringBuilder sb = new StringBuilder();
-        for (VaultEntry e : vault.getEntries()) {
-            char[] pwd = e.getPassword();
-            PasswordStrengthAnalyzer.Strength s = PasswordStrengthAnalyzer.analyze(pwd);
-            SecureWiper.wipe(pwd);
-            if (s == PasswordStrengthAnalyzer.Strength.WEAK) {
-                sb.append("- ").append(e.getTitle()).append("\n");
-            }
-        }
-        showAuditResult(lang.getString("menu.view.filter_weak"), sb);
-    }
-
-    private void doFilterDuplicate() {
-        Map<String, List<VaultEntry>> dups = vaultService.findDuplicatePasswords();
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, List<VaultEntry>> entry : dups.entrySet()) {
-            for (VaultEntry e : entry.getValue()) {
-                sb.append("- ").append(e.getTitle()).append("\n");
-            }
-            sb.append("\n");
-        }
-        showAuditResult(lang.getString("menu.view.filter_duplicate"), sb);
-    }
-
-    private void doSecurityAudit() {
-        StringBuilder sb = new StringBuilder();
-        int issues = 0;
-
-        // Weak passwords
-        sb.append("=== ").append(lang.getString("audit.weak_passwords")).append(" ===\n");
-        for (VaultEntry e : vault.getEntries()) {
-            char[] auditPwd = e.getPassword();
-            PasswordStrengthAnalyzer.Strength strength = PasswordStrengthAnalyzer.analyze(auditPwd);
-            SecureWiper.wipe(auditPwd);
-            if (strength == PasswordStrengthAnalyzer.Strength.WEAK) {
-                sb.append("  - ").append(e.getTitle()).append("\n");
-                issues++;
-            }
-        }
-
-        // Duplicates
-        sb.append("\n=== ").append(lang.getString("audit.duplicate_passwords")).append(" ===\n");
-        Map<String, List<VaultEntry>> dups = vaultService.findDuplicatePasswords();
-        for (Map.Entry<String, List<VaultEntry>> entry : dups.entrySet()) {
-            for (VaultEntry e : entry.getValue()) {
-                sb.append("  - ").append(e.getTitle()).append("\n");
-                issues++;
-            }
-        }
-
-        // Old passwords
-        int expiryDays = 180;
-        Object expiry = vault.getSettings().get("password_expiry_days");
-        if (expiry instanceof Number) expiryDays = ((Number) expiry).intValue();
-        sb.append("\n=== ").append(lang.getString("audit.old_passwords").replace("{0}", String.valueOf(expiryDays))).append(" ===\n");
-        for (VaultEntry e : vaultService.findOldPasswords(expiryDays)) {
-            sb.append("  - ").append(e.getTitle()).append(" (").append(e.getUpdatedAt()).append(")\n");
-            issues++;
-        }
-
-        if (issues == 0) {
-            sb.append("\n").append(lang.getString("audit.no_issues"));
-        } else {
-            sb.insert(0, lang.getString("audit.issues_found").replace("{0}", String.valueOf(issues)) + "\n\n");
-        }
-
-        JTextArea area = new JTextArea(sb.toString());
-        area.setEditable(false);
-        area.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        JScrollPane scroll = new JScrollPane(area);
-        scroll.setPreferredSize(new Dimension(500, 400));
-        JOptionPane.showMessageDialog(this, scroll, lang.getString("audit.title"), JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    private void showAuditResult(String title, StringBuilder sb) {
-        if (sb.length() == 0) sb.append(lang.getString("audit.no_issues"));
-        JTextArea area = new JTextArea(sb.toString());
-        area.setEditable(false);
-        JScrollPane scroll = new JScrollPane(area);
-        scroll.setPreferredSize(new Dimension(400, 300));
-        JOptionPane.showMessageDialog(this, scroll, title, JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    private void startAutoLock() {
-        autoLockTimer = new Timer(30000, e -> {
-            long idle = System.currentTimeMillis() - lastActivity;
-            if (idle > appConfig.getAutoLockMinutes() * 60 * 1000L) {
-                doLock();
-            }
-        });
-        autoLockTimer.start();
     }
 
     private String getStatusText() {

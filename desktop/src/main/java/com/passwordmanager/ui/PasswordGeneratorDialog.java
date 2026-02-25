@@ -69,7 +69,7 @@ public class PasswordGeneratorDialog extends JDialog {
 
         // Options
         JPanel optPanel = new JPanel(new GridLayout(0, 1, 5, 5));
-        optPanel.setBorder(BorderFactory.createTitledBorder("Options"));
+        optPanel.setBorder(BorderFactory.createTitledBorder(lang.getString("generator.options")));
 
         JPanel lenPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         lenPanel.add(new JLabel(lang.getString("generator.length") + " :"));

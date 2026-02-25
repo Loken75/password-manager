@@ -62,9 +62,9 @@ class VaultManagerIntegrationTest {
         Vault vault = result.getVault();
         VaultSession session = result.getSession();
 
-        vault.getEntries().add(new VaultEntry("Gmail", "user@gmail.com",
+        vault.addEntry(new VaultEntry("Gmail", "user@gmail.com",
                 "secret123".toCharArray(), "https://gmail.com", "notes", "Email", null));
-        vault.getEntries().add(new VaultEntry("Bank", "mybank",
+        vault.addEntry(new VaultEntry("Bank", "mybank",
                 "banking!456".toCharArray(), "https://bank.com", "", "Banking", null));
 
         manager.saveVault(vault, "charlie", session);
@@ -88,7 +88,7 @@ class VaultManagerIntegrationTest {
         Vault vault = result.getVault();
         VaultSession session = result.getSession();
 
-        vault.getEntries().add(new VaultEntry("TestEntry", "user",
+        vault.addEntry(new VaultEntry("TestEntry", "user",
                 "entrypass".toCharArray(), "", "", "Cat", null));
         manager.saveVault(vault, "dave", session);
 
@@ -114,7 +114,7 @@ class VaultManagerIntegrationTest {
         Vault vault = result.getVault();
         VaultSession session = result.getSession();
 
-        vault.getEntries().add(new VaultEntry("Entry1", "u", "p".toCharArray(), "", "", "Cat", null));
+        vault.addEntry(new VaultEntry("Entry1", "u", "p".toCharArray(), "", "", "Cat", null));
         manager.saveVault(vault, "eve", session);
 
         // Reload using session (no password needed)
@@ -172,7 +172,7 @@ class VaultManagerIntegrationTest {
 
         VaultLoadResult result = manager.createVault("grace", password);
         Vault vault = result.getVault();
-        vault.getEntries().add(new VaultEntry("Exported", "user",
+        vault.addEntry(new VaultEntry("Exported", "user",
                 "pwd".toCharArray(), "", "", "Cat", null));
 
         String csv = new String(manager.exportAsCsv(vault));
@@ -231,9 +231,9 @@ class VaultManagerIntegrationTest {
         VaultSession session = result.getSession();
 
         // Save multiple times to generate a .bak file
-        vault.getEntries().add(new VaultEntry("E1", "u", "p".toCharArray(), "", "", "C", null));
+        vault.addEntry(new VaultEntry("E1", "u", "p".toCharArray(), "", "", "C", null));
         manager.saveVault(vault, "backupuser", session);
-        vault.getEntries().add(new VaultEntry("E2", "u", "p".toCharArray(), "", "", "C", null));
+        vault.addEntry(new VaultEntry("E2", "u", "p".toCharArray(), "", "", "C", null));
         manager.saveVault(vault, "backupuser", session);
 
         // Verify backup exists

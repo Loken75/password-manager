@@ -16,12 +16,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
 import com.passwordmanager.android.ui.components.ConfirmDialog
 import com.passwordmanager.android.ui.components.PasswordStrengthBar
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -32,7 +32,7 @@ fun EntryDetailScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onDeleted: () -> Unit,
-    viewModel: EntryDetailViewModel = viewModel()
+    viewModel: EntryDetailViewModel = hiltViewModel()
 ) {
     LaunchedEffect(entryId) { viewModel.loadEntry(entryId) }
 
@@ -217,7 +217,7 @@ private fun copyToClipboard(context: Context, text: String, clearAfterSeconds: I
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText("", text))
 
-    CoroutineScope(Dispatchers.Main).launch {
+    ProcessLifecycleOwner.get().lifecycleScope.launch {
         delay(clearAfterSeconds * 1000L)
         clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
     }

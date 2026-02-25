@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:name=".PasswordManagerApp"
         android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="@string/app_title"
         android:supportsRtl="true"
-        android:theme="@style/Theme.PasswordManager">
+        android:theme="@style/Theme.PasswordManager"
+        tools:replace="android:allowBackup">
 
         <activity
             android:name=".MainActivity"

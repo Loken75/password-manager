@@ -5,12 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.crypto.VaultDecryptionException
 import com.passwordmanager.util.PasswordValidator
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class ChangeMasterPasswordUiState(
     val oldPassword: String = "",
@@ -21,7 +23,10 @@ data class ChangeMasterPasswordUiState(
     val success: Boolean = false
 )
 
-class ChangeMasterPasswordViewModel : ViewModel() {
+@HiltViewModel
+class ChangeMasterPasswordViewModel @Inject constructor(
+    private val sessionHolder: SessionHolder
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChangeMasterPasswordUiState())
     val uiState: StateFlow<ChangeMasterPasswordUiState> = _uiState.asStateFlow()
@@ -30,29 +35,43 @@ class ChangeMasterPasswordViewModel : ViewModel() {
     fun updateNewPassword(value: String) = _uiState.update { it.copy(newPassword = value, error = null) }
     fun updateConfirmPassword(value: String) = _uiState.update { it.copy(confirmPassword = value, error = null) }
 
+    override fun onCleared() {
+        super.onCleared()
+        _uiState.update { it.copy(oldPassword = "", newPassword = "", confirmPassword = "") }
+    }
+
     fun changePassword() {
         val state = _uiState.value
         if (state.newPassword != state.confirmPassword) {
             _uiState.update { it.copy(error = "security_password_mismatch") }
             return
         }
-        if (!PasswordValidator.validate(state.newPassword.toCharArray())) {
-            _uiState.update { it.copy(error = "security_password_requirements") }
-            return
+        val validateChars = state.newPassword.toCharArray()
+        try {
+            if (!PasswordValidator.validate(validateChars)) {
+                _uiState.update { it.copy(error = "security_password_requirements") }
+                return
+            }
+        } finally {
+            validateChars.fill('\u0000')
         }
 
         _uiState.update { it.copy(isLoading = true) }
 
         viewModelScope.launch(Dispatchers.IO) {
+            val oldPasswordChars = state.oldPassword.toCharArray()
+            val newPasswordChars = state.newPassword.toCharArray()
             try {
-                val username = SessionHolder.username ?: throw IllegalStateException()
-                val vault = SessionHolder.vault ?: throw IllegalStateException()
-                val currentSession = SessionHolder.session ?: throw IllegalStateException()
-                val repo = SessionHolder.getRepository()
+                val username = sessionHolder.username ?: throw IllegalStateException()
+                val vault = sessionHolder.vault ?: throw IllegalStateException()
+                val currentSession = sessionHolder.session ?: throw IllegalStateException()
+                val repo = sessionHolder.getRepository()
 
                 // Verify old password by trying to load the vault
                 try {
-                    repo.loadVault(username, state.oldPassword.toCharArray())
+                    val check = repo.loadVault(username, oldPasswordChars)
+                    check.vault.wipe()
+                    check.session.destroy()
                 } catch (e: VaultDecryptionException) {
                     _uiState.update { it.copy(isLoading = false, error = "error_invalid_password") }
                     return@launch
@@ -60,15 +79,18 @@ class ChangeMasterPasswordViewModel : ViewModel() {
 
                 // Change master password
                 val newSession = repo.changeMasterPassword(
-                    username, vault, currentSession, state.newPassword.toCharArray()
+                    username, vault, currentSession, newPasswordChars
                 )
 
                 // Update session holder with new session
-                SessionHolder.unlock(vault, newSession, username)
+                sessionHolder.unlock(vault, newSession, username)
 
                 _uiState.update { it.copy(isLoading = false, success = true) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
+            } finally {
+                oldPasswordChars.fill('\u0000')
+                newPasswordChars.fill('\u0000')
             }
         }
     }

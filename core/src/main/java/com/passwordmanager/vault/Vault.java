@@ -3,6 +3,7 @@ package com.passwordmanager.vault;
 import com.passwordmanager.util.DateUtils;
 
 import java.util.*;
+import java.util.Collections;
 
 /**
  * Represents the complete password vault for a user.
@@ -77,7 +78,17 @@ public class Vault {
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
     public String getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
-    public List<VaultEntry> getEntries() { return entries; }
+    /**
+     * Returns a read-only view of the entries list.
+     * Use {@link #addEntry(VaultEntry)} and {@link #removeEntry(VaultEntry)} for mutations.
+     */
+    public List<VaultEntry> getEntries() {
+        return Collections.unmodifiableList(entries);
+    }
+    /** Direct mutable access (for Gson deserialization and bulk operations like import). */
+    public List<VaultEntry> getEntriesMutable() { return entries; }
+    public void addEntry(VaultEntry entry) { entries.add(entry); }
+    public boolean removeEntry(VaultEntry entry) { return entries.remove(entry); }
     public void setEntries(List<VaultEntry> entries) { this.entries = entries; }
     public List<String> getCategories() { return categories; }
     public void setCategories(List<String> categories) { this.categories = categories; }

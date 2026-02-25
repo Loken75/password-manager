@@ -264,7 +264,7 @@ class SecurityAuditTest {
         char[] password = "TamperP@ss!12345".toCharArray();
 
         VaultLoadResult result = manager.createVault("tampertest", password);
-        result.getVault().getEntries().add(new VaultEntry("Secret", "user",
+        result.getVault().addEntry(new VaultEntry("Secret", "user",
             "pass123".toCharArray(), "", "", "Cat", null));
         manager.saveVault(result.getVault(), "tampertest", result.getSession());
         result.getSession().destroy();
@@ -346,7 +346,7 @@ class SecurityAuditTest {
 
         String[] formulaChars = {"=CMD", "+CMD", "-CMD", "@CMD"};
         for (String title : formulaChars) {
-            vault.getEntries().add(new VaultEntry(title, "user",
+            vault.addEntry(new VaultEntry(title, "user",
                 "pass".toCharArray(), "", "", "Cat", null));
         }
 

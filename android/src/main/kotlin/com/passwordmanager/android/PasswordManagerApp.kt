@@ -1,17 +1,7 @@
 package com.passwordmanager.android
 
 import android.app.Application
-import com.passwordmanager.android.data.AndroidVaultRepository
-import com.passwordmanager.android.data.SessionHolder
+import dagger.hilt.android.HiltAndroidApp
 
-class PasswordManagerApp : Application() {
-
-    lateinit var vaultRepository: AndroidVaultRepository
-        private set
-
-    override fun onCreate() {
-        super.onCreate()
-        vaultRepository = AndroidVaultRepository(filesDir.absolutePath + "/vaults")
-        SessionHolder.init(vaultRepository)
-    }
-}
+@HiltAndroidApp
+class PasswordManagerApp : Application()

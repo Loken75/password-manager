@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
 import com.passwordmanager.android.ui.components.PasswordField
 import com.passwordmanager.android.ui.components.PasswordStrengthBar
@@ -21,7 +21,7 @@ import com.passwordmanager.android.ui.components.PasswordStrengthBar
 fun ChangeMasterPasswordScreen(
     onBack: () -> Unit,
     onChanged: () -> Unit,
-    viewModel: ChangeMasterPasswordViewModel = viewModel()
+    viewModel: ChangeMasterPasswordViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = SnackbarHostState()

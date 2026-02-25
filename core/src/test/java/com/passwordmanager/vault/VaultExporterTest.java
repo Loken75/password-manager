@@ -33,7 +33,7 @@ class VaultExporterTest {
 
     @Test
     void exportCsvWithEntries() {
-        vault.getEntries().add(new VaultEntry("Gmail", "user@gmail.com",
+        vault.addEntry(new VaultEntry("Gmail", "user@gmail.com",
                 "pass123".toCharArray(), "https://gmail.com", "notes", "Email",
                 Arrays.asList("tag1", "tag2")));
 
@@ -48,7 +48,7 @@ class VaultExporterTest {
 
     @Test
     void exportCsvEscapesCommas() {
-        vault.getEntries().add(new VaultEntry("My, Site", "user",
+        vault.addEntry(new VaultEntry("My, Site", "user",
                 "pass".toCharArray(), "", "", "Cat", null));
 
         String csv = new String(exporter.exportAsCsv(vault));
@@ -57,7 +57,7 @@ class VaultExporterTest {
 
     @Test
     void exportCsvFormulaInjectionProtection() {
-        vault.getEntries().add(new VaultEntry("=FORMULA", "user",
+        vault.addEntry(new VaultEntry("=FORMULA", "user",
                 "pass".toCharArray(), "", "", "Cat", null));
 
         String csv = new String(exporter.exportAsCsv(vault));
@@ -67,7 +67,7 @@ class VaultExporterTest {
 
     @Test
     void exportCsvNullPassword() {
-        vault.getEntries().add(new VaultEntry("NoPass", "user",
+        vault.addEntry(new VaultEntry("NoPass", "user",
                 null, "", "", "Cat", null));
 
         String csv = new String(exporter.exportAsCsv(vault));
@@ -79,7 +79,7 @@ class VaultExporterTest {
 
     @Test
     void exportJsonValid() {
-        vault.getEntries().add(new VaultEntry("Test", "user",
+        vault.addEntry(new VaultEntry("Test", "user",
                 "pass".toCharArray(), "http://test.com", "", "Cat", null));
 
         String json = new String(exporter.exportAsJson(vault));
@@ -99,9 +99,9 @@ class VaultExporterTest {
     void exportCsvRoundTripWithImporter() {
         VaultImporter importer = new VaultImporter(new GsonBuilder().create());
 
-        vault.getEntries().add(new VaultEntry("Site1", "user1",
+        vault.addEntry(new VaultEntry("Site1", "user1",
                 "pass1".toCharArray(), "http://site1.com", "note1", "Email", null));
-        vault.getEntries().add(new VaultEntry("Site2", "user2",
+        vault.addEntry(new VaultEntry("Site2", "user2",
                 "pass2".toCharArray(), "http://site2.com", "", "Work",
                 Arrays.asList("important")));
 

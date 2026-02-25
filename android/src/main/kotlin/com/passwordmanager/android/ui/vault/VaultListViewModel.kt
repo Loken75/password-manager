@@ -1,20 +1,22 @@
 package com.passwordmanager.android.ui.vault
 
-import android.app.Application
+import android.content.Context
 import android.net.Uri
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.passwordmanager.android.data.SessionHolder
-import com.passwordmanager.crypto.PasswordStrengthAnalyzer
 import com.passwordmanager.util.SecureWiper
 import com.passwordmanager.vault.SortField
 import com.passwordmanager.vault.VaultEntry
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class VaultListUiState(
     val entries: List<VaultEntry> = emptyList(),
@@ -26,7 +28,11 @@ data class VaultListUiState(
     val message: String? = null
 )
 
-class VaultListViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class VaultListViewModel @Inject constructor(
+    private val sessionHolder: SessionHolder,
+    @ApplicationContext private val context: Context
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(VaultListUiState())
     val uiState: StateFlow<VaultListUiState> = _uiState.asStateFlow()
@@ -36,8 +42,8 @@ class VaultListViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun refreshEntries() {
-        val service = SessionHolder.vaultService ?: return
-        val vault = SessionHolder.vault ?: return
+        val service = sessionHolder.vaultService ?: return
+        val vault = sessionHolder.vault ?: return
 
         val entries = when {
             _uiState.value.searchQuery.isNotBlank() ->
@@ -77,12 +83,11 @@ class VaultListViewModel(application: Application) : AndroidViewModel(applicatio
     fun importCsv(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val context = getApplication<Application>()
                 val content = context.contentResolver.openInputStream(uri)
                     ?.bufferedReader()?.use { it.readText() } ?: return@launch
-                val vault = SessionHolder.vault ?: return@launch
-                val count = SessionHolder.getRepository().importFromCsv(vault, content)
-                SessionHolder.save()
+                val vault = sessionHolder.vault ?: return@launch
+                val count = sessionHolder.getRepository().importFromCsv(vault, content)
+                sessionHolder.save()
                 refreshEntries()
                 _uiState.update { it.copy(message = "import_success:$count") }
             } catch (e: Exception) {
@@ -94,12 +99,11 @@ class VaultListViewModel(application: Application) : AndroidViewModel(applicatio
     fun importJson(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val context = getApplication<Application>()
                 val content = context.contentResolver.openInputStream(uri)
                     ?.bufferedReader()?.use { it.readText() } ?: return@launch
-                val vault = SessionHolder.vault ?: return@launch
-                val count = SessionHolder.getRepository().importFromJson(vault, content)
-                SessionHolder.save()
+                val vault = sessionHolder.vault ?: return@launch
+                val count = sessionHolder.getRepository().importFromJson(vault, content)
+                sessionHolder.save()
                 refreshEntries()
                 _uiState.update { it.copy(message = "import_success:$count") }
             } catch (e: Exception) {
@@ -111,9 +115,8 @@ class VaultListViewModel(application: Application) : AndroidViewModel(applicatio
     fun exportCsv(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val vault = SessionHolder.vault ?: return@launch
-                val data = SessionHolder.getRepository().exportAsCsv(vault)
-                val context = getApplication<Application>()
+                val vault = sessionHolder.vault ?: return@launch
+                val data = sessionHolder.getRepository().exportAsCsv(vault)
                 context.contentResolver.openOutputStream(uri)?.use {
                     it.write(String(data).toByteArray())
                 }
@@ -128,9 +131,8 @@ class VaultListViewModel(application: Application) : AndroidViewModel(applicatio
     fun exportJson(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val vault = SessionHolder.vault ?: return@launch
-                val data = SessionHolder.getRepository().exportAsJson(vault)
-                val context = getApplication<Application>()
+                val vault = sessionHolder.vault ?: return@launch
+                val data = sessionHolder.getRepository().exportAsJson(vault)
                 context.contentResolver.openOutputStream(uri)?.use {
                     it.write(String(data).toByteArray())
                 }
@@ -145,11 +147,9 @@ class VaultListViewModel(application: Application) : AndroidViewModel(applicatio
     fun exportBackup(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val username = SessionHolder.username ?: return@launch
-                val session = SessionHolder.session ?: return@launch
-                val context = getApplication<Application>()
+                val username = sessionHolder.username ?: return@launch
                 // Read the encrypted vault file and write to the SAF uri
-                val vaultPath = SessionHolder.getRepository().manager.getVaultPath(username)
+                val vaultPath = sessionHolder.getRepository().manager.getVaultPath(username)
                 val bytes = java.io.File(vaultPath).readBytes()
                 context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
                 _uiState.update { it.copy(message = "export_success") }

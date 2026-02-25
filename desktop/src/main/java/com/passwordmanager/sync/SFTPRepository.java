@@ -11,7 +11,7 @@ import java.util.logging.Logger;
  * Connects using SSH private key only (no password auth).
  * Host key verification uses ~/.ssh/known_hosts.
  */
-public class SFTPRepository {
+public class SFTPRepository implements RemoteSyncRepository {
     private static final Logger LOGGER = Logger.getLogger(SFTPRepository.class.getName());
     private Session session;
     private ChannelSftp sftpChannel;
@@ -89,6 +89,11 @@ public class SFTPRepository {
             sftpChannel.lstat(remotePath + "/" + remoteFilename);
             return true;
         } catch (SftpException e) {
+            if (e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE) {
+                return false;
+            }
+            // Permission denied or other SFTP error — log and treat as non-existent
+            LOGGER.log(Level.WARNING, "SFTP lstat failed for " + remoteFilename + ": " + e.getMessage());
             return false;
         }
     }

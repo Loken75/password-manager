@@ -5,9 +5,11 @@ import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength
 import com.passwordmanager.vault.VaultEntry
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import javax.inject.Inject
 
 data class SecurityAuditUiState(
     val weakEntries: List<VaultEntry> = emptyList(),
@@ -17,7 +19,10 @@ data class SecurityAuditUiState(
     val totalIssues: Int = 0
 )
 
-class SecurityAuditViewModel : ViewModel() {
+@HiltViewModel
+class SecurityAuditViewModel @Inject constructor(
+    private val sessionHolder: SessionHolder
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SecurityAuditUiState())
     val uiState: StateFlow<SecurityAuditUiState> = _uiState.asStateFlow()
@@ -27,8 +32,8 @@ class SecurityAuditViewModel : ViewModel() {
     }
 
     fun runAudit() {
-        val service = SessionHolder.vaultService ?: return
-        val vault = SessionHolder.vault ?: return
+        val service = sessionHolder.vaultService ?: return
+        val vault = sessionHolder.vault ?: return
 
         val expiryDays = (vault.settings?.get("password_expiry_days") as? Number)?.toInt() ?: 180
 

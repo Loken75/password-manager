@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import com.passwordmanager.crypto.PasswordGenerator
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer
 import com.passwordmanager.util.SecureWiper
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import javax.inject.Inject
 
 data class GeneratorUiState(
     val password: CharArray = charArrayOf(),
@@ -36,7 +38,8 @@ data class GeneratorUiState(
     override fun hashCode(): Int = password.contentHashCode() + length
 }
 
-class GeneratorViewModel : ViewModel() {
+@HiltViewModel
+class GeneratorViewModel @Inject constructor() : ViewModel() {
 
     private val _uiState = MutableStateFlow(GeneratorUiState())
     val uiState: StateFlow<GeneratorUiState> = _uiState.asStateFlow()

@@ -43,3 +43,12 @@
 # --- Jetpack Compose ---
 -dontwarn androidx.compose.**
 -keep class androidx.compose.runtime.** { *; }
+
+# --- Dagger / Hilt ---
+-dontwarn dagger.**
+-keep class dagger.** { *; }
+-keep class javax.inject.** { *; }
+-keep class * extends dagger.hilt.android.internal.managers.ViewComponentManager$FragmentContextWrapper { *; }
+-keep class **_HiltModules* { *; }
+-keep class **_Factory { *; }
+-keep class **_MembersInjector { *; }

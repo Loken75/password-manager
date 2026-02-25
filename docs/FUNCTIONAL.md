@@ -108,6 +108,7 @@ Au premier lancement, aucun utilisateur n'existe. Vous devez en creer un :
    - Au moins **1 minuscule** (a-z)
    - Au moins **1 chiffre** (0-9)
    - Au moins **1 caractere special** (!@#$%...)
+   - Ne doit pas etre un mot de passe courant (44 mots de passe connus rejetes, ex: "password", "letmein", "motdepasse")
 4. Confirmez le mot de passe
 5. Validez la creation
 
@@ -561,10 +562,11 @@ Le changement de mot de passe ne re-chiffre **pas** l'ensemble des donnees. Seul
 
 ### 15.2. Protection du mot de passe maitre
 
-- Politique stricte : minimum 12 caracteres, 4 types requis, rejet des mots de passe courants (44 mots de passe connus)
+- Politique stricte : minimum 12 caracteres, 4 types requis, rejet des mots de passe courants (44 mots de passe connus incluant des variantes francaises comme "motdepasse")
 - Le mot de passe n'est **jamais conserve en memoire** apres l'authentification
 - Manipulation en `char[]` (pas en `String`) pour permettre l'effacement explicite
-- Comparaison a temps constant contre la liste de mots de passe courants
+- Comparaison a temps constant contre la liste de mots de passe courants (empeche les attaques par canal auxiliaire de timing)
+- Sur Android, les formulaires contenant des mots de passe effacent automatiquement leurs donnees a la destruction du ViewModel
 
 ### 15.3. Verrouillage automatique
 
@@ -662,6 +664,7 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop) pour maintenir l
 | Effacement presse-papiers | Oui | Oui |
 | Anti brute-force | Oui | Oui |
 | Synchronisation SFTP | Oui | Non |
+| Injection de dependances | N/A (gestion manuelle) | Hilt/Dagger |
 | Stockage configuration | `config.properties` chiffre | EncryptedSharedPreferences |
 | Raccourcis clavier | Oui | N/A |
 | Distribution | JRE embarque (jlink) | APK |

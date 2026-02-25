@@ -33,7 +33,8 @@ Password Manager est une application multiplateforme (desktop + Android) permett
 - Synchronisation SFTP avec gestion des conflits et mode hors-ligne (desktop)
 - Interface bilingue francais/anglais
 - Themes systeme, clair et sombre
-- 150 tests unitaires et d'integration
+- Injection de dependances Hilt sur le module Android
+- 264 tests unitaires et d'integration (core, desktop et Android)
 
 ---
 
@@ -79,7 +80,14 @@ Des scripts de lancement sont fournis dans `scripts/` :
 ### Execution des tests
 
 ```bash
+# Tests core + desktop (JVM)
 ./gradlew :core:test :desktop:test
+
+# Tests Android (JVM local, JUnit 5)
+./gradlew :android:testDebugUnitTest
+
+# Tous les tests
+./gradlew :core:test :desktop:test :android:testDebugUnitTest
 ```
 
 ---
@@ -100,9 +108,10 @@ Des scripts de lancement sont fournis dans `scripts/` :
 :desktop (Java 17, depends on :core)
   +-- ui/         LoginFrame, MainFrame, VaultPanel, EntryDialog, SettingsDialog, ...
 
-:android (Kotlin 2.1, depends on :core)
-  |-- data/       AndroidVaultRepository, AndroidConfigRepository, SessionHolder
-  +-- ui/         Compose screens (login, vault, generator, settings, audit)
+:android (Kotlin 2.1, depends on :core, Hilt DI)
+  |-- data/       AndroidVaultRepository, AndroidConfigRepository, ConfigRepository, SessionHolder
+  |-- di/         AppModule (Hilt @Provides @Singleton)
+  +-- ui/         Compose screens + @HiltViewModel (login, vault, generator, settings, audit)
 ```
 
 ### 3.2. Diagramme desktop
@@ -130,25 +139,34 @@ Main
 ### 3.3. Diagramme Android
 
 ```
+@HiltAndroidApp
 PasswordManagerApp (Application)
-  +-- AndroidVaultRepository (wraps VaultManager)
-  +-- SessionHolder (singleton: Vault, VaultSession, VaultService)
 
+AppModule (@Module @InstallIn(SingletonComponent))
+  +-- @Provides @Singleton AndroidVaultRepository (wraps VaultManager)
+  +-- @Provides @Singleton ConfigRepository (-> AndroidConfigRepository)
+  +-- @Provides @Singleton SessionHolder (init + return)
+
+@AndroidEntryPoint
 MainActivity (single Activity)
+  +-- @Inject ConfigRepository, SessionHolder
   +-- AppNavigation (NavHost)
-        |-- LoginScreen / LoginViewModel
-        |     +-- VaultManager.listUsers(), VaultManager.loadVault()
-        |-- VaultListScreen / VaultListViewModel
-        |     +-- VaultService.search(), VaultService.sort()
-        |-- EntryDetailScreen / EntryDetailViewModel
-        |-- EntryEditScreen / EntryEditViewModel
-        |-- GeneratorScreen / GeneratorViewModel
+        |-- LoginScreen / @HiltViewModel LoginViewModel
+        |     +-- @Inject AndroidVaultRepository, SessionHolder
+        |-- VaultListScreen / @HiltViewModel VaultListViewModel
+        |     +-- @Inject SessionHolder, @ApplicationContext
+        |-- EntryDetailScreen / @HiltViewModel EntryDetailViewModel
+        |     +-- @Inject SessionHolder
+        |-- EntryEditScreen / @HiltViewModel EntryEditViewModel
+        |     +-- @Inject SessionHolder (onCleared efface le password)
+        |-- GeneratorScreen / @HiltViewModel GeneratorViewModel
         |     +-- PasswordGenerator.generate()
-        |-- SettingsScreen / SettingsViewModel
-        |     +-- AndroidConfigRepository (EncryptedSharedPreferences)
-        |-- ChangeMasterPasswordScreen / ChangeMasterPasswordViewModel
-        +-- SecurityAuditScreen / SecurityAuditViewModel
-              +-- VaultService.findWeakPasswords(), findDuplicatePasswords(), findOldPasswords()
+        |-- SettingsScreen / @HiltViewModel SettingsViewModel
+        |     +-- @Inject ConfigRepository
+        |-- ChangeMasterPasswordScreen / @HiltViewModel ChangeMasterPasswordViewModel
+        |     +-- @Inject SessionHolder (onCleared efface les passwords)
+        +-- SecurityAuditScreen / @HiltViewModel SecurityAuditViewModel
+              +-- @Inject SessionHolder
 ```
 
 ### 3.4. Principes architecturaux
@@ -158,6 +176,9 @@ MainActivity (single Activity)
 - **Aucune retention du mot de passe maitre** : apres l'authentification, seule la `VaultSession` (contenant la DEK) est conservee en memoire. Le mot de passe maitre est efface immediatement.
 - **AutoCloseable / Destroyable** : `VaultSession` implemente les deux interfaces pour garantir l'effacement des cles via `try-with-resources` ou appel explicite.
 - **MVVM (Android)** : chaque ecran a un `ViewModel` avec `StateFlow` pour l'etat UI. Les ecrans Compose collectent l'etat via `collectAsStateWithLifecycle()`.
+- **Injection de dependances (Android)** : Hilt/Dagger fournit les singletons (`AndroidVaultRepository`, `ConfigRepository`, `SessionHolder`) via `AppModule`. Les ViewModels sont annotes `@HiltViewModel` et recoivent leurs dependances via `@Inject constructor`. Les ecrans utilisent `hiltViewModel()` au lieu de `viewModel()`.
+- **Interface ConfigRepository (Android)** : interface extraite de `AndroidConfigRepository` pour la testabilite. Un `FakeConfigRepository` est utilise dans les tests unitaires.
+- **Thread safety (SessionHolder)** : les champs mutables sont `@Volatile` et les methodes `unlock()`, `lock()`, `save()` sont `@Synchronized` pour prevenir les races entre les coroutines IO et le thread Main.
 
 ---
 
@@ -336,6 +357,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 - Migration automatique v1.0 -> v2.0 au chargement
 - Ecriture atomique : fichier temporaire -> permissions restrictives sur le temporaire -> `Files.move(ATOMIC_MOVE)` avec fallback
 - Backup roulant (3 fichiers `.bak` max par utilisateur)
+- `loadVault()` verifie la taille du fichier avant lecture (limite 50 Mo)
 - `deleteVault()` supprime aussi tous les fichiers `.bak` de l'utilisateur
 - Validation du nom d'utilisateur : regex `[a-zA-Z0-9_]+`
 - `CharArrayAdapter` interne : `TypeAdapter<char[]>` Gson pour serialiser les mots de passe comme chaines JSON
@@ -588,6 +610,8 @@ Emplacement : `~/.password-manager/data/.config_key`
 | Copie defensive session | `VaultSession.getSalt/getKekIv/getEncryptedDek()` retournent des clones |
 | Nettoyage de session | `VaultSession.destroy()` efface DEK, sel, IV, DEK chiffree |
 | Nettoyage Swing | Insertion via `Document.insertString()` au lieu de `JPasswordField.setText(String)` pour minimiser l'interning |
+| Nettoyage ViewModel (Android) | `EntryEditViewModel.onCleared()` et `ChangeMasterPasswordViewModel.onCleared()` effacent les mots de passe de l'etat UI |
+| Thread safety SessionHolder | Champs `@Volatile` (`vault`, `session`, `vaultService`, `username`) + `@Synchronized` sur `unlock()`, `lock()`, `save()` |
 | Auto-masquage | Le mot de passe affiche se re-masque automatiquement apres 30 secondes |
 
 ### 7.2. Securite des fichiers
@@ -618,6 +642,7 @@ Emplacement : `~/.password-manager/data/.config_key`
 | Import CSV/JSON | Assainissement des caracteres de controle, troncature 10 000 chars, limite 10 000 entrees |
 | Export CSV | Echappement RFC 4180, prefixe anti-formule (`'`) |
 | Fichier cle SSH | Validation d'existence et de lisibilite avant sauvegarde |
+| Fichier coffre local | Limite de taille 50 Mo avant lecture (`VaultManager.loadVault()`) |
 | Telechargement SFTP | Limite de taille 50 Mo, verification de contenu JSON valide (commence par `{`) |
 
 ### 7.5. Securite SFTP
@@ -754,8 +779,9 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la ses
 
 - **Kotlin 2.1.0** avec **Jetpack Compose** (BOM 2024.12.01)
 - **Material 3** (Material You) avec **Dynamic Colors** sur Android 12+
+- **Hilt 2.54** (Dagger) pour l'injection de dependances, avec **KSP 2.1.0-1.0.29** pour le traitement d'annotations
 - **Navigation Compose 2.8.5** pour le routage entre ecrans
-- **ViewModel + StateFlow** (pattern MVVM)
+- **ViewModel + StateFlow** (pattern MVVM) — tous les ViewModels sont `@HiltViewModel`
 - **EncryptedSharedPreferences** (security-crypto 1.1.0-alpha06) pour la configuration
 - Min SDK 26 (Android 8.0), Target SDK 35, Compile SDK 35
 
@@ -792,13 +818,26 @@ Le mot de passe genere est passe de `GeneratorScreen` a `EntryEditScreen` via `s
 - `ProcessLifecycleOwner` detecte `ON_STOP` (app en arriere-plan)
 - Countdown configurable -> `SessionHolder.lock()` -> retour a l'ecran de connexion via `isUnlockedFlow` (StateFlow)
 
+#### Injection de dependances (Hilt)
+
+Le module `AppModule` (`@Module @InstallIn(SingletonComponent)`) fournit :
+
+| Provider | Type | Description |
+|----------|------|-------------|
+| `provideVaultRepository` | `@Singleton AndroidVaultRepository` | Cree avec `@ApplicationContext.filesDir + "/vaults"` |
+| `provideConfigRepository` | `@Singleton ConfigRepository` | Retourne `AndroidConfigRepository` (implementation de l'interface `ConfigRepository`) |
+| `provideSessionHolder` | `@Singleton SessionHolder` | Appelle `SessionHolder.init(repository)` puis retourne l'objet singleton |
+
+L'interface `ConfigRepository` abstrait les operations de configuration (theme, langue, auto-lock, clipboard) pour permettre l'injection d'un `FakeConfigRepository` dans les tests.
+
 #### Couche data
 
 | Classe | Role |
 |--------|------|
 | `AndroidVaultRepository` | Encapsule `VaultManager(context.filesDir + "/vaults")` |
-| `AndroidConfigRepository` | Configuration via `EncryptedSharedPreferences` (MasterKey AES256-GCM) |
-| `SessionHolder` | Singleton : tient `Vault`, `VaultSession`, `VaultService`, `username` en memoire. `isUnlockedFlow: StateFlow<Boolean>` |
+| `ConfigRepository` | Interface de configuration (theme, langue, auto-lock, clipboard) |
+| `AndroidConfigRepository` | Implementation via `EncryptedSharedPreferences` (MasterKey AES256-GCM) |
+| `SessionHolder` | Singleton thread-safe : tient `Vault`, `VaultSession`, `VaultService`, `username` en memoire. Champs `@Volatile`, methodes `@Synchronized`. `isUnlockedFlow: StateFlow<Boolean>` |
 
 #### Localisation Android
 
@@ -815,28 +854,56 @@ La langue suit les parametres systeme du telephone.
 ### 11.1. Vue d'ensemble
 
 **Framework** : JUnit 5 (Jupiter) 5.14.2
-**Total** : 150 tests (unitaires + integration)
+**Total** : **264 tests** (unitaires + integration) repartis sur les 3 modules
+
+| Module Gradle | Tests | Framework |
+|---|---|---|
+| `:core` | 152 | JUnit 5 (Java) |
+| `:desktop` | 71 | JUnit 5 (Java) |
+| `:android` | 41 | JUnit 5 (Kotlin, JVM local) |
 
 ### 11.2. Matrice des tests
 
 | Module | Classe de test | Nombre | Description |
 |--------|---------------|--------|-------------|
 | security | `SecurityAuditTest` | 31 | IV, KDF, memoire, permissions, format, import/export, generateur |
+| vault | `VaultServiceTest` | 25 | CRUD, recherche, tri, doublons, categories, timestamps, mots de passe anciens, URL |
+| sync | `SyncServiceTest` | 23 | Synchronisation, hash, conflits, mode hors-ligne, mode local |
 | sync | `LocalRepositoryTest` | 17 | Path traversal, lecture/ecriture/suppression, pending, backups |
+| vault | `VaultImporterTest` | 17 | CSV (separateurs, alias, BOM, sanitisation controle), JSON (malformed, null), limites |
 | vault | `VaultManagerIntegrationTest` | 16 | Cycle complet avec vraie crypto, validation username, suppression backups |
-| vault | `VaultServiceTest` | 13 | CRUD, recherche, tri, doublons, categories |
+| util | `PasswordValidatorTest` | 15 | Politique mot de passe maitre, rejet des 44 mots de passe courants |
+| crypto | `CryptoServiceTest` | 13 | Enveloppe DEK/KEK, chiffrement, changement mdp, tampering (ciphertext/IV), legacy, destroy/close |
 | config | `ConfigEncryptorTest` | 11 | Round-trip, caracteres speciaux, null/vide, corruption, unicite IV, reutilisation cle |
-| vault | `VaultImporterTest` | 10 | CSV (separateurs, alias, positionnement), JSON, limites |
+| **android** | `GeneratorViewModelTest` | 11 | Etat initial, generation, clamp longueur, toggles, force, nettoyage onCleared |
 | sync | `SFTPRepositoryTest` | 10 | Validation filename sur upload/download/exists/getRemoteLastModified |
-| util | `PasswordValidatorTest` | 9 | Politique de mot de passe maitre |
 | crypto | `PasswordStrengthAnalyzerTest` | 9 | Niveaux de force, score, cas limites |
-| crypto | `CryptoServiceTest` | 8 | Enveloppe DEK/KEK, chiffrement/dechiffrement, changement de mot de passe, lifecycle |
-| vault | `VaultExporterTest` | 8 | CSV, JSON, injection, round-trip |
+| vault | `VaultTest` | 9 | Constructeurs, add/remove entries, unmodifiable list, wipe, settings |
+| vault | `VaultExporterTest` | 8 | CSV, JSON, injection formules, round-trip |
+| **android** | `EntryEditViewModelTest` | 8 | Formulaire CRUD nouveau/existant, sauvegarde, validation titre vide |
+| **android** | `ChangeMasterPasswordViewModelTest` | 7 | Etat initial, validation, mismatch, mot de passe faible, nettoyage onCleared |
+| i18n | `LanguageManagerTest` | 6 | Singleton, getString valide/manquant, setLanguage fr/en, getAvailableLanguages |
+| **android** | `SecurityAuditViewModelTest` | 5 | Audit vide, mots de passe faibles, dupliques, anciens, totalIssues |
+| **android** | `EntryDetailViewModelTest` | 5 | Chargement existant/inconnu, toggle visibilite, suppression existant/inexistant |
+| **android** | `SettingsViewModelTest` | 5 | Configuration initiale, setTheme, setLanguage, clamp autoLock, clamp clipboard |
+| util | `DateUtilsTest` | 5 | Format ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types de caracteres, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance, auto-creation |
-| | | **150** | |
+| | | **264** | |
 
-### 11.3. Tests de securite remarquables (`SecurityAuditTest`)
+### 11.3. Infrastructure de test Android
+
+Les tests Android s'executent sur la JVM locale (pas d'emulateur) :
+
+| Classe | Role |
+|--------|------|
+| `MainDispatcherExtension` | Extension JUnit 5 qui remplace `Dispatchers.Main` par `UnconfinedTestDispatcher` |
+| `FakeConfigRepository` | Implementation de `ConfigRepository` pour les tests (valeurs en memoire) |
+| `TestSessionHelper` | Cree un vault reel sur un `@TempDir` et deverrouille `SessionHolder` |
+
+Tous les tests utilisant `SessionHolder` ont un `@AfterEach` qui appelle `SessionHolder.lock()` pour garantir l'isolation entre tests.
+
+### 11.4. Tests de securite remarquables (`SecurityAuditTest`)
 
 - **Unicite des IV** : 100 chiffrements successifs -> tous les IV distincts
 - **KDF** : iterations >= 600 000, taille du sel = 32 octets
@@ -847,7 +914,7 @@ La langue suit les parametres systeme du telephone.
 - **Assainissement import** : caracteres de controle supprimes, tabulations preservees
 - **Anti-injection export** : tous les caracteres declencheurs (`=`, `+`, `-`, `@`) sont prefixes
 
-### 11.4. Tests de validation des entrees
+### 11.5. Tests de validation des entrees
 
 - **ConfigEncryptor** : round-trip chiffrement/dechiffrement, caracteres speciaux et Unicode, entrees null/vides, donnees corrompues (prefixe `ENC:` invalide), unicite des IV, reutilisation du fichier de cle entre appels
 - **LocalRepository** : rejet des noms de fichiers malicieux (`..`, `/`, `\`, `~`, null, vide), operations CRUD, pending changes, creation et nettoyage de backups
@@ -873,11 +940,17 @@ La langue suit les parametres systeme du telephone.
 |--------------|---------|-------|
 | Compose BOM | 2024.12.01 | Versions Compose alignees |
 | Material 3 | (via BOM) | Composants UI Material You |
+| Hilt Android | 2.54 | Injection de dependances |
+| Hilt Navigation Compose | 1.2.0 | `hiltViewModel()` dans les ecrans Compose |
+| KSP (Kotlin Symbol Processing) | 2.1.0-1.0.29 | Traitement d'annotations Hilt |
 | Navigation Compose | 2.8.5 | Routage entre ecrans |
 | Lifecycle ViewModel Compose | 2.8.7 | ViewModel + collectAsStateWithLifecycle |
 | Security Crypto | 1.1.0-alpha06 | EncryptedSharedPreferences |
 | Coroutines Android | 1.9.0 | Concurrence Kotlin |
 | Desugar JDK Libs | 2.1.4 | Backport List.of() etc. |
+| JUnit 5 | 5.11.4 | Tests unitaires Android (JVM local) |
+| Coroutines Test | 1.9.0 | `UnconfinedTestDispatcher` pour les tests |
+| kotlin-test-junit5 | 2.1.0 | Assertions Kotlin + JUnit 5 |
 
 ### 12.3. Build
 
@@ -887,6 +960,8 @@ La langue suit les parametres systeme du telephone.
 | AGP | 8.7.3 | Build Android |
 | Kotlin plugin | 2.1.0 | Compilation Kotlin |
 | Compose Compiler plugin | 2.1.0 | Compilation Compose |
+| KSP plugin | 2.1.0-1.0.29 | Traitement d'annotations (Hilt) |
+| Hilt Gradle plugin | 2.54 | Generation de composants Hilt |
 | Shadow/fatJar | custom task | Fat JAR desktop |
 
 ---
@@ -920,35 +995,44 @@ password-manager/
 |       |   +-- vault/                      # Vault, VaultEntry, VaultManager, VaultService,
 |       |                                   # VaultImporter, VaultExporter, VaultLoadResult, SortField
 |       |-- main/resources/i18n/            # messages_en.properties, messages_fr.properties
-|       +-- test/java/com/passwordmanager/  # 150 tests (13 classes)
+|       +-- test/java/com/passwordmanager/  # 152 tests (15 classes)
 |
 |-- desktop/                                # :desktop — interface Swing (Java 17)
 |   |-- build.gradle.kts
-|   +-- src/main/java/com/passwordmanager/
-|       |-- Main.java                       # Point d'entree, detection app.home
-|       +-- ui/                             # LoginFrame, MainFrame, VaultPanel, EntryDialog,
-|                                           # PasswordGeneratorDialog, SettingsDialog, StrengthBarHelper
+|   +-- src/
+|       |-- main/java/com/passwordmanager/
+|       |   |-- Main.java                   # Point d'entree, detection app.home
+|       |   +-- ui/                         # LoginFrame, MainFrame, VaultPanel, EntryDialog,
+|       |                                   # PasswordGeneratorDialog, SettingsDialog, StrengthBarHelper
+|       +-- test/java/com/passwordmanager/  # 71 tests (SyncServiceTest, LocalRepositoryTest, etc.)
 |
 +-- android/                                # :android — interface Compose (Kotlin 2.1)
-    |-- build.gradle.kts                    # AGP 8.7.3, Compose BOM 2024.12, minSdk 26
-    |-- proguard-rules.pro
-    +-- src/main/
-        |-- AndroidManifest.xml
-        |-- res/
-        |   |-- values/strings.xml          # 100+ cles EN
-        |   |-- values-fr/strings.xml       # 100+ cles FR
-        |   +-- values/themes.xml
-        +-- kotlin/com/passwordmanager/android/
-            |-- PasswordManagerApp.kt       # Application (init repos)
-            |-- MainActivity.kt             # Single Activity + auto-lock
-            |-- data/                       # AndroidVaultRepository, AndroidConfigRepository, SessionHolder
-            +-- ui/
-                |-- theme/                  # Theme.kt, Color.kt, Type.kt
-                |-- navigation/             # AppNavigation.kt (8 routes)
-                |-- login/                  # LoginScreen, LoginViewModel
-                |-- vault/                  # VaultListScreen/VM, EntryDetailScreen/VM, EntryEditScreen/VM
-                |-- generator/              # GeneratorScreen, GeneratorViewModel
-                |-- settings/               # SettingsScreen/VM, ChangeMasterPasswordScreen/VM
-                |-- audit/                  # SecurityAuditScreen, SecurityAuditViewModel
-                +-- components/             # PasswordStrengthBar, PasswordField, EntryCard, ConfirmDialog
+    |-- build.gradle.kts                    # AGP 8.7.3, Compose BOM 2024.12, Hilt 2.54, minSdk 26
+    |-- proguard-rules.pro                 # Regles R8 : Tink, Hilt/Dagger, javax.inject
+    +-- src/
+        |-- main/
+        |   |-- AndroidManifest.xml
+        |   |-- res/
+        |   |   |-- values/strings.xml      # 100+ cles EN
+        |   |   |-- values-fr/strings.xml   # 100+ cles FR
+        |   |   +-- values/themes.xml
+        |   +-- kotlin/com/passwordmanager/android/
+        |       |-- PasswordManagerApp.kt   # @HiltAndroidApp
+        |       |-- MainActivity.kt         # @AndroidEntryPoint, @Inject configRepo/sessionHolder
+        |       |-- data/                   # AndroidVaultRepository, AndroidConfigRepository,
+        |       |                           # ConfigRepository (interface), SessionHolder (@Volatile/@Synchronized)
+        |       |-- di/                     # AppModule (@Module @InstallIn @Provides @Singleton)
+        |       +-- ui/
+        |           |-- theme/              # Theme.kt, Color.kt, Type.kt
+        |           |-- navigation/         # AppNavigation.kt (8 routes)
+        |           |-- login/              # LoginScreen, @HiltViewModel LoginViewModel
+        |           |-- vault/              # VaultListScreen/VM, EntryDetailScreen/VM, EntryEditScreen/VM
+        |           |-- generator/          # GeneratorScreen, @HiltViewModel GeneratorViewModel
+        |           |-- settings/           # SettingsScreen/VM, ChangeMasterPasswordScreen/VM
+        |           |-- audit/              # SecurityAuditScreen, @HiltViewModel SecurityAuditViewModel
+        |           +-- components/         # PasswordStrengthBar, PasswordField, EntryCard, ConfirmDialog
+        +-- test/kotlin/com/passwordmanager/android/  # 41 tests (6 classes)
+            |-- test/                       # MainDispatcherExtension, FakeConfigRepository, TestSessionHelper
+            +-- ui/                         # GeneratorVM, EntryDetailVM, EntryEditVM,
+                                            # SettingsVM, ChangeMasterPasswordVM, SecurityAuditVM
 ```

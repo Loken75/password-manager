@@ -1,12 +1,12 @@
 package com.passwordmanager.android.ui.login
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.passwordmanager.android.PasswordManagerApp
+import com.passwordmanager.android.data.AndroidVaultRepository
 import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.crypto.VaultDecryptionException
 import com.passwordmanager.util.PasswordValidator
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class LoginUiState(
     val users: List<String> = emptyList(),
@@ -30,9 +31,11 @@ data class LoginUiState(
     val createSuccess: Boolean = false
 )
 
-class LoginViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val repository = (application as PasswordManagerApp).vaultRepository
+@HiltViewModel
+class LoginViewModel @Inject constructor(
+    private val repository: AndroidVaultRepository,
+    private val sessionHolder: SessionHolder
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
@@ -87,7 +90,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                 val result = repository.loadVault(user, passwordChars)
                 passwordChars.fill('\u0000')
                 failedAttempts.remove(user)
-                SessionHolder.unlock(result.vault, result.session, user)
+                sessionHolder.unlock(result.vault, result.session, user)
                 _uiState.update { it.copy(isLoading = false) }
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: VaultDecryptionException) {

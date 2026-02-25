@@ -70,9 +70,12 @@ public class PasswordValidator {
     private static boolean matchesCommon(char[] input) {
         boolean found = false;
         for (String common : COMMON_PASSWORDS) {
-            if (common.length() != input.length) continue;
-            int diff = 0;
-            for (int i = 0; i < input.length; i++) {
+            // Constant-time: always compare all chars up to max length,
+            // length mismatch forces diff != 0 without early return.
+            int lenDiff = common.length() ^ input.length;
+            int diff = lenDiff;
+            int limit = Math.min(common.length(), input.length);
+            for (int i = 0; i < limit; i++) {
                 diff |= common.charAt(i) ^ input[i];
             }
             if (diff == 0) found = true;

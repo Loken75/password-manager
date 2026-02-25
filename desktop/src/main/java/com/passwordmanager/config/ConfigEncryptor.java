@@ -91,8 +91,8 @@ final class ConfigEncryptor {
             }
             return doDecrypt(iv, ciphertext, LEGACY_KDF_ITERATIONS);
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Config decryption failed, returning raw value", e);
-            return stored.startsWith(PREFIX) ? "" : stored;
+            LOGGER.log(Level.WARNING, "Config decryption failed for encrypted value (data may be corrupted)", e);
+            return "";
         }
     }
 

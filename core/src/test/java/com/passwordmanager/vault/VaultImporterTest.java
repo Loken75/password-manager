@@ -137,4 +137,70 @@ class VaultImporterTest {
         VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
         assertNotEquals("old-id", entry.getId());
     }
+
+    @Test
+    void importCsvWithBomHeader() {
+        // UTF-8 BOM (U+FEFF) prepended to header
+        String csv = "\uFEFFtitle,username,password\n"
+                + "BomTest,user,pass\n";
+
+        int count = importer.importFromCsv(vault, csv);
+        assertEquals(1, count);
+
+        VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        assertEquals("BomTest", entry.getTitle());
+    }
+
+    @Test
+    void setDefaultImportCategoryNull() {
+        importer.setDefaultImportCategory(null);
+        String csv = "title,username,password\nTest,user,pass\n";
+        importer.importFromCsv(vault, csv);
+
+        VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        assertEquals("Other", entry.getCategory());
+    }
+
+    @Test
+    void setDefaultImportCategoryEmpty() {
+        importer.setDefaultImportCategory("");
+        String csv = "title,username,password\nTest,user,pass\n";
+        importer.importFromCsv(vault, csv);
+
+        VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        assertEquals("Other", entry.getCategory());
+    }
+
+    @Test
+    void setDefaultImportCategoryCustom() {
+        importer.setDefaultImportCategory("Importé");
+        String csv = "title,username,password\nTest,user,pass\n";
+        importer.importFromCsv(vault, csv);
+
+        VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        assertEquals("Importé", entry.getCategory());
+    }
+
+    @Test
+    void importFromJsonMalformedReturnsZero() {
+        assertEquals(0, importer.importFromJson(vault, "not valid json {{{"));
+    }
+
+    @Test
+    void importFromJsonNullEntriesReturnsZero() {
+        assertEquals(0, importer.importFromJson(vault, "{\"owner\":\"test\"}"));
+    }
+
+    @Test
+    void importCsvSanitizesControlCharacters() {
+        String csv = "title,username,password\n"
+                + "Clean\u0007Title,user\u0001name,pass\n";
+
+        int count = importer.importFromCsv(vault, csv);
+        assertEquals(1, count);
+
+        VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        assertEquals("CleanTitle", entry.getTitle());
+        assertEquals("username", entry.getUsername());
+    }
 }

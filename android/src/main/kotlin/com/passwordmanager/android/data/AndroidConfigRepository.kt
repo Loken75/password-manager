@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * Android configuration backed by EncryptedSharedPreferences.
  * Replaces desktop's ConfigManager + ConfigEncryptor.
  */
-class AndroidConfigRepository(context: Context) {
+class AndroidConfigRepository(context: Context) : ConfigRepository {
 
     private val masterKey = MasterKey.Builder(context)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -28,39 +28,39 @@ class AndroidConfigRepository(context: Context) {
     )
 
     private val _themeModeFlow = MutableStateFlow(getThemeMode())
-    val themeModeFlow: StateFlow<ThemeMode> = _themeModeFlow.asStateFlow()
+    override val themeModeFlow: StateFlow<ThemeMode> = _themeModeFlow.asStateFlow()
 
     // --- Theme ---
 
-    fun getThemeMode(): ThemeMode =
+    override fun getThemeMode(): ThemeMode =
         ThemeMode.fromValue(prefs.getString(KEY_THEME, ThemeMode.SYSTEM.value) ?: ThemeMode.SYSTEM.value)
 
-    fun setThemeMode(mode: ThemeMode) {
+    override fun setThemeMode(mode: ThemeMode) {
         prefs.edit().putString(KEY_THEME, mode.value).apply()
         _themeModeFlow.value = mode
     }
 
     // --- Language ---
 
-    fun getLanguage(): String = prefs.getString(KEY_LANGUAGE, "en") ?: "en"
+    override fun getLanguage(): String = prefs.getString(KEY_LANGUAGE, "en") ?: "en"
 
-    fun setLanguage(language: String) {
+    override fun setLanguage(language: String) {
         prefs.edit().putString(KEY_LANGUAGE, language).apply()
     }
 
     // --- Auto-lock ---
 
-    fun getAutoLockMinutes(): Int = prefs.getInt(KEY_AUTO_LOCK, 15)
+    override fun getAutoLockMinutes(): Int = prefs.getInt(KEY_AUTO_LOCK, 15)
 
-    fun setAutoLockMinutes(minutes: Int) {
+    override fun setAutoLockMinutes(minutes: Int) {
         prefs.edit().putInt(KEY_AUTO_LOCK, minutes.coerceIn(1, 60)).apply()
     }
 
     // --- Clipboard clear ---
 
-    fun getClipboardClearSeconds(): Int = prefs.getInt(KEY_CLIPBOARD_CLEAR, 30)
+    override fun getClipboardClearSeconds(): Int = prefs.getInt(KEY_CLIPBOARD_CLEAR, 30)
 
-    fun setClipboardClearSeconds(seconds: Int) {
+    override fun setClipboardClearSeconds(seconds: Int) {
         prefs.edit().putInt(KEY_CLIPBOARD_CLEAR, seconds.coerceIn(5, 120)).apply()
     }
 

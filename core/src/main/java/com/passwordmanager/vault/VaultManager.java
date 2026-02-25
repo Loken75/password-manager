@@ -98,11 +98,24 @@ public class VaultManager {
     /**
      * Loads a vault, auto-migrating v1.0 format to v2.0 DEK/KEK format.
      */
+    /** Maximum vault file size: 50 MB. */
+    private static final long MAX_VAULT_FILE_SIZE = 50L * 1024 * 1024;
+
     public VaultLoadResult loadVault(String username, char[] masterPassword)
             throws VaultDecryptionException, VaultEncryptionException, IOException {
         String path = getVaultPath(username);
-        byte[] fileBytes = Files.readAllBytes(Paths.get(path));
-        String fileContent = new String(fileBytes, StandardCharsets.UTF_8);
+        Path filePath = Paths.get(path);
+        long fileSize = Files.size(filePath);
+        if (fileSize > MAX_VAULT_FILE_SIZE) {
+            throw new IOException("Vault file exceeds maximum size (" + MAX_VAULT_FILE_SIZE / (1024 * 1024) + " MB)");
+        }
+        byte[] fileBytes = Files.readAllBytes(filePath);
+        String fileContent;
+        try {
+            fileContent = new String(fileBytes, StandardCharsets.UTF_8);
+        } finally {
+            SecureWiper.wipe(fileBytes);
+        }
         JsonObject json = JsonParser.parseString(fileContent).getAsJsonObject();
         String version = json.has("version") ? json.get("version").getAsString() : "1.0";
 
@@ -248,7 +261,12 @@ public class VaultManager {
             throws VaultDecryptionException, IOException {
         String path = getVaultPath(username);
         byte[] fileBytes = Files.readAllBytes(Paths.get(path));
-        String fileContent = new String(fileBytes, StandardCharsets.UTF_8);
+        String fileContent;
+        try {
+            fileContent = new String(fileBytes, StandardCharsets.UTF_8);
+        } finally {
+            SecureWiper.wipe(fileBytes);
+        }
         JsonObject json = JsonParser.parseString(fileContent).getAsJsonObject();
 
         byte[] dataIv = Base64.getDecoder().decode(json.get("data_iv").getAsString());

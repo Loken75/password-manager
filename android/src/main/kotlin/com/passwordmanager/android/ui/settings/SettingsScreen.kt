@@ -13,21 +13,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
-import com.passwordmanager.android.data.AndroidConfigRepository
 import com.passwordmanager.config.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    configRepo: AndroidConfigRepository,
     onBack: () -> Unit,
     onChangeMasterPassword: () -> Unit,
-    viewModel: SettingsViewModel = viewModel()
+    viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    LaunchedEffect(Unit) { viewModel.init(configRepo) }
-
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(

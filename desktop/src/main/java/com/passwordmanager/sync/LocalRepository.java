@@ -13,7 +13,7 @@ import java.util.Date;
 /**
  * Manages local file operations for vault storage.
  */
-public class LocalRepository {
+public class LocalRepository implements LocalSyncRepository {
     private final String baseDirectory;
 
     public LocalRepository(String baseDirectory) {
