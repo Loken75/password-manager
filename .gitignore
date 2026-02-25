@@ -1,7 +1,4 @@
-target/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+/target/
 .kotlin
 
 ### IntelliJ IDEA ###
@@ -38,9 +35,6 @@ build/
 ### Claude Code ###
 .claude/
 
-### Maven wrapper ###
-.mvn/
-
 ### Gradle ###
 .gradle/
 local.properties
@@ -51,7 +45,7 @@ keystore.properties
 *.jks
 
 ### Application data ###
-data/
+/data/
 *.enc
 *.bak
 tmp_*
