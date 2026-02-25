@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application") version "8.7.3"
     id("org.jetbrains.kotlin.android") version "2.1.0"
@@ -20,11 +22,12 @@ android {
         create("release") {
             val props = rootProject.file("keystore.properties")
             if (props.exists()) {
-                val keystoreProps = java.util.Properties().apply { load(props.inputStream()) }
-                storeFile = file(keystoreProps["storeFile"] as String)
-                storePassword = keystoreProps["storePassword"] as String
-                keyAlias = keystoreProps["keyAlias"] as String
-                keyPassword = keystoreProps["keyPassword"] as String
+                val keystoreProps = Properties()
+                props.inputStream().use { keystoreProps.load(it) }
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
             } else {
                 storeFile = file("${layout.buildDirectory.get().asFile}/keystore.p12")
                 storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
