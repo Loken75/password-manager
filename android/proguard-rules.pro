@@ -19,10 +19,12 @@
 # --- AndroidX Security / Google Tink (EncryptedSharedPreferences) ---
 -keep class androidx.security.crypto.** { *; }
 -dontwarn androidx.security.crypto.**
--dontwarn javax.annotation.**
--dontwarn javax.annotation.concurrent.**
--dontwarn com.google.errorprone.annotations.**
 -keep class com.google.crypto.tink.** { *; }
+-dontwarn com.google.crypto.tink.**
+-dontwarn javax.annotation.**
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn com.google.api.client.**
+-dontwarn org.joda.time.**
 
 # --- Kotlin Coroutines ---
 -dontwarn kotlinx.coroutines.**
