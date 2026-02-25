@@ -16,9 +16,13 @@
 -keep class com.passwordmanager.config.** { *; }
 -keep class com.passwordmanager.crypto.EncryptedPayload { *; }
 
-# --- AndroidX Security (EncryptedSharedPreferences) ---
+# --- AndroidX Security / Google Tink (EncryptedSharedPreferences) ---
 -keep class androidx.security.crypto.** { *; }
 -dontwarn androidx.security.crypto.**
+-dontwarn javax.annotation.**
+-dontwarn javax.annotation.concurrent.**
+-dontwarn com.google.errorprone.annotations.**
+-keep class com.google.crypto.tink.** { *; }
 
 # --- Kotlin Coroutines ---
 -dontwarn kotlinx.coroutines.**
