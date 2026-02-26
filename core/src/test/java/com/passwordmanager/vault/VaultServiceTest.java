@@ -279,6 +279,82 @@ class VaultServiceTest {
     }
 
     @Test
+    void searchByEmail() {
+        VaultEntry entry = new VaultEntry("Gmail", "johndoe", "p".toCharArray(),
+            "https://gmail.com", "", "Email", null);
+        entry.setEmail("john@example.com");
+        service.addEntry(entry);
+
+        List<VaultEntry> results = service.search("john@example");
+        assertEquals(1, results.size());
+        assertEquals("Gmail", results.get(0).getTitle());
+    }
+
+    @Test
+    void searchByPseudo() {
+        VaultEntry entry = new VaultEntry("Discord", "user123", "p".toCharArray(),
+            "", "", "Social", null);
+        entry.setPseudo("CoolNick");
+        service.addEntry(entry);
+
+        List<VaultEntry> results = service.search("coolnick");
+        assertEquals(1, results.size());
+        assertEquals("Discord", results.get(0).getTitle());
+    }
+
+    @Test
+    void sortByUsername() {
+        VaultEntry e1 = new VaultEntry("A", "zorro", "p".toCharArray(), "", "", "Cat", null);
+        VaultEntry e2 = new VaultEntry("B", "alpha", "p".toCharArray(), "", "", "Cat", null);
+        service.addEntry(e1);
+        service.addEntry(e2);
+
+        List<VaultEntry> sorted = service.sorted(vault.getEntries(), SortField.USERNAME);
+        assertEquals("alpha", sorted.get(0).getUsername());
+        assertEquals("zorro", sorted.get(1).getUsername());
+    }
+
+    @Test
+    void sortByEmail() {
+        VaultEntry e1 = new VaultEntry("A", "u", "p".toCharArray(), "", "", "Cat", null);
+        e1.setEmail("z@test.com");
+        VaultEntry e2 = new VaultEntry("B", "u", "p".toCharArray(), "", "", "Cat", null);
+        e2.setEmail("a@test.com");
+        service.addEntry(e1);
+        service.addEntry(e2);
+
+        List<VaultEntry> sorted = service.sorted(vault.getEntries(), SortField.EMAIL);
+        assertEquals("a@test.com", sorted.get(0).getEmail());
+        assertEquals("z@test.com", sorted.get(1).getEmail());
+    }
+
+    @Test
+    void sortByPseudo() {
+        VaultEntry e1 = new VaultEntry("A", "u", "p".toCharArray(), "", "", "Cat", null);
+        e1.setPseudo("Zeta");
+        VaultEntry e2 = new VaultEntry("B", "u", "p".toCharArray(), "", "", "Cat", null);
+        e2.setPseudo("Alpha");
+        service.addEntry(e1);
+        service.addEntry(e2);
+
+        List<VaultEntry> sorted = service.sorted(vault.getEntries(), SortField.PSEUDO);
+        assertEquals("Alpha", sorted.get(0).getPseudo());
+        assertEquals("Zeta", sorted.get(1).getPseudo());
+    }
+
+    @Test
+    void sortByUrl() {
+        VaultEntry e1 = new VaultEntry("A", "u", "p".toCharArray(), "https://z.com", "", "Cat", null);
+        VaultEntry e2 = new VaultEntry("B", "u", "p".toCharArray(), "https://a.com", "", "Cat", null);
+        service.addEntry(e1);
+        service.addEntry(e2);
+
+        List<VaultEntry> sorted = service.sorted(vault.getEntries(), SortField.URL);
+        assertEquals("https://a.com", sorted.get(0).getUrl());
+        assertEquals("https://z.com", sorted.get(1).getUrl());
+    }
+
+    @Test
     void updateEntrySetsTimestamp() {
         VaultEntry entry = new VaultEntry("TS", "u", "p".toCharArray(), "", "", "Cat", null);
         service.addEntry(entry);

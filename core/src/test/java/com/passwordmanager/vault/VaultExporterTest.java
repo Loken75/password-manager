@@ -28,7 +28,7 @@ class VaultExporterTest {
     @Test
     void exportCsvHeader() {
         String csv = new String(exporter.exportAsCsv(vault));
-        assertTrue(csv.startsWith("title,username,password,url,notes,category,tags\n"));
+        assertTrue(csv.startsWith("title,username,email,pseudo,password,url,notes,category,tags\n"));
     }
 
     @Test
@@ -86,6 +86,21 @@ class VaultExporterTest {
         assertNotNull(json);
         assertTrue(json.contains("\"Test\""));
         assertTrue(json.contains("\"user\""));
+    }
+
+    @Test
+    void exportCsvWithEmailAndPseudo() {
+        VaultEntry entry = new VaultEntry("Gmail", "johndoe",
+                "pass123".toCharArray(), "https://gmail.com", "notes", "Email", null);
+        entry.setEmail("john@gmail.com");
+        entry.setPseudo("JohnD");
+        vault.addEntry(entry);
+
+        String csv = new String(exporter.exportAsCsv(vault));
+        String[] lines = csv.split("\n");
+        assertEquals(2, lines.length);
+        assertTrue(lines[1].contains("john@gmail.com"));
+        assertTrue(lines[1].contains("JohnD"));
     }
 
     @Test

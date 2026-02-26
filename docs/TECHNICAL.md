@@ -30,7 +30,7 @@ Password Manager est une application multiplateforme (desktop + Android) permett
 - Ecriture atomique des fichiers avec permissions POSIX/ACL restrictives
 - Multi-utilisateurs avec coffres isoles
 - Import/export CSV et JSON avec protection contre l'injection de formules
-- Synchronisation SFTP avec gestion des conflits et mode hors-ligne (desktop)
+- Synchronisation SFTP avec gestion des conflits et mode hors-ligne (desktop + Android)
 - Interface bilingue francais/anglais
 - Themes systeme, clair et sombre
 - Injection de dependances Hilt sur le module Android
@@ -344,20 +344,22 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 | Classe | Role |
 |--------|------|
 | `Vault` | Modele de donnees du coffre (version, utilisateur, entrees, categories, parametres). Constructeur prive no-arg pour la deserialisation Gson (les JRE jlink n'incluent pas `jdk.unsupported` / `sun.misc.Unsafe`) |
-| `VaultEntry` | Entree individuelle (titre, identifiant, mot de passe `char[]`, URL, notes, categorie, tags, dates) |
+| `VaultEntry` | Entree individuelle (titre, identifiant, email, pseudo, mot de passe `char[]`, URL, notes, categorie, tags, dates) |
 | `VaultManager` | Persistance : creation, chargement, sauvegarde, migration v1->v2, backup, import/export |
 | `VaultService` | Operations metier : CRUD, recherche, tri, filtrage, detection de doublons/anciens mots de passe |
 | `VaultExporter` | Export CSV/JSON en `char[]` avec protection anti-injection de formules |
 | `VaultImporter` | Import CSV/JSON avec detection automatique du separateur et alias multilingues |
 | `VaultLoadResult` | Objet de valeur : `Vault` + `VaultSession` |
-| `SortField` | Enum : `TITLE`, `DATE`, `CATEGORY` |
+| `SortField` | Enum : `TITLE`, `USERNAME`, `EMAIL`, `PSEUDO`, `URL`, `DATE`, `CATEGORY` |
 
 **VaultManager — details :**
 - Format de fichier v2.0 : enveloppe JSON contenant `version`, `kdf`, `kdf_iterations`, `salt`, `kek_iv`, `encrypted_dek`, `data_iv`, `encrypted_data`
 - Migration automatique v1.0 -> v2.0 au chargement
 - Ecriture atomique : fichier temporaire -> permissions restrictives sur le temporaire -> `Files.move(ATOMIC_MOVE)` avec fallback
 - Backup roulant (3 fichiers `.bak` max par utilisateur)
-- `loadVault()` verifie la taille du fichier avant lecture (limite 50 Mo)
+- `loadVault()` verifie la taille du fichier avant lecture (limite 50 Mo) et valide la presence de tous les champs JSON obligatoires (via `requireJsonField()`) avant decodage
+- `reloadVault()` et `importEncryptedVault()` appliquent la meme validation des champs JSON
+- `importEncryptedVault(char[] sourcePassword, String encFilePath)` : dechiffre un coffre externe et retourne les entrees sans ecraser le coffre courant
 - `deleteVault()` supprime aussi tous les fichiers `.bak` de l'utilisateur
 - Validation du nom d'utilisateur : regex `[a-zA-Z0-9_]+`
 - `CharArrayAdapter` interne : `TypeAdapter<char[]>` Gson pour serialiser les mots de passe comme chaines JSON
@@ -365,21 +367,25 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 - **Compatibilite jlink** : `Vault` et `VaultEntry` disposent de constructeurs no-arg pour que Gson puisse les instancier sans `sun.misc.Unsafe` (absent du module `jdk.unsupported`, non inclus dans le JRE jlink)
 
 **VaultEntry — details :**
+- Champs : `title`, `username` (identifiant), `email`, `pseudo`, `password` (char[]), `url`, `notes`, `category`, `tags` (List\<String\>), `createdAt`, `updatedAt`
 - `getPassword()` retourne un clone (copie defensive)
 - `setPassword()` efface l'ancien mot de passe via `SecureWiper.wipe()` avant d'affecter le nouveau clone
-- `wipe()` efface le mot de passe et nullifie les champs sensibles
+- `getTags()` retourne une vue non-modifiable (`Collections.unmodifiableList`)
+- `wipe()` efface le mot de passe, email, pseudo et nullifie les champs sensibles
 
 **VaultService — details :**
-- Recherche insensible a la casse sur titre, identifiant, URL, notes, categorie et tags
-- Tri : `TITLE` (alphabetique croissant), `DATE` (plus recent en premier), `CATEGORY` (alphabetique croissant)
-- `findDuplicatePasswords()` : utilise des hashes SHA-256 des mots de passe comme cles (evite de stocker le clair comme cle de Map)
+- Recherche insensible a la casse sur titre, identifiant, email, pseudo, URL, notes, categorie et tags
+- Tri : `TITLE`, `USERNAME`, `EMAIL`, `PSEUDO`, `URL` (alphabetique croissant, insensible a la casse), `DATE` (plus recent en premier), `CATEGORY` (alphabetique croissant, insensible a la casse)
+- `findDuplicatePasswords()` : utilise des hashes SHA-256 des mots de passe comme cles (evite de stocker le clair comme cle de Map). Chaque clone `getPassword()` est efface dans un bloc `finally`
 - `findOldPasswords(int days)` : compare les timestamps `updatedAt` au seuil configure
 
 **VaultImporter — details :**
 - Detection du separateur : frequence `,` vs `;` dans la premiere ligne
 - Alias de colonnes FR/EN (insensible a la casse et aux accents) :
   - `title` <- titre, organisme, name, nom
-  - `username` <- identifiant, email, login, adresse mail, adresse mail / identifiant
+  - `username` <- identifiant, login, adresse mail / identifiant
+  - `email` <- email, mail, adresse mail, e-mail, courriel
+  - `pseudo` <- pseudo, nickname, alias, surnom, display name
   - `password` <- mdp, mot de passe, pass
   - `url` <- site, website, lien
   - etc.
@@ -516,6 +522,7 @@ public static void wipe(char[] data) {
 | `VaultPanel` | Panneau 3 colonnes : categories, table d'entrees, details avec boutons copier. Timers `javax.swing.Timer` (pas `java.util.Timer`) |
 | `EntryDialog` | Formulaire modal de creation/edition d'entree |
 | `PasswordGeneratorDialog` | Dialogue du generateur de mots de passe. Timer clipboard `javax.swing.Timer` annule a la fermeture |
+| `ImportExportController` | Popup unifiee d'import/export (CSV, JSON, coffre chiffre .enc) avec champ mot de passe pour l'import chiffre |
 | `SettingsDialog` | Dialogue des parametres (3 onglets : General, Securite, Synchronisation). Test SFTP sur `SwingWorker` (hors EDT) |
 | `StrengthBarHelper` | Utilitaire d'affichage de la barre de force (couleurs : rouge/orange/vert/bleu) |
 
@@ -648,14 +655,17 @@ Emplacement : `~/.password-manager/data/.config_key`
 ### 7.5. Securite SFTP
 
 - Authentification par cle SSH uniquement (pas de mot de passe)
-- `StrictHostKeyChecking=yes` (verification via `~/.ssh/known_hosts`)
-- Timeouts : connexion 30s, canal 10s
-- Identifiants stockes chiffres dans la configuration
+- Desktop : `StrictHostKeyChecking=yes` (verification via `~/.ssh/known_hosts`)
+- Android : `StrictHostKeyChecking=yes` si `known_hosts` existe, `accept-new` sinon (premiere connexion)
+- Timeouts : connexion 15-30s, canal 10s
+- Identifiants stockes chiffres dans la configuration (desktop: `ConfigEncryptor`, Android: `EncryptedSharedPreferences`)
 
 ### 7.6. Presse-papiers
 
-- Effacement automatique apres le delai configure (defaut 30s)
-- `javax.swing.Timer` (EDT-safe) : annule et relance a chaque nouvelle copie, annule a la fermeture du dialogue
+- Effacement automatique apres le delai configure (defaut 30s, configurable 5-120s)
+- Desktop : `javax.swing.Timer` (EDT-safe) : annule et relance a chaque nouvelle copie, annule a la fermeture du dialogue
+- Android : `ProcessLifecycleOwner.lifecycleScope` pour le delai, annule automatiquement si le processus meurt
+- Android (API 33+) : flag `ClipDescription.EXTRA_IS_SENSITIVE` pour masquer le contenu copie dans la previsualisation systeme
 - Pas de fuite de threads : chaque timer est suivi et arrete avant d'en creer un nouveau
 - Effacement au verrouillage et a la fermeture
 
@@ -665,12 +675,24 @@ Emplacement : `~/.password-manager/data/.config_key`
 
 ### 8.1. Architecture
 
+**Desktop :**
 ```
 MainFrame
-    +-- SyncService (synchronized)
+    +-- SyncService (synchronized, execute sur SwingWorker)
             |-- LocalRepository (ecritures atomiques, prevention path traversal)
             +-- SFTPRepository (JSch, authentification par cle)
 ```
+
+**Android :**
+```
+VaultListViewModel
+    +-- syncNow() (coroutine Dispatchers.IO)
+            |-- JSch (authentification par cle)
+            |-- Comparaison SHA-256 local vs distant
+            +-- Upload si difference (local = source de verite)
+```
+
+La synchronisation Android est integree directement dans `VaultListViewModel` car les classes `SyncService`/`SFTPRepository`/`LocalRepository` sont dans le module `:desktop`, non accessible depuis `:android`. Le mode Android est simplifie (pas de gestion hors-ligne ni de resolution de conflit interactive).
 
 ### 8.2. Algorithme de synchronisation
 
@@ -758,7 +780,7 @@ Le changement de langue est possible depuis l'ecran de connexion (effet immediat
 | Colonne | Largeur | Contenu |
 |---------|---------|---------|
 | Gauche | 180 px | Liste des categories (JList) + bouton ajout |
-| Centre | flexible | Barre de recherche + table (Titre, Identifiant, Categorie, Force) |
+| Centre | flexible | Barre de recherche + table 6 colonnes (Titre, Identifiant, Email, Pseudo, Categorie, Force) — en-tetes cliquables pour tri |
 | Droite | 300 px | Details : titre, grille de champs avec separateurs, boutons copier identifiant/mot de passe, case a cocher afficher |
 
 La colonne Force du tableau est coloree selon le niveau : rouge (Faible), orange (Moyen), vert (Fort), bleu (Tres fort).
@@ -790,11 +812,11 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la ses
 | Ecran | Composable | ViewModel | Description |
 |-------|-----------|-----------|-------------|
 | Login | `LoginScreen` | `LoginViewModel` | Dropdown utilisateurs, creation, anti brute-force |
-| Liste | `VaultListScreen` | `VaultListViewModel` | Recherche, filtres, tri, import/export SAF |
-| Detail | `EntryDetailScreen` | `EntryDetailViewModel` | Lecture seule, copier, supprimer |
-| Edition | `EntryEditScreen` | `EntryEditViewModel` | Formulaire CRUD, lien generateur |
+| Liste | `VaultListScreen` | `VaultListViewModel` | Recherche, dropdown categories, tri (7 criteres), import/export unifie, selection multiple, sync SFTP |
+| Detail | `EntryDetailScreen` | `EntryDetailViewModel` | Lecture seule avec email/pseudo, URL cliquable, copier, supprimer |
+| Edition | `EntryEditScreen` | `EntryEditViewModel` | Formulaire CRUD (identifiant, email, pseudo), lien generateur |
 | Generateur | `GeneratorScreen` | `GeneratorViewModel` | Options, barre de force, copier/utiliser |
-| Parametres | `SettingsScreen` | `SettingsViewModel` | Theme, langue, auto-lock, clipboard |
+| Parametres | `SettingsScreen` | `SettingsViewModel` | Theme, langue, auto-lock, clipboard, synchronisation SFTP |
 | Mot de passe | `ChangeMasterPasswordScreen` | `ChangeMasterPasswordViewModel` | Ancien/nouveau/confirmer |
 | Audit | `SecurityAuditScreen` | `SecurityAuditViewModel` | Faibles, dupliques, anciens |
 
@@ -804,8 +826,9 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la ses
 |-----------|------|
 | `PasswordStrengthBar` | Barre animee de force (rouge/orange/vert/bleu) |
 | `PasswordField` | OutlinedTextField avec toggle visibilite |
-| `EntryCard` | Carte pour la liste (titre, username, categorie, point de force) |
+| `EntryCard` | Carte pour la liste (titre, username, categorie, point de force). Support selection multiple (checkbox, long press) |
 | `ConfirmDialog` | AlertDialog de confirmation reutilisable |
+| `ImportExportDialog` | Popups import/export unifiees (CSV/JSON/chiffre) avec champ mot de passe masque |
 
 #### Navigation
 
@@ -835,8 +858,8 @@ L'interface `ConfigRepository` abstrait les operations de configuration (theme, 
 | Classe | Role |
 |--------|------|
 | `AndroidVaultRepository` | Encapsule `VaultManager(context.filesDir + "/vaults")` |
-| `ConfigRepository` | Interface de configuration (theme, langue, auto-lock, clipboard) |
-| `AndroidConfigRepository` | Implementation via `EncryptedSharedPreferences` (MasterKey AES256-GCM) |
+| `ConfigRepository` | Interface de configuration (theme, langue, auto-lock, clipboard, SFTP) |
+| `AndroidConfigRepository` | Implementation via `EncryptedSharedPreferences` (MasterKey AES256-GCM). Inclut les parametres SFTP (host, port, user, key path, remote path, storage mode) |
 | `SessionHolder` | Singleton thread-safe : tient `Vault`, `VaultSession`, `VaultService`, `username` en memoire. Champs `@Volatile`, methodes `@Synchronized`. `isUnlockedFlow: StateFlow<Boolean>` |
 
 #### Localisation Android
@@ -1026,11 +1049,11 @@ password-manager/
         |           |-- theme/              # Theme.kt, Color.kt, Type.kt
         |           |-- navigation/         # AppNavigation.kt (8 routes)
         |           |-- login/              # LoginScreen, @HiltViewModel LoginViewModel
-        |           |-- vault/              # VaultListScreen/VM, EntryDetailScreen/VM, EntryEditScreen/VM
+        |           |-- vault/              # VaultListScreen/VM (multi-select, SFTP sync), EntryDetailScreen/VM, EntryEditScreen/VM
         |           |-- generator/          # GeneratorScreen, @HiltViewModel GeneratorViewModel
         |           |-- settings/           # SettingsScreen/VM, ChangeMasterPasswordScreen/VM
         |           |-- audit/              # SecurityAuditScreen, @HiltViewModel SecurityAuditViewModel
-        |           +-- components/         # PasswordStrengthBar, PasswordField, EntryCard, ConfirmDialog
+        |           +-- components/         # PasswordStrengthBar, PasswordField, EntryCard, ConfirmDialog, ImportExportDialog
         +-- test/kotlin/com/passwordmanager/android/  # 41 tests (6 classes)
             |-- test/                       # MainDispatcherExtension, FakeConfigRepository, TestSessionHelper
             +-- ui/                         # GeneratorVM, EntryDetailVM, EntryEditVM,

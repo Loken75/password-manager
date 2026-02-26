@@ -90,6 +90,28 @@ fun EntryEditScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Email
+            OutlinedTextField(
+                value = state.email,
+                onValueChange = { viewModel.updateEmail(it) },
+                label = { Text(stringResource(R.string.entry_email)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Pseudo
+            OutlinedTextField(
+                value = state.pseudo,
+                onValueChange = { viewModel.updatePseudo(it) },
+                label = { Text(stringResource(R.string.entry_pseudo)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Password + Generate button
             PasswordField(
                 value = state.password,

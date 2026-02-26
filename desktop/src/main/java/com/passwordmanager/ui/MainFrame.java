@@ -112,21 +112,14 @@ public class MainFrame extends JFrame {
 
         // File menu
         JMenu fileMenu = new JMenu(lang.getString("menu.file"));
-        JMenuItem importCsv = new JMenuItem(lang.getString("menu.file.import_csv"));
-        JMenuItem importJson = new JMenuItem(lang.getString("menu.file.import_json"));
-        JMenuItem exportCsv = new JMenuItem(lang.getString("menu.file.export_csv"));
-        JMenuItem exportJson = new JMenuItem(lang.getString("menu.file.export_json"));
-        JMenuItem exportBackup = new JMenuItem(lang.getString("menu.file.export_backup"));
+        JMenuItem importItem = new JMenuItem(lang.getString("menu.file.import"));
+        JMenuItem exportItem = new JMenuItem(lang.getString("menu.file.export"));
         JMenuItem settings = new JMenuItem(lang.getString("menu.file.settings"));
         JMenuItem lock = new JMenuItem(lang.getString("menu.file.lock"));
         JMenuItem quit = new JMenuItem(lang.getString("menu.file.quit"));
 
-        fileMenu.add(importCsv);
-        fileMenu.add(importJson);
-        fileMenu.addSeparator();
-        fileMenu.add(exportCsv);
-        fileMenu.add(exportJson);
-        fileMenu.add(exportBackup);
+        fileMenu.add(importItem);
+        fileMenu.add(exportItem);
         fileMenu.addSeparator();
         fileMenu.add(settings);
         fileMenu.addSeparator();
@@ -155,6 +148,10 @@ public class MainFrame extends JFrame {
         JMenu viewMenu = new JMenu(lang.getString("menu.view"));
         JMenuItem refresh = new JMenuItem(lang.getString("menu.view.refresh"));
         JMenuItem sortName = new JMenuItem(lang.getString("menu.view.sort_name"));
+        JMenuItem sortUsername = new JMenuItem(lang.getString("menu.view.sort_username"));
+        JMenuItem sortEmail = new JMenuItem(lang.getString("menu.view.sort_email"));
+        JMenuItem sortPseudo = new JMenuItem(lang.getString("menu.view.sort_pseudo"));
+        JMenuItem sortUrl = new JMenuItem(lang.getString("menu.view.sort_url"));
         JMenuItem sortDate = new JMenuItem(lang.getString("menu.view.sort_date"));
         JMenuItem sortCat = new JMenuItem(lang.getString("menu.view.sort_category"));
         JMenuItem filterWeak = new JMenuItem(lang.getString("menu.view.filter_weak"));
@@ -165,6 +162,10 @@ public class MainFrame extends JFrame {
         viewMenu.add(refresh);
         viewMenu.addSeparator();
         viewMenu.add(sortName);
+        viewMenu.add(sortUsername);
+        viewMenu.add(sortEmail);
+        viewMenu.add(sortPseudo);
+        viewMenu.add(sortUrl);
         viewMenu.add(sortDate);
         viewMenu.add(sortCat);
         viewMenu.addSeparator();
@@ -191,11 +192,8 @@ public class MainFrame extends JFrame {
         bar.add(helpMenu);
 
         // === Actions ===
-        importCsv.addActionListener(e -> importExportController.doImport("csv"));
-        importJson.addActionListener(e -> importExportController.doImport("json"));
-        exportCsv.addActionListener(e -> importExportController.doExport("csv"));
-        exportJson.addActionListener(e -> importExportController.doExport("json"));
-        exportBackup.addActionListener(e -> importExportController.doExportBackup());
+        importItem.addActionListener(e -> importExportController.doImport());
+        exportItem.addActionListener(e -> importExportController.doExport());
         settings.addActionListener(e -> doSettings());
         lock.addActionListener(e -> doLock());
         quit.addActionListener(e -> doQuit());
@@ -207,6 +205,10 @@ public class MainFrame extends JFrame {
 
         refresh.addActionListener(e -> vaultPanel.refreshAll());
         sortName.addActionListener(e -> vaultPanel.setSortMode(SortField.TITLE));
+        sortUsername.addActionListener(e -> vaultPanel.setSortMode(SortField.USERNAME));
+        sortEmail.addActionListener(e -> vaultPanel.setSortMode(SortField.EMAIL));
+        sortPseudo.addActionListener(e -> vaultPanel.setSortMode(SortField.PSEUDO));
+        sortUrl.addActionListener(e -> vaultPanel.setSortMode(SortField.URL));
         sortDate.addActionListener(e -> vaultPanel.setSortMode(SortField.DATE));
         sortCat.addActionListener(e -> vaultPanel.setSortMode(SortField.CATEGORY));
         filterWeak.addActionListener(e -> securityAuditController.doFilterWeak());
@@ -402,14 +404,29 @@ public class MainFrame extends JFrame {
     }
 
     private void doSync() {
-        SyncService.SyncResult result = syncService.synchronize("vault_" + username + ".enc");
-        statusLabel.setText(getStatusText());
-        if (!result.isSuccess() && "CONFLICT".equals(result.getMessage())) {
-            handleConflict();
-        } else if (!result.isSuccess()) {
-            JOptionPane.showMessageDialog(this, result.getMessage(),
-                lang.getString("sync.status_error"), JOptionPane.WARNING_MESSAGE);
-        }
+        statusLabel.setText(lang.getString("sync.syncing") + "...");
+        new SwingWorker<SyncService.SyncResult, Void>() {
+            @Override
+            protected SyncService.SyncResult doInBackground() {
+                return syncService.synchronize("vault_" + username + ".enc");
+            }
+            @Override
+            protected void done() {
+                try {
+                    SyncService.SyncResult result = get();
+                    statusLabel.setText(getStatusText());
+                    if (!result.isSuccess() && "CONFLICT".equals(result.getMessage())) {
+                        handleConflict();
+                    } else if (!result.isSuccess()) {
+                        JOptionPane.showMessageDialog(MainFrame.this, result.getMessage(),
+                            lang.getString("sync.status_error"), JOptionPane.WARNING_MESSAGE);
+                    }
+                } catch (Exception ex) {
+                    statusLabel.setText(getStatusText());
+                    showError(ex.getMessage());
+                }
+            }
+        }.execute();
     }
 
     private void handleConflict() {

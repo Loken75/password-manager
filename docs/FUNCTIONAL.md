@@ -33,9 +33,8 @@ Password Manager est une application multiplateforme permettant de stocker, orga
 - Creation, modification, suppression et recherche d'entrees
 - Generateur de mots de passe cryptographiquement sur
 - Analyse de securite (mots de passe faibles, reutilises, anciens)
-- Import/export CSV et JSON
-- Sauvegarde chiffree
-- Synchronisation SFTP avec gestion des conflits (desktop uniquement)
+- Import/export unifie (CSV, JSON, sauvegarde chiffree) via une popup avec choix du format
+- Synchronisation SFTP avec gestion des conflits (desktop et Android)
 - Interface bilingue (francais / anglais)
 - Themes systeme, clair et sombre
 - Verrouillage automatique apres inactivite
@@ -146,9 +145,9 @@ Apres connexion, l'interface desktop se compose de quatre zones :
 
 | Menu | Sous-menus |
 |------|-----------|
-| **Fichier** | Importer CSV, Importer JSON, --- , Exporter CSV, Exporter JSON, Exporter sauvegarde chiffree, --- , Parametres, --- , Verrouiller, Quitter |
+| **Fichier** | Importer..., Exporter..., --- , Parametres, --- , Verrouiller, Quitter |
 | **Edition** | Nouvelle entree, Modifier l'entree, Supprimer l'entree, --- , Changer mot de passe maitre |
-| **Affichage** | Actualiser, --- , Trier par nom, Trier par date, Trier par categorie, --- , Mots de passe faibles, Mots de passe reutilises |
+| **Affichage** | Actualiser, --- , Trier par nom, Trier par identifiant, Trier par email, Trier par pseudo, Trier par site, Trier par date, Trier par categorie, --- , Mots de passe faibles, Mots de passe reutilises |
 | **Outils** | Generateur de mots de passe, Analyse de securite, --- , Synchroniser maintenant |
 | **Aide** | A propos |
 
@@ -168,7 +167,7 @@ Acces rapide aux fonctions courantes :
 | Colonne | Contenu |
 |---------|---------|
 | **Gauche** (180 px) | Liste des categories avec bouton d'ajout |
-| **Centre** | Barre de recherche + tableau des entrees (Titre, Identifiant, Categorie, Force) |
+| **Centre** | Barre de recherche + tableau des entrees (Titre, Identifiant, Email, Pseudo, Categorie, Force) — en-tetes cliquables pour trier |
 | **Droite** (300 px) | Details de l'entree selectionnee |
 
 ### 5.4. Barre de statut
@@ -182,9 +181,10 @@ Affiche en bas de la fenetre :
 
 Apres connexion, l'interface Android se compose de :
 
-- **TopAppBar** avec titre, icone de recherche et menu overflow (import/export CSV/JSON, sauvegarde chiffree, audit de securite, parametres, verrouiller)
-- **FilterChips** horizontaux pour le filtrage par categorie
+- **TopAppBar** avec titre, icone de recherche et menu overflow (importer..., exporter..., synchroniser, audit de securite, parametres, verrouiller)
+- **Dropdown categorie** pour le filtrage (remplace les FilterChips) : liste deroulante "Toutes les categories" + categories existantes
 - **Liste scrollable** (LazyColumn) des entrees avec indicateur de force, titre, identifiant et categorie
+- **Selection multiple** : appui long sur une entree pour activer le mode selection, checkbox sur chaque entree, bouton "Modifier la categorie" pour changement en masse
 - **FAB** (bouton flottant) pour creer une nouvelle entree
 - **Navigation** par ecrans : detail, edition, generateur, parametres, changement de mot de passe maitre, audit
 
@@ -203,9 +203,11 @@ Le formulaire contient les champs suivants :
 | Champ | Obligatoire | Description |
 |-------|:-----------:|-------------|
 | Titre | Oui | Nom du service ou du site |
-| Identifiant / Email | Non | Nom d'utilisateur ou adresse email |
+| Identifiant | Non | Nom d'utilisateur |
+| Email | Non | Adresse email |
+| Pseudo | Non | Pseudo / surnom / display name |
 | Mot de passe | Oui | Mot de passe du compte |
-| URL du site | Non | Adresse web du service |
+| URL du site | Non | Adresse web du service (cliquable dans le detail) |
 | Notes | Non | Informations complementaires |
 | Categorie | Non | Categorie de classement (liste deroulante) |
 | Tags | Non | Etiquettes separees par des virgules |
@@ -234,7 +236,7 @@ Une boite de confirmation est affichee avant la suppression. L'action est irreve
 Cliquer sur une entree dans le tableau affiche ses details dans le panneau droit :
 
 - Titre (en gras, centre)
-- Grille de details : identifiant, mot de passe, URL, categorie, notes, dates de creation et modification
+- Grille de details : identifiant, email, pseudo, mot de passe, URL (cliquable — ouvre le navigateur), categorie, notes, dates de creation et modification
 - **Mot de passe masque** par defaut (case a cocher **Afficher le mot de passe** pour le reveler)
 - Le mot de passe se re-masque automatiquement apres **30 secondes**
 - Bouton **Copier l'identifiant** pour copier le nom d'utilisateur dans le presse-papiers
@@ -246,7 +248,7 @@ Cliquer sur une entree dans le tableau affiche ses details dans le panneau droit
 
 ### 7.1. Recherche en temps reel
 
-La barre de recherche en haut du tableau filtre les entrees au fur et a mesure de la saisie. La recherche porte sur : titre, identifiant, URL, notes, categorie et tags. Elle est insensible a la casse.
+La barre de recherche en haut du tableau filtre les entrees au fur et a mesure de la saisie. La recherche porte sur : titre, identifiant, email, pseudo, URL, notes, categorie et tags. Elle est insensible a la casse.
 
 ### 7.2. Tri
 
@@ -255,8 +257,14 @@ La barre de recherche en haut du tableau filtre les entrees au fur et a mesure d
 | Option | Comportement |
 |--------|-------------|
 | Trier par nom | Ordre alphabetique sur le titre |
+| Trier par identifiant | Ordre alphabetique sur l'identifiant |
+| Trier par email | Ordre alphabetique sur l'email |
+| Trier par pseudo | Ordre alphabetique sur le pseudo |
+| Trier par site | Ordre alphabetique sur l'URL |
 | Trier par date | Plus recemment modifie en premier |
 | Trier par categorie | Regroupement alphabetique par categorie |
+
+Sur le desktop, cliquer sur un en-tete de colonne du tableau applique directement le tri correspondant.
 
 ### 7.3. Filtres de securite
 
@@ -366,9 +374,11 @@ Le resultat affiche le nombre total de problemes detectes, ou confirme qu'aucun 
 
 ## 11. Import et export
 
-### 11.1. Import CSV
+L'import et l'export se font via une **popup unifiee** (desktop et Android) qui propose le choix du format : CSV, JSON ou sauvegarde chiffree (.enc).
 
-**Acces** : Fichier > Importer CSV (desktop) | Menu overflow > Importer CSV (Android)
+**Acces** : Fichier > Importer... / Exporter... (desktop) | Menu overflow > Importer... / Exporter... (Android)
+
+### 11.1. Import CSV
 
 Selectionnez un fichier CSV (taille max : 10 Mo). L'import detecte automatiquement :
 
@@ -380,7 +390,9 @@ Selectionnez un fichier CSV (taille max : 10 Mo). L'import detecte automatiqueme
 | Champ | Alias acceptes |
 |-------|---------------|
 | Titre | `title`, `organisme`, `name`, `nom`, `titre` |
-| Identifiant | `username`, `identifiant`, `email`, `adresse mail`, `adresse mail / identifiant`, `login` |
+| Identifiant | `username`, `identifiant`, `login`, `adresse mail / identifiant` |
+| Email | `email`, `mail`, `adresse mail`, `e-mail`, `courriel` |
+| Pseudo | `pseudo`, `nickname`, `alias`, `surnom`, `display name` |
 | Mot de passe | `password`, `mdp`, `mot de passe`, `pass` |
 | URL | `url`, `site`, `website`, `lien` |
 | Notes | `notes`, `description`, `commentaire` |
@@ -391,7 +403,7 @@ La detection est insensible a la casse et aux accents.
 
 #### Repli positionnel
 
-Si aucun en-tete n'est reconnu, les colonnes sont interpretees dans l'ordre : titre, identifiant, mot de passe, URL, notes, categorie, tags.
+Si aucun en-tete n'est reconnu, les colonnes sont interpretees dans l'ordre : titre, identifiant, email, pseudo, mot de passe, URL, notes, categorie, tags.
 
 #### Limites
 
@@ -405,8 +417,8 @@ Si aucun en-tete n'est reconnu, les colonnes sont interpretees dans l'ordre : ti
 
 Format standard avec virgule :
 ```csv
-title,username,password,url,notes,category,tags
-Gmail,user@example.com,MyP@ssw0rd,https://gmail.com,Compte principal,Email,google;mail
+title,username,email,pseudo,password,url,notes,category,tags
+Gmail,john_doe,john@example.com,JohnD,MyP@ssw0rd,https://gmail.com,Compte principal,Email,google;mail
 ```
 
 Format francais avec point-virgule :
@@ -417,15 +429,15 @@ Gmail;https://gmail.com;user@example.com;MyP@ssw0rd;Compte principal
 
 ### 11.2. Import JSON
 
-**Acces** : Fichier > Importer JSON
-
 Importe un fichier JSON au format d'export de l'application. Chaque entree recoit un nouvel identifiant unique. Les champs sont assainis et tronques a 10 000 caracteres.
 
-### 11.3. Export CSV
+### 11.3. Import sauvegarde chiffree
 
-**Acces** : Fichier > Exporter CSV
+Importe les entrees depuis un fichier coffre chiffre (`.enc`) provenant d'un autre utilisateur ou d'une sauvegarde. Un champ de mot de passe (masque) permet de saisir le mot de passe maitre du vault source. Les entrees dechiffrees sont ajoutees au coffre courant.
 
-Exporte toutes les entrees avec les colonnes : `title`, `username`, `password`, `url`, `notes`, `category`, `tags`.
+### 11.4. Export CSV
+
+Exporte toutes les entrees avec les colonnes : `title`, `username`, `email`, `pseudo`, `password`, `url`, `notes`, `category`, `tags`.
 
 > **Avertissement** : les donnees exportees ne sont **pas chiffrees**. Un message d'avertissement est affiche avant l'export.
 
@@ -433,27 +445,23 @@ Exporte toutes les entrees avec les colonnes : `title`, `username`, `password`, 
 
 Le fichier exporte recoit automatiquement des permissions restrictives (proprietaire uniquement).
 
-### 11.4. Export JSON
-
-**Acces** : Fichier > Exporter JSON
+### 11.5. Export JSON
 
 Exporte le coffre complet au format JSON. Les donnees ne sont pas chiffrees. Le fichier exporte recoit des permissions restrictives.
 
-### 11.5. Export sauvegarde chiffree
-
-**Acces** : Fichier > Exporter sauvegarde chiffree (desktop) | Menu overflow > Sauvegarde chiffree (Android)
+### 11.6. Export sauvegarde chiffree
 
 Cree une copie du fichier coffre chiffre (`.enc`). Ce fichier ne peut etre ouvert qu'avec le mot de passe maitre correspondant. C'est le **moyen le plus sur** de sauvegarder vos donnees.
 
-### 11.6. Specificites Android
+### 11.7. Specificites Android
 
 Sur Android, l'import et l'export utilisent le **Storage Access Framework (SAF)** : un selecteur de fichiers systeme permet de choisir l'emplacement. L'application n'a pas besoin de permissions de stockage globales.
 
 ---
 
-## 12. Synchronisation distante (desktop uniquement)
+## 12. Synchronisation distante
 
-> **Note** : la synchronisation SFTP n'est disponible que sur la version desktop. Sur Android, les coffres sont stockes dans le repertoire interne de l'application.
+La synchronisation SFTP est disponible sur **desktop et Android**. Elle permet de maintenir le coffre synchronise entre plusieurs appareils via un serveur SFTP.
 
 ### 12.1. Modes de stockage
 
@@ -464,7 +472,7 @@ Sur Android, l'import et l'export utilisent le **Storage Access Framework (SAF)*
 
 ### 12.2. Configuration SFTP
 
-**Acces** : Fichier > Parametres > onglet Synchronisation
+**Acces** : Fichier > Parametres > onglet Synchronisation (desktop) | Parametres > section Synchronisation (Android)
 
 | Parametre | Description | Defaut |
 |-----------|-------------|--------|
@@ -516,11 +524,10 @@ Lorsque le coffre a ete modifie a la fois localement et sur le serveur, un dialo
 |-----------|-------------|---------|
 | Langue | Langue de l'interface | Francais / English |
 | Theme | Apparence visuelle | Systeme / Clair / Sombre |
-| Repertoire des coffres | Emplacement de stockage des fichiers de coffre | Chemin avec bouton parcourir |
 
 Le theme **Systeme** detecte automatiquement le theme clair ou sombre de l'OS.
 
-Le changement de theme prend effet immediatement. Le changement de langue reconstruit l'interface. Le changement de repertoire des coffres necessite une deconnexion/reconnexion.
+Le changement de theme prend effet immediatement. Le changement de langue reconstruit l'interface.
 
 ### 13.2. Onglet Securite
 
@@ -579,6 +586,7 @@ L'inactivite est detectee par l'absence d'evenements clavier et souris.
 Lorsqu'un mot de passe ou un identifiant est copie :
 - Le presse-papiers est automatiquement efface apres le delai configure (defaut : 30 secondes)
 - Le presse-papiers est egalement efface au verrouillage et a la fermeture de l'application
+- Sur Android 13+ (API 33), le flag `EXTRA_IS_SENSITIVE` empeche l'affichage du contenu dans la previsualisation du presse-papiers
 
 ### 15.5. Masquage des mots de passe
 
@@ -642,7 +650,7 @@ Pour migrer vers un autre poste :
 2. Copiez le fichier `.enc` sur le nouveau poste dans `~/.password-manager/data/vaults/`
 3. Connectez-vous avec votre mot de passe maitre habituel
 
-Alternativement, utilisez la **synchronisation SFTP** (desktop) pour maintenir le coffre synchronise entre plusieurs machines.
+Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour maintenir le coffre synchronise entre plusieurs appareils.
 
 ---
 
@@ -654,16 +662,18 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop) pour maintenir l
 | CRUD entrees | Oui | Oui |
 | Generateur de mots de passe | Oui | Oui |
 | Analyse de securite | Oui | Oui |
-| Import/export CSV/JSON | Fichier > menu | SAF (selecteur systeme) |
-| Sauvegarde chiffree | Oui | Oui |
-| Recherche en temps reel | Oui | Oui |
-| Tri (nom/date/categorie) | Oui | Oui |
-| Filtrage par categorie | Panneau lateral | FilterChips horizontaux |
+| Import/export unifie (CSV/JSON/.enc) | Fichier > Importer.../Exporter... | Menu overflow > Importer.../Exporter... (SAF) |
+| Import sauvegarde chiffree | Oui | Oui |
+| Recherche en temps reel | Oui (titre, id, email, pseudo, URL, notes, categorie, tags) | Oui |
+| Tri (7 criteres) | En-tetes cliquables + menu Affichage | Menu overflow tri |
+| Filtrage par categorie | Panneau lateral | Dropdown (liste deroulante) |
+| Selection multiple + changement categorie en masse | Non | Oui (appui long) |
+| URL cliquable dans le detail | Oui (Desktop.browse) | Oui (UriHandler) |
 | Themes Systeme/Clair/Sombre | FlatLaf | Material 3 (Dynamic Colors Android 12+) |
 | Verrouillage automatique | Oui (evenements AWT) | Oui (ProcessLifecycleOwner) |
 | Effacement presse-papiers | Oui | Oui |
 | Anti brute-force | Oui | Oui |
-| Synchronisation SFTP | Oui | Non |
+| Synchronisation SFTP | Oui | Oui |
 | Injection de dependances | N/A (gestion manuelle) | Hilt/Dagger |
 | Stockage configuration | `config.properties` chiffre | EncryptedSharedPreferences |
 | Raccourcis clavier | Oui | N/A |

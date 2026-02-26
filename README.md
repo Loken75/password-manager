@@ -8,9 +8,8 @@ Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et prot
 - Chiffrement par enveloppe DEK/KEK (changement de mot de passe instantane)
 - Generateur de mots de passe cryptographiquement sur (SecureRandom)
 - Analyse de securite (mots de passe faibles, reutilises, anciens)
-- Import/export CSV et JSON avec detection automatique du format
-- Sauvegarde chiffree exportable
-- Synchronisation SFTP avec gestion des conflits et mode hors-ligne (desktop)
+- Import/export unifie (CSV, JSON, coffre chiffre) avec popup parametrable
+- Synchronisation SFTP avec gestion des conflits et mode hors-ligne
 - Interface bilingue francais / anglais
 - Themes Systeme, Clair et Sombre
 - Verrouillage automatique apres inactivite
@@ -135,7 +134,7 @@ Apres connexion, l'interface se compose de :
 - **Barre de menus** : Fichier, Edition, Affichage, Outils, Aide
 - **Barre d'outils** : Nouvelle entree, Generateur, Synchroniser, Verrouiller
 - **Panneau gauche** (180 px) : liste des categories avec filtrage au clic
-- **Panneau central** : barre de recherche en temps reel + tableau des entrees (Titre, Identifiant, Categorie, Force)
+- **Panneau central** : barre de recherche en temps reel + tableau des entrees (Titre, Identifiant, Email, Pseudo, Categorie, Force) avec tri par clic sur les en-tetes de colonnes
 - **Panneau droit** (300 px) : details de l'entree selectionnee avec boutons copier identifiant/mot de passe
 - **Barre de statut** : statut de synchronisation, utilisateur connecte, nombre d'entrees
 
@@ -143,11 +142,11 @@ Apres connexion, l'interface se compose de :
 
 Apres connexion, l'interface se compose de :
 
-- **TopAppBar** : titre, recherche, menu (import/export, audit, parametres, verrouiller)
-- **FilterChips** horizontaux pour les categories
-- **Liste scrollable** des entrees avec indicateur de force
+- **TopAppBar** : titre, recherche, tri (7 criteres), menu (import/export, sync, audit, parametres, verrouiller)
+- **Dropdown categories** pour le filtrage par categorie
+- **Liste scrollable** des entrees avec indicateur de force et selection multiple (appui long)
 - **FAB** pour nouvelle entree
-- **Navigation** : ecrans detail, edition, generateur, parametres, audit
+- **Navigation** : ecrans detail (URL cliquable), edition (identifiant, email, pseudo), generateur, parametres (SFTP), audit
 
 ### Fonctionnalites communes
 
@@ -156,12 +155,13 @@ Apres connexion, l'interface se compose de :
 | CRUD entrees | Oui | Oui |
 | Generateur de mots de passe | Oui | Oui |
 | Analyse de securite | Oui | Oui |
-| Import/export CSV/JSON | Oui | Oui (via SAF) |
-| Sauvegarde chiffree | Oui | Oui |
-| Recherche et tri | Oui | Oui |
+| Import/export unifie (CSV/JSON/chiffre) | Oui | Oui (via SAF) |
+| Recherche et tri (7 criteres) | Oui | Oui |
+| Selection multiple + action en masse | Non | Oui |
 | Themes Systeme/Clair/Sombre | Oui (FlatLaf) | Oui (Material 3 / Dynamic Colors) |
 | Verrouillage automatique | Oui | Oui |
-| Synchronisation SFTP | Oui | Non |
+| Synchronisation SFTP | Oui | Oui |
+| URL cliquable dans le detail | Oui | Oui |
 
 ### Generateur de mots de passe
 
@@ -181,18 +181,21 @@ Indicateur de force : Faible (rouge), Moyen (orange), Fort (vert), Tres fort (bl
 
 ## Import / Export
 
-Detection automatique du separateur (`,` ou `;`) et des colonnes via alias multilingues. Limite : 10 000 entrees par import. Les donnees exportees ne sont **pas chiffrees** (avertissement affiche). Protection anti-injection de formules pour les tableurs.
+Import et export unifies via une popup parametrable proposant 3 formats : **CSV**, **JSON** et **coffre chiffre (.enc)**. Detection automatique du separateur (`,` ou `;`) et des colonnes via alias multilingues (incluant email et pseudo). Limite : 10 000 entrees par import. Pour CSV et JSON, les donnees exportees ne sont **pas chiffrees** (avertissement affiche). Protection anti-injection de formules pour les tableurs. L'import d'un coffre chiffre demande le mot de passe maitre du coffre source.
 
 Sur Android, l'import/export utilise le Storage Access Framework (SAF) — selecteur de fichiers systeme.
 
 ---
 
-## Synchronisation SFTP (desktop uniquement)
+## Synchronisation SFTP
+
+Disponible sur **desktop** et **Android**.
 
 - Comparaison par empreinte SHA-256 (local vs distant)
-- Mode hors-ligne : modifications mises en attente automatiquement (fichier `.pending`)
-- Gestion des conflits : garder local, garder distant, ou sauvegarder les deux versions
+- Mode hors-ligne : modifications mises en attente automatiquement (fichier `.pending`, desktop)
+- Gestion des conflits : garder local, garder distant, ou sauvegarder les deux versions (desktop)
 - Authentification par cle SSH uniquement
+- `StrictHostKeyChecking` active (`yes` avec known_hosts, ou `accept-new` pour la premiere connexion)
 
 ---
 
@@ -202,10 +205,9 @@ Sur Android, l'import/export utilise le Storage Access Framework (SAF) — selec
 |---|---|---|
 | Langue (FR/EN) | Oui | Oui |
 | Theme (Systeme/Clair/Sombre) | Oui | Oui |
-| Repertoire des coffres | Oui | Non (interne) |
 | Verrouillage automatique (1-60 min) | Oui | Oui |
 | Effacement presse-papiers (5-120 s) | Oui | Oui |
-| Configuration SFTP | Oui | Non |
+| Configuration SFTP | Oui | Oui |
 
 Changement de mot de passe maitre : seule la DEK est re-chiffree (operation quasi instantanee).
 
@@ -253,6 +255,8 @@ DEK (Data Encryption Key) -- AES-256, 32 octets aleatoires
 | Anti brute-force | Backoff progressif apres 3 echecs (jusqu'a 30s), compteur par utilisateur |
 | Masquage temporaire | Mot de passe re-masque automatiquement apres 30 secondes |
 | Presse-papiers | Efface automatiquement apres delai configure + au verrouillage + a la fermeture |
+| Presse-papiers sensible | Flag `EXTRA_IS_SENSITIVE` (Android 13+) pour masquer le contenu copie |
+| Validation JSON vault | Null-checks sur les champs obligatoires du fichier `.enc` (corruption detectee) |
 | Nettoyage ViewModel | `onCleared()` efface les mots de passe des formulaires Android |
 | Thread safety | `SessionHolder` : champs `@Volatile` + methodes `@Synchronized` |
 | Limite taille fichier | Rejet des fichiers coffre > 50 Mo au chargement |

@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 fun GeneratorScreen(
     onBack: () -> Unit,
     onUsePassword: ((CharArray) -> Unit)? = null,
+    showBackNavigation: Boolean = true,
     viewModel: GeneratorViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -40,8 +41,10 @@ fun GeneratorScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.generator_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    if (showBackNavigation) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        }
                     }
                 }
             )
@@ -156,14 +159,18 @@ private fun SwitchRow(label: String, checked: Boolean, onToggle: () -> Unit) {
     }
 }
 
-private fun copyToClipboard(context: Context, password: CharArray) {
+private fun copyToClipboard(context: Context, password: CharArray, clearAfterSeconds: Int = 30) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val clip = ClipData.newPlainText("", String(password))
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+        clip.description.extras = android.os.PersistableBundle().apply {
+            putBoolean("android.content.extra.IS_SENSITIVE", true)
+        }
+    }
     clipboard.setPrimaryClip(clip)
 
-    // Auto-clear after 30 seconds (lifecycle-aware: cancelled if process dies)
     ProcessLifecycleOwner.get().lifecycleScope.launch {
-        delay(30_000)
+        delay(clearAfterSeconds * 1000L)
         clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
     }
 }

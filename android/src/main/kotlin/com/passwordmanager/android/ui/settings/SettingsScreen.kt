@@ -2,6 +2,8 @@ package com.passwordmanager.android.ui.settings
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -11,10 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
+import com.passwordmanager.config.StorageMode
 import com.passwordmanager.config.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -22,17 +26,33 @@ import com.passwordmanager.config.ThemeMode
 fun SettingsScreen(
     onBack: () -> Unit,
     onChangeMasterPassword: () -> Unit,
+    showBackNavigation: Boolean = true,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val connectionOkStr = stringResource(R.string.settings_connection_ok)
+    val connectionFailStr = stringResource(R.string.settings_connection_fail)
+
+    LaunchedEffect(state.connectionTestResult) {
+        state.connectionTestResult?.let { result ->
+            val text = if (result == "ok") connectionOkStr else connectionFailStr
+            snackbarHostState.showSnackbar(text)
+            viewModel.clearConnectionTestResult()
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    if (showBackNavigation) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        }
                     }
                 }
             )
@@ -176,6 +196,120 @@ fun SettingsScreen(
             ) {
                 Text(stringResource(R.string.settings_change_master))
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // --- Sync section ---
+            Text(
+                text = stringResource(R.string.settings_sync),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            // Storage mode radio
+            Column(modifier = Modifier.selectableGroup()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .selectable(
+                            selected = state.storageMode == StorageMode.LOCAL,
+                            onClick = { viewModel.setStorageMode(StorageMode.LOCAL) },
+                            role = Role.RadioButton
+                        )
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = state.storageMode == StorageMode.LOCAL,
+                        onClick = null
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(stringResource(R.string.settings_local_only), style = MaterialTheme.typography.bodyLarge)
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .selectable(
+                            selected = state.storageMode == StorageMode.REMOTE,
+                            onClick = { viewModel.setStorageMode(StorageMode.REMOTE) },
+                            role = Role.RadioButton
+                        )
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = state.storageMode == StorageMode.REMOTE,
+                        onClick = null
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(stringResource(R.string.settings_remote_server), style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+
+            // SFTP fields (only visible when REMOTE)
+            if (state.storageMode == StorageMode.REMOTE) {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = state.sftpHost,
+                    onValueChange = { viewModel.setSftpHost(it) },
+                    label = { Text(stringResource(R.string.settings_sftp_host)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = state.sftpPort,
+                    onValueChange = { viewModel.setSftpPort(it) },
+                    label = { Text(stringResource(R.string.settings_sftp_port)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = state.sftpUser,
+                    onValueChange = { viewModel.setSftpUser(it) },
+                    label = { Text(stringResource(R.string.settings_sftp_user)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = state.sftpKeyPath,
+                    onValueChange = { viewModel.setSftpKeyPath(it) },
+                    label = { Text(stringResource(R.string.settings_sftp_key)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = state.sftpRemotePath,
+                    onValueChange = { viewModel.setSftpRemotePath(it) },
+                    label = { Text(stringResource(R.string.settings_sftp_remote_path)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedButton(
+                    onClick = { viewModel.testConnection() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.settings_test_connection))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

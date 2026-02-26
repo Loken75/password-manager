@@ -44,6 +44,10 @@
 -dontwarn androidx.compose.**
 -keep class androidx.compose.runtime.** { *; }
 
+# --- JSch (SFTP sync) ---
+-keep class com.jcraft.jsch.** { *; }
+-dontwarn com.jcraft.jsch.**
+
 # --- Dagger / Hilt ---
 -dontwarn dagger.**
 -keep class dagger.** { *; }

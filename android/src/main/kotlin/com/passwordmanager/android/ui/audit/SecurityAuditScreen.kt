@@ -26,6 +26,7 @@ import com.passwordmanager.vault.VaultEntry
 fun SecurityAuditScreen(
     onBack: () -> Unit,
     onEntryClick: (String) -> Unit,
+    showBackNavigation: Boolean = true,
     viewModel: SecurityAuditViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -35,8 +36,10 @@ fun SecurityAuditScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.audit_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    if (showBackNavigation) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        }
                     }
                 }
             )

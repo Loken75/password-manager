@@ -1,6 +1,59 @@
-# CI/CD - Releases Multi-Plateformes avec GitHub Actions
+# CI/CD - Integration Continue et Releases Multi-Plateformes avec GitHub Actions
 
 ## Vue d'ensemble
+
+Ce document decrit les workflows GitHub Actions du Password Manager :
+
+1. **CI** (`.github/workflows/ci.yml`) — Integration continue : tests automatiques sur chaque push/PR vers `main`
+2. **Release** (`.github/workflows/release.yml`) — Releases multi-plateformes : construction et publication automatiques a chaque tag de version
+
+---
+
+## Workflow CI (Integration continue)
+
+Le workflow CI s'execute automatiquement sur chaque **push** et **pull request** vers la branche `main`.
+
+### Declenchement
+
+```yaml
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+```
+
+### Jobs
+
+| Job | Runs-on | JDK | Role |
+|-----|---------|-----|------|
+| `test-core-desktop` | ubuntu-latest | 21 | Tests core + compilation desktop + tests desktop |
+| `test-android` | ubuntu-latest | 17 | Compilation Android + tests unitaires Android |
+
+Les deux jobs s'executent **en parallele** et sont independants.
+
+### Job : test-core-desktop
+
+1. Checkout du code
+2. Setup JDK 21 (Temurin) + Gradle
+3. `./gradlew :core:test` — execute tous les tests unitaires du module core
+4. `./gradlew :desktop:compileJava` — verifie que le desktop compile
+5. `./gradlew :desktop:test` — execute les tests du module desktop
+
+### Job : test-android
+
+1. Checkout du code
+2. Setup JDK 17 (Temurin) + Android SDK + Gradle
+3. `./gradlew :android:compileDebugKotlin` — verifie la compilation Kotlin Android
+4. `./gradlew :android:testDebugUnitTest` — execute les tests unitaires Android
+
+### Permissions
+
+Le workflow CI ne necessite que la permission `contents: read` (lecture seule du repository).
+
+---
+
+## Workflow Release
 
 Ce document decrit le workflow GitHub Actions pour construire et publier
 automatiquement des releases du Password Manager pour **Linux**, **Windows**,
@@ -153,7 +206,7 @@ Temurin JDK 21 (Eclipse Adoptium). Le JDK (pas le JRE) est necessaire car
 - run: ./gradlew :core:test :desktop:test
 ```
 
-Execute les 223 tests unitaires et d'integration (core + desktop). Si les tests echouent,
+Execute les 233 tests unitaires et d'integration (core + desktop). Si les tests echouent,
 le build s'arrete et la release n'est pas creee.
 
 > **Note** : on specifie `:core:test :desktop:test` et non `test` pour eviter
@@ -359,7 +412,7 @@ Aucune installation de Java n'est requise : le JRE est embarque.
 | **JDK desktop**     | Temurin 21 (build + jlink)                                   |
 | **JDK Android**     | Temurin 17 (AGP 8.7.3)                                       |
 | **Build system**    | Gradle 8.11 (wrapper), multi-module `:core`/`:desktop`/`:android` |
-| **Tests desktop**   | `:core:test` + `:desktop:test` sur chaque OS desktop (223 tests) |
+| **Tests desktop**   | `:core:test` + `:desktop:test` sur chaque OS desktop (233 tests) |
 | **Taille desktop**  | ~20-25 Mo (JAR 2 Mo + JRE compresse ~57 Mo / par OS)        |
 | **Taille APK**      | ~5-10 Mo (debug, non minifie)                                |
 | **Retention**       | Artifacts temporaires : 1 jour / Release : permanente        |

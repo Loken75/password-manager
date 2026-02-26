@@ -5,17 +5,21 @@ import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.util.FileSecurityUtils;
 import com.passwordmanager.util.SecureWiper;
 import com.passwordmanager.vault.Vault;
+import com.passwordmanager.vault.VaultEntry;
 import com.passwordmanager.vault.VaultManager;
+import com.passwordmanager.vault.VaultService;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
 
 /**
- * Handles import/export operations for the vault.
- * Extracted from MainFrame to reduce class responsibilities.
+ * Handles import/export operations for the vault with unified dialogs.
+ * Supports CSV, JSON, and encrypted (.enc) formats.
  */
 public class ImportExportController {
     private final LanguageManager lang = LanguageManager.getInstance();
@@ -24,6 +28,7 @@ public class ImportExportController {
     private final String username;
     private final VaultSession session;
     private final VaultManager vaultManager;
+    private final VaultService vaultService;
     private final Runnable saveVaultCallback;
     private final Runnable refreshCallback;
 
@@ -35,11 +40,66 @@ public class ImportExportController {
         this.username = username;
         this.session = session;
         this.vaultManager = vaultManager;
+        this.vaultService = new VaultService(vault);
         this.saveVaultCallback = saveVaultCallback;
         this.refreshCallback = refreshCallback;
     }
 
-    public void doImport(String format) {
+    /**
+     * Shows a unified import dialog with format selection (CSV / JSON / Encrypted).
+     */
+    public void doImport() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new java.awt.Insets(5, 5, 5, 5);
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        panel.add(new JLabel(lang.getString("import.format")), gbc);
+
+        JRadioButton csvRadio = new JRadioButton("CSV", true);
+        JRadioButton jsonRadio = new JRadioButton("JSON");
+        JRadioButton encRadio = new JRadioButton(lang.getString("import.encrypted"));
+        ButtonGroup bg = new ButtonGroup();
+        bg.add(csvRadio);
+        bg.add(jsonRadio);
+        bg.add(encRadio);
+
+        gbc.gridy = 1; gbc.gridwidth = 2;
+        panel.add(csvRadio, gbc);
+        gbc.gridy = 2;
+        panel.add(jsonRadio, gbc);
+        gbc.gridy = 3;
+        panel.add(encRadio, gbc);
+
+        // Password field (only for .enc)
+        gbc.gridy = 4; gbc.gridwidth = 1;
+        JLabel passLabel = new JLabel(lang.getString("import.password"));
+        panel.add(passLabel, gbc);
+        gbc.gridx = 1;
+        JPasswordField passField = new JPasswordField(20);
+        panel.add(passField, gbc);
+        passLabel.setVisible(false);
+        passField.setVisible(false);
+
+        encRadio.addActionListener(e -> { passLabel.setVisible(true); passField.setVisible(true); });
+        csvRadio.addActionListener(e -> { passLabel.setVisible(false); passField.setVisible(false); });
+        jsonRadio.addActionListener(e -> { passLabel.setVisible(false); passField.setVisible(false); });
+
+        int result = JOptionPane.showConfirmDialog(parentComponent, panel,
+            lang.getString("import.title"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return;
+
+        if (encRadio.isSelected()) {
+            doImportEncrypted(passField.getPassword());
+        } else {
+            String format = csvRadio.isSelected() ? "csv" : "json";
+            doImportFile(format);
+        }
+    }
+
+    private void doImportFile(String format) {
         JFileChooser fc = new JFileChooser();
         if (fc.showOpenDialog(parentComponent) != JFileChooser.APPROVE_OPTION) return;
         try {
@@ -67,12 +127,85 @@ public class ImportExportController {
         }
     }
 
-    public void doExport(String format) {
-        int confirm = JOptionPane.showConfirmDialog(parentComponent,
-            lang.getString("export.warning"),
-            lang.getString("export.title"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
-        if (confirm != JOptionPane.OK_OPTION) return;
+    private void doImportEncrypted(char[] password) {
+        JFileChooser fc = new JFileChooser();
+        fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Encrypted vault (*.enc)", "enc"));
+        if (fc.showOpenDialog(parentComponent) != JFileChooser.APPROVE_OPTION) {
+            Arrays.fill(password, '\0');
+            return;
+        }
+        try {
+            List<VaultEntry> entries = vaultManager.importEncryptedVault(password, fc.getSelectedFile().getAbsolutePath());
+            int count = 0;
+            for (VaultEntry entry : entries) {
+                vaultService.addEntry(entry);
+                count++;
+            }
+            saveVaultCallback.run();
+            refreshCallback.run();
+            JOptionPane.showMessageDialog(parentComponent,
+                lang.getString("import.success").replace("{0}", String.valueOf(count)),
+                lang.getString("import.title"), JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(parentComponent,
+                lang.getString("import.error") + ": " + ex.getMessage(),
+                lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+        } finally {
+            Arrays.fill(password, '\0');
+        }
+    }
 
+    /**
+     * Shows a unified export dialog with format selection (CSV / JSON / Encrypted).
+     */
+    public void doExport() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new java.awt.Insets(5, 5, 5, 5);
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        panel.add(new JLabel(lang.getString("export.format")), gbc);
+
+        JRadioButton csvRadio = new JRadioButton("CSV", true);
+        JRadioButton jsonRadio = new JRadioButton("JSON");
+        JRadioButton encRadio = new JRadioButton(lang.getString("export.encrypted"));
+        ButtonGroup bg = new ButtonGroup();
+        bg.add(csvRadio);
+        bg.add(jsonRadio);
+        bg.add(encRadio);
+
+        gbc.gridy = 1; gbc.gridwidth = 2;
+        panel.add(csvRadio, gbc);
+        gbc.gridy = 2;
+        panel.add(jsonRadio, gbc);
+        gbc.gridy = 3;
+        panel.add(encRadio, gbc);
+
+        // Warning label for unencrypted exports
+        gbc.gridy = 4; gbc.gridwidth = 2;
+        JLabel warningLabel = new JLabel("<html><i>" + lang.getString("export.unencrypted_warning") + "</i></html>");
+        warningLabel.setForeground(Color.ORANGE.darker());
+        panel.add(warningLabel, gbc);
+
+        encRadio.addActionListener(e -> warningLabel.setVisible(false));
+        csvRadio.addActionListener(e -> warningLabel.setVisible(true));
+        jsonRadio.addActionListener(e -> warningLabel.setVisible(true));
+
+        int result = JOptionPane.showConfirmDialog(parentComponent, panel,
+            lang.getString("export.title"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return;
+
+        if (encRadio.isSelected()) {
+            doExportBackup();
+        } else {
+            String format = csvRadio.isSelected() ? "csv" : "json";
+            doExportFile(format);
+        }
+    }
+
+    private void doExportFile(String format) {
         JFileChooser fc = new JFileChooser();
         fc.setSelectedFile(new File("vault_export." + format));
         if (fc.showSaveDialog(parentComponent) != JFileChooser.APPROVE_OPTION) return;
@@ -102,7 +235,7 @@ public class ImportExportController {
         }
     }
 
-    public void doExportBackup() {
+    private void doExportBackup() {
         JFileChooser fc = new JFileChooser();
         fc.setSelectedFile(new File("vault_" + username + "_backup.enc"));
         if (fc.showSaveDialog(parentComponent) != JFileChooser.APPROVE_OPTION) return;

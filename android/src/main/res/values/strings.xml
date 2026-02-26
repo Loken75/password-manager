@@ -34,7 +34,9 @@
 
     <!-- Entry fields -->
     <string name="entry_title">Title</string>
-    <string name="entry_username">Username / Email</string>
+    <string name="entry_username">Username</string>
+    <string name="entry_email">Email</string>
+    <string name="entry_pseudo">Nickname</string>
     <string name="entry_password">Password</string>
     <string name="entry_url">Website URL</string>
     <string name="entry_notes">Notes</string>
@@ -46,6 +48,7 @@
     <string name="entry_generate">Generate</string>
     <string name="entry_copy">Copy</string>
     <string name="entry_copy_username">Copy username</string>
+    <string name="entry_copy_email">Copy email</string>
     <string name="entry_copy_password">Copy password</string>
 
     <!-- Password Generator -->
@@ -91,15 +94,17 @@
     <string name="settings_change_master">Change master password</string>
 
     <!-- Menu / Actions -->
-    <string name="menu_import_csv">Import CSV</string>
-    <string name="menu_import_json">Import JSON</string>
-    <string name="menu_export_csv">Export CSV</string>
-    <string name="menu_export_json">Export JSON</string>
-    <string name="menu_export_backup">Export encrypted backup</string>
+    <string name="menu_import">Import…</string>
+    <string name="menu_export">Export…</string>
     <string name="menu_settings">Settings</string>
     <string name="menu_lock">Lock</string>
+    <string name="menu_sync_now">Sync now</string>
     <string name="menu_security_audit">Security Audit</string>
     <string name="menu_sort_name">Sort by name</string>
+    <string name="menu_sort_username">Sort by username</string>
+    <string name="menu_sort_email">Sort by email</string>
+    <string name="menu_sort_pseudo">Sort by nickname</string>
+    <string name="menu_sort_url">Sort by URL</string>
     <string name="menu_sort_date">Sort by date</string>
     <string name="menu_sort_category">Sort by category</string>
 
@@ -107,9 +112,17 @@
     <string name="import_title">Import</string>
     <string name="import_success">Import successful: %1$d entries imported</string>
     <string name="import_error">Import error</string>
+    <string name="import_format_csv">CSV</string>
+    <string name="import_format_json">JSON</string>
+    <string name="import_format_encrypted">Encrypted file (.enc)</string>
+    <string name="import_vault_password">Source vault password</string>
     <string name="export_title">Export</string>
     <string name="export_success">Export successful</string>
     <string name="export_error">Export error</string>
+    <string name="export_format_csv">CSV</string>
+    <string name="export_format_json">JSON</string>
+    <string name="export_format_encrypted">Encrypted backup (.enc)</string>
+    <string name="export_unencrypted_warning">Exported data will not be encrypted</string>
     <string name="export_warning">Warning: exported data is not encrypted!</string>
 
     <!-- Common -->
@@ -133,6 +146,27 @@
     <string name="about_title">About</string>
     <string name="about_description">Secure Password Manager\nAES-256-GCM Encryption\nVersion 1.0</string>
 
+    <!-- Navigation -->
+    <string name="nav_vault">Vault</string>
+    <string name="nav_generator">Generator</string>
+    <string name="nav_audit">Audit</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Empty states -->
+    <string name="vault_empty">Your vault is empty</string>
+    <string name="vault_empty_subtitle">Tap + to add your first password</string>
+    <string name="vault_search_empty">No results</string>
+    <string name="vault_search_empty_subtitle">No entries match your search</string>
+    <string name="vault_sort">Sort</string>
+    <string name="vault_menu">Menu</string>
+
+    <!-- Detail sections -->
+    <string name="detail_section_info">Information</string>
+    <string name="detail_section_security">Security</string>
+
+    <!-- Feedback -->
+    <string name="password_copied">Password copied</string>
+
     <!-- Security Audit -->
     <string name="audit_title">Security Audit</string>
     <string name="audit_weak_passwords">Weak passwords</string>
@@ -140,4 +174,29 @@
     <string name="audit_old_passwords">Old passwords (> %1$d days)</string>
     <string name="audit_no_issues">No issues detected</string>
     <string name="audit_issues_found">%1$d issue(s) detected</string>
+
+    <!-- Multi-select -->
+    <string name="vault_select_all">Select all</string>
+    <string name="vault_change_category">Change category</string>
+    <string name="vault_selected_count">%1$d selected</string>
+
+    <!-- Sync / SFTP -->
+    <string name="settings_sync">Synchronization</string>
+    <string name="settings_sftp_host">Host</string>
+    <string name="settings_sftp_port">Port</string>
+    <string name="settings_sftp_user">SSH User</string>
+    <string name="settings_sftp_key">SSH Private Key</string>
+    <string name="settings_sftp_remote_path">Remote directory</string>
+    <string name="settings_test_connection">Test connection</string>
+    <string name="settings_connection_ok">Connection successful</string>
+    <string name="settings_connection_fail">Connection failed</string>
+    <string name="settings_local_only">Local only</string>
+    <string name="settings_remote_server">Remote server</string>
+    <string name="sync_now">Sync now</string>
+    <string name="sync_success">Sync successful</string>
+    <string name="sync_error">Sync error</string>
+    <string name="sync_conflict_title">Sync conflict</string>
+    <string name="sync_conflict_message">The remote vault has been modified since your last sync.</string>
+    <string name="sync_keep_local">Keep my local changes</string>
+    <string name="sync_keep_remote">Use server version</string>
 </resources>

@@ -192,6 +192,50 @@ class VaultImporterTest {
     }
 
     @Test
+    void importCsvWithEmailAndPseudo() {
+        String csv = "title,username,email,pseudo,password,url,notes,category,tags\n"
+                + "Gmail,johndoe,john@gmail.com,JohnD,pass123,https://gmail.com,my mail,Email,\n";
+
+        int count = importer.importFromCsv(vault, csv);
+        assertEquals(1, count);
+
+        VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        assertEquals("Gmail", entry.getTitle());
+        assertEquals("johndoe", entry.getUsername());
+        assertEquals("john@gmail.com", entry.getEmail());
+        assertEquals("JohnD", entry.getPseudo());
+        assertArrayEquals("pass123".toCharArray(), entry.getPassword());
+    }
+
+    @Test
+    void importCsvWithEmailAliases() {
+        String csv = "titre,identifiant,mail,surnom,mot de passe,url,notes,categorie,tags\n"
+                + "Site,user1,user@mail.com,nick1,pass,http://site.com,,Work,\n";
+
+        int count = importer.importFromCsv(vault, csv);
+        assertEquals(1, count);
+
+        VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        assertEquals("user@mail.com", entry.getEmail());
+        assertEquals("nick1", entry.getPseudo());
+    }
+
+    @Test
+    void importFromJsonWithEmailAndPseudo() {
+        String json = "{\"entries\":[{\"title\":\"Test\",\"username\":\"u\","
+                + "\"email\":\"test@test.com\",\"pseudo\":\"TestNick\","
+                + "\"password\":\"p\",\"url\":\"http://test.com\",\"notes\":\"\","
+                + "\"category\":\"Cat\",\"tags\":[]}]}";
+
+        int count = importer.importFromJson(vault, json);
+        assertEquals(1, count);
+
+        VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        assertEquals("test@test.com", entry.getEmail());
+        assertEquals("TestNick", entry.getPseudo());
+    }
+
+    @Test
     void importCsvSanitizesControlCharacters() {
         String csv = "title,username,password\n"
                 + "Clean\u0007Title,user\u0001name,pass\n";

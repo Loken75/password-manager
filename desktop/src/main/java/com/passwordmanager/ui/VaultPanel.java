@@ -34,12 +34,16 @@ public class VaultPanel extends JPanel {
     private DefaultListModel<String> categoryModel;
     private JTable entryTable;
     private EntryTableModel tableModel;
-    private JLabel detailTitle, detailUser, detailUrl, detailCategory, detailCreated, detailUpdated;
+    private JLabel detailTitle, detailUser, detailEmail, detailPseudo, detailUrl, detailCategory, detailCreated, detailUpdated;
     private JPasswordField detailPassword;
     private JCheckBox showDetailPassword;
     private JButton copyUserBtn;
     private JButton copyPassBtn;
     private JTextArea detailNotes;
+
+    private static final SortField[] COLUMN_SORT_FIELDS = {
+        SortField.TITLE, SortField.USERNAME, SortField.EMAIL, SortField.PSEUDO, SortField.CATEGORY, null
+    };
 
     private List<VaultEntry> displayedEntries = new ArrayList<>();
     private String currentCategory = null;
@@ -95,13 +99,26 @@ public class VaultPanel extends JPanel {
         entryTable = new JTable(tableModel);
         entryTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         entryTable.setRowHeight(28);
-        entryTable.getColumnModel().getColumn(0).setPreferredWidth(200);
-        entryTable.getColumnModel().getColumn(1).setPreferredWidth(180);
-        entryTable.getColumnModel().getColumn(2).setPreferredWidth(120);
-        entryTable.getColumnModel().getColumn(3).setPreferredWidth(80);
+        entryTable.getColumnModel().getColumn(0).setPreferredWidth(160);
+        entryTable.getColumnModel().getColumn(1).setPreferredWidth(130);
+        entryTable.getColumnModel().getColumn(2).setPreferredWidth(150);
+        entryTable.getColumnModel().getColumn(3).setPreferredWidth(100);
+        entryTable.getColumnModel().getColumn(4).setPreferredWidth(100);
+        entryTable.getColumnModel().getColumn(5).setPreferredWidth(80);
+
+        // Clickable header for sorting
+        entryTable.getTableHeader().addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int col = entryTable.columnAtPoint(e.getPoint());
+                if (col >= 0 && col < COLUMN_SORT_FIELDS.length && COLUMN_SORT_FIELDS[col] != null) {
+                    setSortMode(COLUMN_SORT_FIELDS[col]);
+                }
+            }
+        });
 
         // Color strength column
-        entryTable.getColumnModel().getColumn(3).setCellRenderer(new DefaultTableCellRenderer() {
+        entryTable.getColumnModel().getColumn(5).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
                     boolean isSelected, boolean hasFocus, int row, int col) {
@@ -141,7 +158,6 @@ public class VaultPanel extends JPanel {
 
         Font boldFont = new Font("SansSerif", Font.BOLD, 12);
         int row = 0;
-        int lastRow = 6;
 
         // Username
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
@@ -151,6 +167,26 @@ public class VaultPanel extends JPanel {
         gl.gridx = 1; gl.weightx = 1;
         detailUser = new JLabel(" ");
         tablePanel.add(createCell(detailUser, false, true), gl);
+
+        // Email
+        row++;
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
+        JLabel lblEmail = new JLabel(lang.getString("entry.email"));
+        lblEmail.setFont(boldFont);
+        tablePanel.add(createCell(lblEmail, true, true), gl);
+        gl.gridx = 1; gl.weightx = 1;
+        detailEmail = new JLabel(" ");
+        tablePanel.add(createCell(detailEmail, false, true), gl);
+
+        // Pseudo
+        row++;
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
+        JLabel lblPseudo = new JLabel(lang.getString("entry.pseudo"));
+        lblPseudo.setFont(boldFont);
+        tablePanel.add(createCell(lblPseudo, true, true), gl);
+        gl.gridx = 1; gl.weightx = 1;
+        detailPseudo = new JLabel(" ");
+        tablePanel.add(createCell(detailPseudo, false, true), gl);
 
         // Password
         row++;
@@ -163,7 +199,7 @@ public class VaultPanel extends JPanel {
         detailPassword.setEditable(false);
         tablePanel.add(createCell(detailPassword, false, true), gl);
 
-        // URL
+        // URL (clickable)
         row++;
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblUrl = new JLabel(lang.getString("entry.url"));
@@ -171,6 +207,21 @@ public class VaultPanel extends JPanel {
         tablePanel.add(createCell(lblUrl, true, true), gl);
         gl.gridx = 1; gl.weightx = 1;
         detailUrl = new JLabel(" ");
+        detailUrl.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        detailUrl.setForeground(new Color(0, 102, 204));
+        detailUrl.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                String url = detailUrl.getText();
+                if (url != null && !url.isBlank() && (url.startsWith("http://") || url.startsWith("https://"))) {
+                    try {
+                        Desktop.getDesktop().browse(new java.net.URI(url));
+                    } catch (Exception ex) {
+                        // ignore
+                    }
+                }
+            }
+        });
         tablePanel.add(createCell(detailUrl, false, true), gl);
 
         // Category
@@ -347,6 +398,8 @@ public class VaultPanel extends JPanel {
         VaultEntry e = displayedEntries.get(row);
         detailTitle.setText(e.getTitle());
         detailUser.setText(e.getUsername() != null ? e.getUsername() : "");
+        detailEmail.setText(e.getEmail() != null ? e.getEmail() : "");
+        detailPseudo.setText(e.getPseudo() != null ? e.getPseudo() : "");
         char[] pwd = e.getPassword();
         setPasswordFieldValue(detailPassword, pwd);
         SecureWiper.wipe(pwd);
@@ -360,6 +413,8 @@ public class VaultPanel extends JPanel {
     private void clearDetails() {
         detailTitle.setText(" ");
         detailUser.setText(" ");
+        detailEmail.setText(" ");
+        detailPseudo.setText(" ");
         detailPassword.setText("");
         detailUrl.setText(" ");
         detailCategory.setText(" ");
@@ -489,6 +544,8 @@ public class VaultPanel extends JPanel {
         private final String[] columns = {
             lang.getString("entry.title"),
             lang.getString("entry.username"),
+            lang.getString("entry.email"),
+            lang.getString("entry.pseudo"),
             lang.getString("entry.category"),
             lang.getString("strength.label")
         };
@@ -503,8 +560,10 @@ public class VaultPanel extends JPanel {
             switch (col) {
                 case 0: return e.getTitle();
                 case 1: return e.getUsername();
-                case 2: return e.getCategory();
-                case 3:
+                case 2: return e.getEmail();
+                case 3: return e.getPseudo();
+                case 4: return e.getCategory();
+                case 5:
                     char[] tablePwd = e.getPassword();
                     try {
                         PasswordStrengthAnalyzer.Strength st = PasswordStrengthAnalyzer.analyze(tablePwd);

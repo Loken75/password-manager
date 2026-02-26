@@ -41,7 +41,8 @@ public class VaultImporter {
 
         String[] headers = parseCsvLine(headerLine, separator);
         Map<String, String> aliasMap = buildAliasMap();
-        int titleIdx = -1, usernameIdx = -1, passwordIdx = -1, urlIdx = -1;
+        int titleIdx = -1, usernameIdx = -1, emailIdx = -1, pseudoIdx = -1;
+        int passwordIdx = -1, urlIdx = -1;
         int notesIdx = -1, categoryIdx = -1, tagsIdx = -1;
         boolean headerRecognized = false;
 
@@ -53,6 +54,8 @@ public class VaultImporter {
                 switch (field) {
                     case "title": titleIdx = i; break;
                     case "username": usernameIdx = i; break;
+                    case "email": emailIdx = i; break;
+                    case "pseudo": pseudoIdx = i; break;
                     case "password": passwordIdx = i; break;
                     case "url": urlIdx = i; break;
                     case "notes": notesIdx = i; break;
@@ -77,6 +80,8 @@ public class VaultImporter {
             VaultEntry entry = new VaultEntry();
             entry.setTitle(sanitizeField(getField(parts, titleIdx)));
             entry.setUsername(sanitizeField(getField(parts, usernameIdx)));
+            entry.setEmail(sanitizeField(getField(parts, emailIdx)));
+            entry.setPseudo(sanitizeField(getField(parts, pseudoIdx)));
             String pwd = sanitizeField(getField(parts, passwordIdx));
             entry.setPassword(pwd.isEmpty() ? null : pwd.toCharArray());
             entry.setUrl(sanitizeField(getField(parts, urlIdx)));
@@ -119,6 +124,12 @@ public class VaultImporter {
                 }
                 if (entry.getUsername() != null) {
                     entry.setUsername(truncateField(sanitizeField(entry.getUsername())));
+                }
+                if (entry.getEmail() != null) {
+                    entry.setEmail(truncateField(sanitizeField(entry.getEmail())));
+                }
+                if (entry.getPseudo() != null) {
+                    entry.setPseudo(truncateField(sanitizeField(entry.getPseudo())));
                 }
                 if (entry.getUrl() != null) {
                     entry.setUrl(truncateField(sanitizeField(entry.getUrl())));
@@ -167,9 +178,13 @@ public class VaultImporter {
         Map<String, String> map = new HashMap<>();
         for (String alias : new String[]{"title", "organisme", "name", "nom", "titre"})
             map.put(alias, "title");
-        for (String alias : new String[]{"username", "identifiant", "email", "adresse mail",
-                "login", "adresse mail / identifiant"})
+        for (String alias : new String[]{"username", "identifiant", "login",
+                "adresse mail / identifiant"})
             map.put(alias, "username");
+        for (String alias : new String[]{"email", "mail", "adresse mail", "e-mail", "courriel"})
+            map.put(alias, "email");
+        for (String alias : new String[]{"pseudo", "nickname", "alias", "surnom", "display name"})
+            map.put(alias, "pseudo");
         for (String alias : new String[]{"password", "mdp", "mot de passe", "pass"})
             map.put(alias, "password");
         for (String alias : new String[]{"url", "site", "website", "lien"})

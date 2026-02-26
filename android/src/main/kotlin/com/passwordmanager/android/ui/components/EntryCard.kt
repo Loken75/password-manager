@@ -1,25 +1,41 @@
 package com.passwordmanager.android.ui.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Circle
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.passwordmanager.android.ui.theme.*
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength
 import com.passwordmanager.vault.VaultEntry
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun EntryCard(
     entry: VaultEntry,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onDelete: () -> Unit,
+    onCopyPassword: () -> Unit,
+    modifier: Modifier = Modifier,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onLongClick: () -> Unit = {}
 ) {
     val strength = entry.password?.let { PasswordStrengthAnalyzer.analyze(it) }
     val strengthColor = when (strength) {
@@ -30,53 +46,159 @@ fun EntryCard(
         null -> MaterialTheme.colorScheme.outline
     }
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Circle,
-                contentDescription = null,
-                tint = strengthColor,
-                modifier = Modifier.size(12.dp)
+    val cardContent: @Composable () -> Unit = {
+        Card(
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            colors = if (isSelected) CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            ) else CardDefaults.cardColors(),
+            modifier = Modifier.combinedClickable(
+                onClick = {
+                    if (isSelectionMode) onLongClick() else onClick()
+                },
+                onLongClick = onLongClick
             )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = entry.title ?: "",
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
+            ) {
+                // Strength bar on left edge
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .background(strengthColor)
                 )
-                if (!entry.username.isNullOrBlank()) {
+
+                // Selection checkbox
+                if (isSelectionMode) {
+                    Icon(
+                        imageVector = if (isSelected) Icons.Default.CheckCircle
+                            else Icons.Default.RadioButtonUnchecked,
+                        contentDescription = null,
+                        tint = if (isSelected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .align(Alignment.CenterVertically)
+                            .size(24.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(if (isSelectionMode) 8.dp else 12.dp))
+
+                // Avatar
+                val avatarColor = categoryColor(entry.category)
+                val initial = (entry.title?.firstOrNull() ?: '?').uppercaseChar()
+                Box(
+                    modifier = Modifier
+                        .padding(vertical = 12.dp)
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(avatarColor),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = entry.username,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = initial.toString(),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Content
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 12.dp)
+                ) {
+                    Text(
+                        text = entry.title ?: "",
+                        style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                }
-            }
-            if (!entry.category.isNullOrBlank()) {
-                AssistChip(
-                    onClick = {},
-                    label = {
+                    if (!entry.username.isNullOrBlank()) {
                         Text(
-                            text = entry.category,
-                            style = MaterialTheme.typography.labelMedium
+                            text = entry.username,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                )
+                }
+
+                // Category chip
+                if (!entry.category.isNullOrBlank()) {
+                    Box(modifier = Modifier.padding(end = 12.dp, top = 12.dp, bottom = 12.dp)) {
+                        AssistChip(
+                            onClick = {},
+                            label = {
+                                Text(
+                                    text = entry.category,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
+                        )
+                    }
+                }
             }
+        }
+    }
+
+    if (isSelectionMode) {
+        // No swipe in selection mode
+        Box(modifier = modifier) { cardContent() }
+    } else {
+        val dismissState = rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                when (value) {
+                    SwipeToDismissBoxValue.EndToStart -> { onDelete(); false }
+                    SwipeToDismissBoxValue.StartToEnd -> { onCopyPassword(); false }
+                    SwipeToDismissBoxValue.Settled -> false
+                }
+            }
+        )
+
+        SwipeToDismissBox(
+            state = dismissState,
+            modifier = modifier,
+            backgroundContent = {
+                val direction = dismissState.dismissDirection
+                val color = when (direction) {
+                    SwipeToDismissBoxValue.StartToEnd -> Color(0xFF1E88E5)
+                    SwipeToDismissBoxValue.EndToStart -> Color(0xFFE53935)
+                    else -> Color.Transparent
+                }
+                val icon = when (direction) {
+                    SwipeToDismissBoxValue.StartToEnd -> Icons.Default.ContentCopy
+                    SwipeToDismissBoxValue.EndToStart -> Icons.Default.Delete
+                    else -> null
+                }
+                val alignment = when (direction) {
+                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                    else -> Alignment.CenterEnd
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(color, MaterialTheme.shapes.medium)
+                        .padding(horizontal = 20.dp),
+                    contentAlignment = alignment
+                ) {
+                    icon?.let {
+                        Icon(imageVector = it, contentDescription = null, tint = Color.White)
+                    }
+                }
+            }
+        ) {
+            cardContent()
         }
     }
 }

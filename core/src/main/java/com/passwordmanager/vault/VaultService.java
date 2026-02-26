@@ -70,6 +70,7 @@ public class VaultService {
 
     private boolean matches(VaultEntry e, String q) {
         return containsIC(e.getTitle(), q) || containsIC(e.getUsername(), q)
+            || containsIC(e.getEmail(), q) || containsIC(e.getPseudo(), q)
             || containsIC(e.getUrl(), q) || containsIC(e.getNotes(), q)
             || containsIC(e.getCategory(), q)
             || (e.getTags() != null && e.getTags().toString().toLowerCase().contains(q));
@@ -94,11 +95,23 @@ public class VaultService {
         List<VaultEntry> sorted = new ArrayList<>(entries);
         Comparator<VaultEntry> comp;
         switch (sortBy) {
+            case USERNAME:
+                comp = (a, b) -> safe(a.getUsername()).compareToIgnoreCase(safe(b.getUsername()));
+                break;
+            case EMAIL:
+                comp = (a, b) -> safe(a.getEmail()).compareToIgnoreCase(safe(b.getEmail()));
+                break;
+            case PSEUDO:
+                comp = (a, b) -> safe(a.getPseudo()).compareToIgnoreCase(safe(b.getPseudo()));
+                break;
+            case URL:
+                comp = (a, b) -> safe(a.getUrl()).compareToIgnoreCase(safe(b.getUrl()));
+                break;
             case DATE:
                 comp = (a, b) -> safe(b.getUpdatedAt()).compareTo(safe(a.getUpdatedAt()));
                 break;
             case CATEGORY:
-                comp = (a, b) -> safe(a.getCategory()).compareTo(safe(b.getCategory()));
+                comp = (a, b) -> safe(a.getCategory()).compareToIgnoreCase(safe(b.getCategory()));
                 break;
             default:
                 comp = (a, b) -> safe(a.getTitle()).compareToIgnoreCase(safe(b.getTitle()));
@@ -116,9 +129,14 @@ public class VaultService {
     public Map<String, List<VaultEntry>> findDuplicatePasswords() {
         Map<String, List<VaultEntry>> map = new HashMap<>();
         for (VaultEntry e : vault.getEntries()) {
-            if (e.getPassword() != null && e.getPassword().length > 0) {
-                String hash = sha256(e.getPassword());
-                map.computeIfAbsent(hash, k -> new ArrayList<>()).add(e);
+            char[] pw = e.getPassword();
+            if (pw != null && pw.length > 0) {
+                try {
+                    String hash = sha256(pw);
+                    map.computeIfAbsent(hash, k -> new ArrayList<>()).add(e);
+                } finally {
+                    SecureWiper.wipe(pw);
+                }
             }
         }
         Map<String, List<VaultEntry>> duplicates = new HashMap<>();

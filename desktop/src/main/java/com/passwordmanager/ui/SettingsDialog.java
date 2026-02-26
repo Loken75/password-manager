@@ -23,7 +23,6 @@ public class SettingsDialog extends JDialog {
     // General
     private JComboBox<String> langCombo;
     private JComboBox<String> themeCombo;
-    private JTextField vaultDirField;
 
     // Security
     private JSpinner autoLockSpinner;
@@ -74,17 +73,7 @@ public class SettingsDialog extends JDialog {
         }
         generalPanel.add(themeCombo, g);
 
-        g.gridx = 0; g.gridy = 2; g.weightx = 0;
-        generalPanel.add(new JLabel(lang.getString("settings.vault_directory")), g);
-        g.gridx = 1; g.weightx = 1;
-        JPanel vaultDirPanel = new JPanel(new BorderLayout(5, 0));
-        vaultDirField = new JTextField(config.getLocalVaultDirectory(), 20);
-        JButton vaultBrowseBtn = new JButton(lang.getString("common.browse"));
-        vaultDirPanel.add(vaultDirField, BorderLayout.CENTER);
-        vaultDirPanel.add(vaultBrowseBtn, BorderLayout.EAST);
-        generalPanel.add(vaultDirPanel, g);
-
-        g.gridx = 0; g.gridy = 3; g.weighty = 1;
+        g.gridx = 0; g.gridy = 2; g.weighty = 1;
         generalPanel.add(Box.createVerticalGlue(), g);
 
         tabs.addTab(lang.getString("settings.general"), generalPanel);
@@ -191,15 +180,6 @@ public class SettingsDialog extends JDialog {
         add(btnPanel, BorderLayout.SOUTH);
 
         // Actions
-        vaultBrowseBtn.addActionListener(e -> {
-            JFileChooser fc = new JFileChooser();
-            fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-            fc.setCurrentDirectory(new File(vaultDirField.getText()));
-            if (fc.showOpenDialog(SettingsDialog.this) == JFileChooser.APPROVE_OPTION) {
-                vaultDirField.setText(fc.getSelectedFile().getAbsolutePath());
-            }
-        });
-
         browseBtn.addActionListener(e -> {
             JFileChooser fc = new JFileChooser();
             if (fc.showOpenDialog(SettingsDialog.this) == JFileChooser.APPROVE_OPTION) {
@@ -267,9 +247,6 @@ public class SettingsDialog extends JDialog {
             }
         }
 
-        String oldVaultDir = config.getLocalVaultDirectory();
-        String newVaultDir = vaultDirField.getText().trim();
-
         config.setLanguage(langCombo.getSelectedIndex() == 0 ? "fr" : "en");
         ThemeMode[] themes = { ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK };
         config.setTheme(themes[themeCombo.getSelectedIndex()]);
@@ -281,18 +258,9 @@ public class SettingsDialog extends JDialog {
         config.setSftpUser(userField.getText());
         config.setSftpKeyPath(keyPathField.getText());
         config.setSftpRemotePath(remotePathField.getText());
-        config.setLocalVaultDirectory(newVaultDir);
 
         configManager.saveConfig(config);
         saved = true;
-
-        if (!oldVaultDir.equals(config.getLocalVaultDirectory())) {
-            JOptionPane.showMessageDialog(this,
-                lang.getString("settings.vault_directory_restart"),
-                lang.getString("settings.title"),
-                JOptionPane.INFORMATION_MESSAGE);
-        }
-
         dispose();
     }
 

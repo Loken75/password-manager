@@ -21,10 +21,12 @@ public class VaultExporter {
 
     public char[] exportAsCsv(Vault vault) {
         StringBuilder sb = new StringBuilder();
-        sb.append("title,username,password,url,notes,category,tags\n");
+        sb.append("title,username,email,pseudo,password,url,notes,category,tags\n");
         for (VaultEntry e : vault.getEntries()) {
             sb.append(csvEscape(e.getTitle())).append(",");
             sb.append(csvEscape(e.getUsername())).append(",");
+            sb.append(csvEscape(e.getEmail())).append(",");
+            sb.append(csvEscape(e.getPseudo())).append(",");
             char[] pwd = e.getPassword();
             sb.append(csvEscape(pwd != null ? new String(pwd) : "")).append(",");
             SecureWiper.wipe(pwd);

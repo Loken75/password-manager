@@ -73,6 +73,9 @@ android {
 dependencies {
     implementation(project(":core"))
 
+    // SFTP sync (same library as desktop module)
+    implementation("com.github.mwiede:jsch:2.27.8")
+
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
     // Compose BOM

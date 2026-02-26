@@ -13,6 +13,8 @@ import javax.inject.Inject
 data class EntryEditUiState(
     val title: String = "",
     val username: String = "",
+    val email: String = "",
+    val pseudo: String = "",
     val password: String = "",
     val url: String = "",
     val notes: String = "",
@@ -44,6 +46,8 @@ class EntryEditViewModel @Inject constructor(
                 _uiState.value = EntryEditUiState(
                     title = entry.title ?: "",
                     username = entry.username ?: "",
+                    email = entry.email ?: "",
+                    pseudo = entry.pseudo ?: "",
                     password = entry.password?.let { String(it) } ?: "",
                     url = entry.url ?: "",
                     notes = entry.notes ?: "",
@@ -63,6 +67,8 @@ class EntryEditViewModel @Inject constructor(
 
     fun updateTitle(value: String) = _uiState.update { it.copy(title = value, error = null) }
     fun updateUsername(value: String) = _uiState.update { it.copy(username = value) }
+    fun updateEmail(value: String) = _uiState.update { it.copy(email = value) }
+    fun updatePseudo(value: String) = _uiState.update { it.copy(pseudo = value) }
     fun updatePassword(value: String) = _uiState.update { it.copy(password = value) }
     fun updateUrl(value: String) = _uiState.update { it.copy(url = value) }
     fun updateNotes(value: String) = _uiState.update { it.copy(notes = value) }
@@ -93,6 +99,8 @@ class EntryEditViewModel @Inject constructor(
             val existing = service.search("").find { it.id == existingEntryId } ?: return false
             existing.title = state.title
             existing.username = state.username
+            existing.email = state.email
+            existing.pseudo = state.pseudo
             existing.password = state.password.toCharArray()
             existing.url = state.url
             existing.notes = state.notes
@@ -104,6 +112,8 @@ class EntryEditViewModel @Inject constructor(
             val entry = VaultEntry(
                 state.title,
                 state.username,
+                state.email,
+                state.pseudo,
                 state.password.toCharArray(),
                 state.url,
                 state.notes,

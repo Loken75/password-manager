@@ -123,6 +123,7 @@ public class VaultManager {
         byte[] vaultJsonBytes;
 
         if ("2.0".equals(version)) {
+            requireJsonField(json, "salt", "kek_iv", "encrypted_dek", "kdf_iterations", "data_iv", "encrypted_data");
             byte[] salt = Base64.getDecoder().decode(json.get("salt").getAsString());
             byte[] kekIv = Base64.getDecoder().decode(json.get("kek_iv").getAsString());
             byte[] encryptedDek = Base64.getDecoder().decode(json.get("encrypted_dek").getAsString());
@@ -134,6 +135,7 @@ public class VaultManager {
             vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
         } else {
             // Legacy v1.0: password directly derives the data key
+            requireJsonField(json, "salt", "iv", "encrypted_data");
             byte[] salt = Base64.getDecoder().decode(json.get("salt").getAsString());
             byte[] iv = Base64.getDecoder().decode(json.get("iv").getAsString());
             byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
@@ -269,6 +271,7 @@ public class VaultManager {
         }
         JsonObject json = JsonParser.parseString(fileContent).getAsJsonObject();
 
+        requireJsonField(json, "data_iv", "encrypted_data");
         byte[] dataIv = Base64.getDecoder().decode(json.get("data_iv").getAsString());
         byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
 
@@ -305,6 +308,77 @@ public class VaultManager {
 
     public int importFromJson(Vault vault, String jsonContent) {
         return importer.importFromJson(vault, jsonContent);
+    }
+
+    /**
+     * Imports entries from an encrypted vault file (.enc) into the target vault.
+     * Decrypts the source file using sourcePassword and returns the imported entries.
+     *
+     * @param sourcePassword the master password for the encrypted source file
+     * @param encFilePath path to the .enc vault file
+     * @return list of VaultEntry from the source vault
+     */
+    public List<VaultEntry> importEncryptedVault(char[] sourcePassword, String encFilePath)
+            throws VaultDecryptionException, IOException {
+        Path filePath = Paths.get(encFilePath);
+        long fileSize = Files.size(filePath);
+        if (fileSize > MAX_VAULT_FILE_SIZE) {
+            throw new IOException("Vault file exceeds maximum size (" + MAX_VAULT_FILE_SIZE / (1024 * 1024) + " MB)");
+        }
+        byte[] fileBytes = Files.readAllBytes(filePath);
+        String fileContent;
+        try {
+            fileContent = new String(fileBytes, StandardCharsets.UTF_8);
+        } finally {
+            SecureWiper.wipe(fileBytes);
+        }
+        JsonObject json = JsonParser.parseString(fileContent).getAsJsonObject();
+        String version = json.has("version") ? json.get("version").getAsString() : "1.0";
+
+        byte[] vaultJsonBytes;
+
+        if ("2.0".equals(version)) {
+            requireJsonField(json, "salt", "kek_iv", "encrypted_dek", "kdf_iterations", "data_iv", "encrypted_data");
+            byte[] salt = Base64.getDecoder().decode(json.get("salt").getAsString());
+            byte[] kekIv = Base64.getDecoder().decode(json.get("kek_iv").getAsString());
+            byte[] encryptedDek = Base64.getDecoder().decode(json.get("encrypted_dek").getAsString());
+            int iterations = json.get("kdf_iterations").getAsInt();
+            byte[] dataIv = Base64.getDecoder().decode(json.get("data_iv").getAsString());
+            byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
+
+            VaultSession session = cryptoService.openSession(salt, kekIv, encryptedDek, iterations, sourcePassword);
+            vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
+            session.destroy();
+        } else {
+            requireJsonField(json, "salt", "iv", "encrypted_data");
+            byte[] salt = Base64.getDecoder().decode(json.get("salt").getAsString());
+            byte[] iv = Base64.getDecoder().decode(json.get("iv").getAsString());
+            byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
+            vaultJsonBytes = cryptoService.decryptLegacy(salt, iv, ciphertext, sourcePassword);
+        }
+
+        Vault sourceVault;
+        try {
+            sourceVault = gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
+        } finally {
+            SecureWiper.wipe(vaultJsonBytes);
+        }
+
+        if (sourceVault == null || sourceVault.getEntries() == null) {
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(sourceVault.getEntries());
+    }
+
+    /**
+     * Validates that the given JSON object contains all required fields.
+     */
+    private static void requireJsonField(JsonObject json, String... fields) throws IOException {
+        for (String field : fields) {
+            if (!json.has(field) || json.get(field).isJsonNull()) {
+                throw new IOException("Corrupted vault file: missing required field '" + field + "'");
+            }
+        }
     }
 
     /**

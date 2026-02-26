@@ -24,7 +24,7 @@ fun ChangeMasterPasswordScreen(
     viewModel: ChangeMasterPasswordViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbarHostState = SnackbarHostState()
+    val snackbarHostState = androidx.compose.runtime.remember { SnackbarHostState() }
 
     val successMsg = stringResource(R.string.security_password_changed)
 

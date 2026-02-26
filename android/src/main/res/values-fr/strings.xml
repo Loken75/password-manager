@@ -34,7 +34,9 @@
 
     <!-- Entry fields -->
     <string name="entry_title">Titre</string>
-    <string name="entry_username">Identifiant / Email</string>
+    <string name="entry_username">Identifiant</string>
+    <string name="entry_email">Email</string>
+    <string name="entry_pseudo">Pseudo</string>
     <string name="entry_password">Mot de passe</string>
     <string name="entry_url">URL du site</string>
     <string name="entry_notes">Notes</string>
@@ -46,6 +48,7 @@
     <string name="entry_generate">Générer</string>
     <string name="entry_copy">Copier</string>
     <string name="entry_copy_username">Copier id</string>
+    <string name="entry_copy_email">Copier email</string>
     <string name="entry_copy_password">Copier mdp</string>
 
     <!-- Password Generator -->
@@ -91,15 +94,17 @@
     <string name="settings_change_master">Changer le mot de passe maître</string>
 
     <!-- Menu / Actions -->
-    <string name="menu_import_csv">Importer CSV</string>
-    <string name="menu_import_json">Importer JSON</string>
-    <string name="menu_export_csv">Exporter CSV</string>
-    <string name="menu_export_json">Exporter JSON</string>
-    <string name="menu_export_backup">Exporter sauvegarde chiffrée</string>
+    <string name="menu_import">Importer…</string>
+    <string name="menu_export">Exporter…</string>
     <string name="menu_settings">Paramètres</string>
     <string name="menu_lock">Verrouiller</string>
+    <string name="menu_sync_now">Synchroniser maintenant</string>
     <string name="menu_security_audit">Analyse de sécurité</string>
     <string name="menu_sort_name">Trier par nom</string>
+    <string name="menu_sort_username">Trier par identifiant</string>
+    <string name="menu_sort_email">Trier par email</string>
+    <string name="menu_sort_pseudo">Trier par pseudo</string>
+    <string name="menu_sort_url">Trier par site</string>
     <string name="menu_sort_date">Trier par date</string>
     <string name="menu_sort_category">Trier par catégorie</string>
 
@@ -107,9 +112,17 @@
     <string name="import_title">Importer</string>
     <string name="import_success">Import réussi : %1$d entrées importées</string>
     <string name="import_error">Erreur lors de l\'import</string>
+    <string name="import_format_csv">CSV</string>
+    <string name="import_format_json">JSON</string>
+    <string name="import_format_encrypted">Fichier chiffré (.enc)</string>
+    <string name="import_vault_password">Mot de passe du vault source</string>
     <string name="export_title">Exporter</string>
     <string name="export_success">Export réussi</string>
     <string name="export_error">Erreur lors de l\'export</string>
+    <string name="export_format_csv">CSV</string>
+    <string name="export_format_json">JSON</string>
+    <string name="export_format_encrypted">Sauvegarde chiffrée (.enc)</string>
+    <string name="export_unencrypted_warning">Les données exportées ne seront pas chiffrées</string>
     <string name="export_warning">Attention : les données exportées ne sont pas chiffrées !</string>
 
     <!-- Common -->
@@ -133,6 +146,27 @@
     <string name="about_title">À propos</string>
     <string name="about_description">Gestionnaire de mots de passe sécurisé\nChiffrement AES-256-GCM\nVersion 1.0</string>
 
+    <!-- Navigation -->
+    <string name="nav_vault">Coffre</string>
+    <string name="nav_generator">Générateur</string>
+    <string name="nav_audit">Audit</string>
+    <string name="nav_settings">Paramètres</string>
+
+    <!-- Empty states -->
+    <string name="vault_empty">Votre coffre est vide</string>
+    <string name="vault_empty_subtitle">Appuyez sur + pour ajouter votre premier mot de passe</string>
+    <string name="vault_search_empty">Aucun résultat</string>
+    <string name="vault_search_empty_subtitle">Aucune entrée ne correspond à votre recherche</string>
+    <string name="vault_sort">Trier</string>
+    <string name="vault_menu">Menu</string>
+
+    <!-- Detail sections -->
+    <string name="detail_section_info">Informations</string>
+    <string name="detail_section_security">Sécurité</string>
+
+    <!-- Feedback -->
+    <string name="password_copied">Mot de passe copié</string>
+
     <!-- Security Audit -->
     <string name="audit_title">Analyse de sécurité</string>
     <string name="audit_weak_passwords">Mots de passe faibles</string>
@@ -140,4 +174,29 @@
     <string name="audit_old_passwords">Mots de passe anciens (> %1$d jours)</string>
     <string name="audit_no_issues">Aucun problème détecté</string>
     <string name="audit_issues_found">%1$d problème(s) détecté(s)</string>
+
+    <!-- Multi-select -->
+    <string name="vault_select_all">Tout sélectionner</string>
+    <string name="vault_change_category">Modifier la catégorie</string>
+    <string name="vault_selected_count">%1$d sélectionné(s)</string>
+
+    <!-- Sync / SFTP -->
+    <string name="settings_sync">Synchronisation</string>
+    <string name="settings_sftp_host">Hôte</string>
+    <string name="settings_sftp_port">Port</string>
+    <string name="settings_sftp_user">Utilisateur SSH</string>
+    <string name="settings_sftp_key">Clé privée SSH</string>
+    <string name="settings_sftp_remote_path">Répertoire distant</string>
+    <string name="settings_test_connection">Tester la connexion</string>
+    <string name="settings_connection_ok">Connexion réussie</string>
+    <string name="settings_connection_fail">Échec de connexion</string>
+    <string name="settings_local_only">Local uniquement</string>
+    <string name="settings_remote_server">Serveur distant</string>
+    <string name="sync_now">Synchroniser maintenant</string>
+    <string name="sync_success">Synchronisation réussie</string>
+    <string name="sync_error">Erreur de synchronisation</string>
+    <string name="sync_conflict_title">Conflit de synchronisation</string>
+    <string name="sync_conflict_message">Le coffre distant a été modifié depuis votre dernière synchronisation.</string>
+    <string name="sync_keep_local">Garder mes modifications locales</string>
+    <string name="sync_keep_remote">Utiliser la version du serveur</string>
 </resources>
