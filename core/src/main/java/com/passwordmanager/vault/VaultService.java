@@ -56,7 +56,7 @@ public class VaultService {
         return false;
     }
 
-    public List<VaultEntry> search(String query) {
+    public synchronized List<VaultEntry> search(String query) {
         if (query == null || query.trim().isEmpty()) {
             return new ArrayList<>(vault.getEntries());
         }
@@ -80,7 +80,7 @@ public class VaultService {
         return str != null && str.toLowerCase().contains(q);
     }
 
-    public List<VaultEntry> getByCategory(String category) {
+    public synchronized List<VaultEntry> getByCategory(String category) {
         if (category == null || category.isEmpty()) {
             return new ArrayList<>(vault.getEntries());
         }
@@ -91,7 +91,7 @@ public class VaultService {
         return results;
     }
 
-    public List<VaultEntry> sorted(List<VaultEntry> entries, SortField sortBy) {
+    public synchronized List<VaultEntry> sorted(List<VaultEntry> entries, SortField sortBy) {
         List<VaultEntry> sorted = new ArrayList<>(entries);
         Comparator<VaultEntry> comp;
         switch (sortBy) {
@@ -116,8 +116,20 @@ public class VaultService {
             default:
                 comp = (a, b) -> safe(a.getTitle()).compareToIgnoreCase(safe(b.getTitle()));
         }
-        sorted.sort(comp);
+        Comparator<VaultEntry> withFavorites = (a, b) -> {
+            int favCmp = Boolean.compare(b.isFavorite(), a.isFavorite());
+            return favCmp != 0 ? favCmp : comp.compare(a, b);
+        };
+        sorted.sort(withFavorites);
         return sorted;
+    }
+
+    public synchronized List<VaultEntry> filter(List<VaultEntry> entries, EntryFilter filter) {
+        List<VaultEntry> result = new ArrayList<>();
+        for (VaultEntry e : entries) {
+            if (filter.matches(e)) result.add(e);
+        }
+        return result;
     }
 
     private String safe(String s) { return s == null ? "" : s; }
@@ -126,7 +138,7 @@ public class VaultService {
      * Finds entries that share the same password.
      * Uses SHA-256 hashes to avoid storing plaintext passwords as keys.
      */
-    public Map<String, List<VaultEntry>> findDuplicatePasswords() {
+    public synchronized Map<String, List<VaultEntry>> findDuplicatePasswords() {
         Map<String, List<VaultEntry>> map = new HashMap<>();
         for (VaultEntry e : vault.getEntries()) {
             char[] pw = e.getPassword();
@@ -169,7 +181,7 @@ public class VaultService {
         }
     }
 
-    public List<VaultEntry> findOldPasswords(int days) {
+    public synchronized List<VaultEntry> findOldPasswords(int days) {
         List<VaultEntry> old = new ArrayList<>();
         long threshold = System.currentTimeMillis() - ((long) days * 24 * 60 * 60 * 1000);
         for (VaultEntry e : vault.getEntries()) {
@@ -177,7 +189,9 @@ public class VaultService {
                 Date d = DateUtils.parseTimestamp(e.getUpdatedAt());
                 if (d.getTime() < threshold) old.add(e);
             } catch (Exception ex) {
-                // skip entries with invalid dates
+                // Skip entries with unparseable dates (e.g. legacy data)
+                java.util.logging.Logger.getLogger(VaultService.class.getName())
+                    .fine("Skipping entry with invalid date: " + e.getId());
             }
         }
         return old;
@@ -196,6 +210,33 @@ public class VaultService {
         for (VaultEntry entry : vault.getEntriesMutable()) {
             if (entryIds.contains(entry.getId())) {
                 entry.setCategory(newCategory);
+                entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
+                count++;
+            }
+        }
+        if (count > 0) {
+            vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
+        }
+        return count;
+    }
+
+    public synchronized boolean toggleFavorite(String entryId) {
+        for (VaultEntry entry : vault.getEntriesMutable()) {
+            if (entry.getId().equals(entryId)) {
+                entry.setFavorite(!entry.isFavorite());
+                entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
+                vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public synchronized int bulkSetFavorite(List<String> entryIds, boolean favorite) {
+        int count = 0;
+        for (VaultEntry entry : vault.getEntriesMutable()) {
+            if (entryIds.contains(entry.getId())) {
+                entry.setFavorite(favorite);
                 entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
                 count++;
             }

@@ -212,4 +212,26 @@
     <string name="update_download">Download</string>
     <string name="update_dismiss">Later</string>
     <string name="update_check">Check for updates</string>
+
+    <!-- Favorites -->
+    <string name="entry_favorite">Favorites</string>
+    <string name="entry_toggle_favorite">Toggle favorite</string>
+
+    <!-- HIBP Breach Detection -->
+    <string name="audit_breached_passwords">Breached passwords (HIBP)</string>
+    <string name="audit_breach_count">%1$d password(s) found in data breaches</string>
+    <string name="audit_breach_checking">Checking against known breaches…</string>
+    <string name="audit_breach_error">Could not check breaches (network error)</string>
+    <string name="audit_check_now">Check now</string>
+
+    <!-- Autofill -->
+    <string name="settings_autofill">Enable autofill service</string>
+    <string name="autofill_unlock_prompt">Unlock vault to autofill</string>
+
+    <!-- Sync Merge -->
+    <string name="sync_merge_conflicts">Merge conflicts detected</string>
+    <string name="sync_merge_local_version">Local version</string>
+    <string name="sync_merge_remote_version">Remote version</string>
+    <string name="sync_merge_resolve">Resolve conflicts</string>
+    <string name="sync_merge_auto_merged">Changes auto-merged successfully</string>
 </resources>

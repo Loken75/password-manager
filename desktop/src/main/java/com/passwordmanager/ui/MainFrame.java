@@ -13,6 +13,7 @@ import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.sync.SyncService;
 import com.passwordmanager.util.PasswordValidator;
 import com.passwordmanager.update.DesktopUpdateManager;
+import com.passwordmanager.sync.EntryMerger;
 import com.passwordmanager.vault.*;
 
 import javax.swing.*;
@@ -20,6 +21,7 @@ import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Main application window with menu bar, vault panel, and status bar.
@@ -67,6 +69,7 @@ public class MainFrame extends JFrame {
         initComponents();
         autoLockManager.startAutoLock();
         shutdownHook = new Thread(() -> {
+            SecureClipboard.clear();
             if (vault != null) vault.wipe();
             if (session != null && !session.isDestroyed()) session.destroy();
         });
@@ -439,32 +442,74 @@ public class MainFrame extends JFrame {
     }
 
     private void handleConflict() {
-        Object[] options = {
-            lang.getString("sync.keep_local"),
-            lang.getString("sync.keep_remote"),
-            lang.getString("sync.keep_both")
-        };
-        int choice = JOptionPane.showOptionDialog(this,
-            lang.getString("sync.conflict_message"),
-            lang.getString("sync.conflict_title"),
-            JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, options, options[0]);
+        // Try entry-level merge: load the remote vault and compare entry-by-entry
+        try {
+            Vault remoteVault = vaultManager.reloadVault(username, session);
+            EntryMerger.MergeResult mergeResult = syncService.mergeEntries(
+                vault.getEntries(), remoteVault.getEntries());
 
-        com.passwordmanager.sync.ConflictResolver resolution;
-        switch (choice) {
-            case 1: resolution = com.passwordmanager.sync.ConflictResolver.KEEP_REMOTE; break;
-            case 2: resolution = com.passwordmanager.sync.ConflictResolver.KEEP_BOTH; break;
-            default: resolution = com.passwordmanager.sync.ConflictResolver.KEEP_LOCAL;
-        }
-
-        syncService.resolveConflict("vault_" + username + ".enc", resolution);
-        if (resolution != com.passwordmanager.sync.ConflictResolver.KEEP_LOCAL) {
-            try {
-                Vault reloaded = vaultManager.reloadVault(username, session);
-                vault = reloaded;
-                vaultService.setVault(vault);
+            if (!mergeResult.hasConflicts()) {
+                // Auto-merge: no conflicts, apply merged entries directly
+                vault.getEntriesMutable().clear();
+                for (VaultEntry e : mergeResult.getMergedEntries()) {
+                    vault.addEntry(e);
+                }
+                saveVault();
+                syncService.resolveConflict("vault_" + username + ".enc",
+                    com.passwordmanager.sync.ConflictResolver.KEEP_LOCAL);
                 vaultPanel.refreshAll();
-            } catch (Exception ex) {
-                showError(ex.getMessage());
+                JOptionPane.showMessageDialog(this, lang.getString("sync.merge.auto_merged"),
+                    lang.getString("common.success"), JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                // Show conflict resolution dialog for entry-level conflicts
+                ConflictResolutionDialog dlg = new ConflictResolutionDialog(
+                    this, mergeResult.getConflicts());
+                dlg.setVisible(true);
+                if (dlg.isConfirmed()) {
+                    List<VaultEntry> resolved = dlg.getResolvedEntries();
+                    vault.getEntriesMutable().clear();
+                    for (VaultEntry e : mergeResult.getMergedEntries()) {
+                        vault.addEntry(e);
+                    }
+                    for (VaultEntry e : resolved) {
+                        vault.addEntry(e);
+                    }
+                    saveVault();
+                    syncService.resolveConflict("vault_" + username + ".enc",
+                        com.passwordmanager.sync.ConflictResolver.KEEP_LOCAL);
+                    vaultPanel.refreshAll();
+                }
+            }
+            remoteVault.wipe();
+        } catch (Exception ex) {
+            // Fallback to file-level conflict resolution if entry merge fails
+            Object[] options = {
+                lang.getString("sync.keep_local"),
+                lang.getString("sync.keep_remote"),
+                lang.getString("sync.keep_both")
+            };
+            int choice = JOptionPane.showOptionDialog(this,
+                lang.getString("sync.conflict_message"),
+                lang.getString("sync.conflict_title"),
+                JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, options, options[0]);
+
+            com.passwordmanager.sync.ConflictResolver resolution;
+            switch (choice) {
+                case 1: resolution = com.passwordmanager.sync.ConflictResolver.KEEP_REMOTE; break;
+                case 2: resolution = com.passwordmanager.sync.ConflictResolver.KEEP_BOTH; break;
+                default: resolution = com.passwordmanager.sync.ConflictResolver.KEEP_LOCAL;
+            }
+
+            syncService.resolveConflict("vault_" + username + ".enc", resolution);
+            if (resolution != com.passwordmanager.sync.ConflictResolver.KEEP_LOCAL) {
+                try {
+                    Vault reloaded = vaultManager.reloadVault(username, session);
+                    vault = reloaded;
+                    vaultService.setVault(vault);
+                    vaultPanel.refreshAll();
+                } catch (Exception reloadEx) {
+                    showError(reloadEx.getMessage());
+                }
             }
         }
         statusLabel.setText(getStatusText());

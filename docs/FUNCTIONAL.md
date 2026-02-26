@@ -10,17 +10,19 @@
 6. [Gestion des entrees](#6-gestion-des-entrees)
 7. [Recherche, tri et filtres](#7-recherche-tri-et-filtres)
 8. [Categories](#8-categories)
-9. [Generateur de mots de passe](#9-generateur-de-mots-de-passe)
-10. [Analyse de securite](#10-analyse-de-securite)
-11. [Import et export](#11-import-et-export)
-12. [Synchronisation distante](#12-synchronisation-distante)
-13. [Parametres](#13-parametres)
-14. [Changement du mot de passe maitre](#14-changement-du-mot-de-passe-maitre)
-15. [Securite](#15-securite)
-16. [Raccourcis clavier](#16-raccourcis-clavier)
-17. [Verification des mises a jour](#17-verification-des-mises-a-jour)
-18. [Structure des donnees utilisateur](#18-structure-des-donnees-utilisateur)
-19. [Differences entre plateformes](#19-differences-entre-plateformes)
+9. [Favoris](#9-favoris)
+10. [Generateur de mots de passe](#10-generateur-de-mots-de-passe)
+11. [Analyse de securite](#11-analyse-de-securite)
+12. [Import et export](#12-import-et-export)
+13. [Synchronisation distante](#13-synchronisation-distante)
+14. [Parametres](#14-parametres)
+15. [Changement du mot de passe maitre](#15-changement-du-mot-de-passe-maitre)
+16. [Securite](#16-securite)
+17. [Raccourcis clavier](#17-raccourcis-clavier)
+18. [Verification des mises a jour](#18-verification-des-mises-a-jour)
+19. [Service d'auto-remplissage (Android)](#19-service-dauto-remplissage-android)
+20. [Structure des donnees utilisateur](#20-structure-des-donnees-utilisateur)
+21. [Differences entre plateformes](#21-differences-entre-plateformes)
 
 ---
 
@@ -355,7 +357,34 @@ Les categories creees dans le formulaire d'edition d'entree (en saisissant un no
 
 ---
 
-## 9. Generateur de mots de passe
+## 9. Favoris
+
+### Marquer une entree comme favorite
+
+- **Desktop** : cliquer sur l'icone etoile dans la colonne de favoris du tableau
+- **Android** : appuyer sur l'icone etoile dans la carte d'entree ou dans l'ecran de detail
+
+### Tri par favoris
+
+Les entrees favorites apparaissent automatiquement **en premier** dans la liste, quel que soit le critere de tri selectionne.
+
+### Filtrage par favoris
+
+- **Desktop** : case a cocher "Favoris uniquement" dans la barre de filtres avances
+- **Android** : chip "Favoris" dans la barre de filtres
+
+### Operations en masse
+
+- **Desktop** : selectionner plusieurs entrees puis menu "Actions..." > "Basculer favoris"
+- **Android** : selection multiple (appui long) puis bouton de bascule favoris
+
+### Persistance
+
+Le statut favori est sauvegarde dans le coffre et exporte/importe via les formats CSV (colonne `favorite`) et JSON.
+
+---
+
+## 10. Generateur de mots de passe
 
 **Acces** : Outils > Generateur de mots de passe | Barre d'outils | Bouton **Generer** dans le formulaire d'entree
 
@@ -384,26 +413,36 @@ Un indicateur de force du mot de passe est affiche en temps reel.
 
 ---
 
-## 10. Analyse de securite
+## 11. Analyse de securite
 
 **Acces** : Outils > Analyse de securite
 
 L'analyse examine l'ensemble du coffre et genere un rapport comprenant trois sections :
 
-### 10.1. Mots de passe faibles
+### 12.1. Mots de passe faibles
 
 Liste les entrees dont le mot de passe est evalue comme **Faible** selon les criteres :
 - Longueur insuffisante (< 8 caracteres)
 - Diversite de caracteres insuffisante
 - Sequences repetitives ou sequentielles
 
-### 10.2. Mots de passe reutilises
+### 12.2. Mots de passe reutilises
 
 Identifie les groupes d'entrees partageant un meme mot de passe. La reutilisation est un risque majeur : si un service est compromis, tous les comptes partageant ce mot de passe deviennent vulnerables.
 
-### 10.3. Mots de passe anciens
+### 12.3. Mots de passe anciens
 
 Liste les entrees dont le mot de passe n'a pas ete modifie depuis plus de **180 jours** (configurable via les parametres du coffre).
+
+### 12.4. Mots de passe compromis (HIBP)
+
+Verifie si vos mots de passe apparaissent dans des fuites de donnees connues via l'API **Have I Been Pwned** (HIBP).
+
+- **Declenchement manuel** : bouton "Verifier" dans la section HIBP du rapport d'audit (necessite une connexion internet)
+- **Confidentialite preservee** : seuls les 5 premiers caracteres du hash SHA-1 sont envoyes a l'API (modele k-Anonymity)
+- **Resultat** : nombre de fois que le mot de passe a ete retrouve dans des fuites (0 = sur, >0 = compromis)
+- **Gestion memoire** : le hash est manipule en `char[]` et efface apres utilisation
+- **Erreurs** : en cas de timeout ou d'erreur reseau, le statut affiche "erreur" sans bloquer l'audit
 
 ### Indicateur de force
 
@@ -418,13 +457,13 @@ Le resultat affiche le nombre total de problemes detectes, ou confirme qu'aucun 
 
 ---
 
-## 11. Import et export
+## 12. Import et export
 
 L'import et l'export se font via une **popup unifiee** (desktop et Android) qui propose le choix du format : CSV, JSON ou sauvegarde chiffree (.enc).
 
 **Acces** : Fichier > Importer... / Exporter... (desktop) | Menu overflow > Importer... / Exporter... (Android)
 
-### 11.1. Import CSV
+### 12.1. Import CSV
 
 Selectionnez un fichier CSV (taille max : 10 Mo). L'import detecte automatiquement :
 
@@ -444,6 +483,7 @@ Selectionnez un fichier CSV (taille max : 10 Mo). L'import detecte automatiqueme
 | Notes | `notes`, `description`, `commentaire` |
 | Categorie | `category`, `categorie`, `type` |
 | Tags | `tags`, `etiquettes` |
+| Favori | `favorite`, `favori`, `starred` |
 
 La detection est insensible a la casse et aux accents.
 
@@ -473,17 +513,17 @@ Organisme;URL;Adresse mail / Identifiant;Mdp;Description
 Gmail;https://gmail.com;user@example.com;MyP@ssw0rd;Compte principal
 ```
 
-### 11.2. Import JSON
+### 12.2. Import JSON
 
 Importe un fichier JSON au format d'export de l'application. Chaque entree recoit un nouvel identifiant unique. Les champs sont assainis et tronques a 10 000 caracteres.
 
-### 11.3. Import sauvegarde chiffree
+### 12.3. Import sauvegarde chiffree
 
 Importe les entrees depuis un fichier coffre chiffre (`.enc`) provenant d'un autre utilisateur ou d'une sauvegarde. Un champ de mot de passe (masque par defaut, avec case a cocher **Afficher**) permet de saisir le mot de passe maitre du vault source. Les entrees dechiffrees sont **ajoutees par fusion** au coffre courant (les entrees existantes ne sont pas ecrasees).
 
-### 11.4. Export CSV
+### 12.4. Export CSV
 
-Exporte toutes les entrees avec les colonnes : `title`, `username`, `email`, `pseudo`, `password`, `url`, `notes`, `category`, `tags`.
+Exporte toutes les entrees avec les colonnes : `title`, `username`, `email`, `pseudo`, `password`, `url`, `notes`, `category`, `tags`, `favorite`.
 
 > **Avertissement** : les donnees exportees ne sont **pas chiffrees**. Un message d'avertissement est affiche avant l'export.
 
@@ -491,32 +531,32 @@ Exporte toutes les entrees avec les colonnes : `title`, `username`, `email`, `ps
 
 Le fichier exporte recoit automatiquement des permissions restrictives (proprietaire uniquement).
 
-### 11.5. Export JSON
+### 12.5. Export JSON
 
 Exporte le coffre complet au format JSON. Les donnees ne sont pas chiffrees. Le fichier exporte recoit des permissions restrictives.
 
-### 11.6. Export sauvegarde chiffree
+### 12.6. Export sauvegarde chiffree
 
 Cree une copie du fichier coffre chiffre (`.enc`). Ce fichier ne peut etre ouvert qu'avec le mot de passe maitre correspondant. C'est le **moyen le plus sur** de sauvegarder vos donnees.
 
-### 11.7. Specificites Android
+### 12.7. Specificites Android
 
 Sur Android, l'import et l'export utilisent le **Storage Access Framework (SAF)** : un selecteur de fichiers systeme permet de choisir l'emplacement. L'application n'a pas besoin de permissions de stockage globales.
 
 ---
 
-## 12. Synchronisation distante
+## 13. Synchronisation distante
 
 La synchronisation SFTP est disponible sur **desktop et Android**. Elle permet de maintenir le coffre synchronise entre plusieurs appareils via un serveur SFTP.
 
-### 12.1. Modes de stockage
+### 13.1. Modes de stockage
 
 | Mode | Description |
 |------|-------------|
 | **Local uniquement** (defaut) | Le coffre est stocke uniquement sur la machine locale |
 | **Serveur distant** | Le coffre est synchronise avec un serveur SFTP |
 
-### 12.2. Configuration SFTP
+### 13.2. Configuration SFTP
 
 **Acces** : Fichier > Parametres > onglet Synchronisation (desktop) | Parametres > section Synchronisation (Android)
 
@@ -535,7 +575,7 @@ Le bouton **Tester la connexion** permet de verifier la configuration.
 
 > En mode distant, la validation requiert que le fichier de cle SSH existe et soit lisible.
 
-### 12.3. Synchronisation manuelle
+### 13.3. Synchronisation manuelle
 
 **Acces** : Outils > Synchroniser maintenant | Barre d'outils
 
@@ -544,13 +584,24 @@ La synchronisation compare le coffre local et le coffre distant via leurs emprei
 - Si differents et le local est plus recent : envoi du local vers le serveur
 - Si differents et le distant est plus recent : notification de conflit
 
-### 12.4. Mode hors-ligne
+### 13.4. Mode hors-ligne
 
 Si le serveur est injoignable, les modifications sont mises en attente localement (fichier `.pending`). Elles sont automatiquement synchronisees lors de la prochaine connexion reussie.
 
-### 12.5. Gestion des conflits
+### 13.5. Gestion des conflits (fusion bidirectionnelle)
 
-Lorsque le coffre a ete modifie a la fois localement et sur le serveur, un dialogue propose trois options :
+Lorsque le coffre a ete modifie a la fois localement et sur le serveur, le systeme effectue une **fusion par entree** (`EntryMerger`) :
+
+1. Les entrees presentes uniquement en local sont conservees
+2. Les entrees presentes uniquement sur le serveur sont ajoutees
+3. Les entrees presentes des deux cotes avec le meme `updatedAt` sont conservees telles quelles
+4. Les entrees presentes des deux cotes avec des `updatedAt` differents generent un **conflit**
+
+**Si aucun conflit** : la fusion est automatique, le resultat est sauvegarde localement et uploade sur le serveur.
+
+**Si des conflits existent** : un dialogue de resolution s'affiche avec une vue cote-a-cote (local / distant) pour chaque entree en conflit. L'utilisateur choisit la version a conserver pour chaque entree.
+
+**Fallback** : si la fusion echoue, l'ancien mode est propose :
 
 | Option | Comportement |
 |--------|-------------|
@@ -560,11 +611,11 @@ Lorsque le coffre a ete modifie a la fois localement et sur le serveur, un dialo
 
 ---
 
-## 13. Parametres
+## 14. Parametres
 
 **Acces** : Fichier > Parametres
 
-### 13.1. Onglet General
+### 14.1. Onglet General
 
 | Parametre | Description | Valeurs |
 |-----------|-------------|---------|
@@ -575,20 +626,20 @@ Le theme **Systeme** detecte automatiquement le theme clair ou sombre de l'OS.
 
 Le changement de theme prend effet immediatement. Le changement de langue reconstruit l'interface.
 
-### 13.2. Onglet Securite
+### 14.2. Onglet Securite
 
 | Parametre | Description | Plage | Defaut |
 |-----------|-------------|-------|--------|
 | Verrouillage automatique | Delai d'inactivite avant verrouillage | 1 a 60 minutes | 15 min |
 | Effacement presse-papiers | Delai d'effacement apres copie d'un mot de passe | 5 a 120 secondes | 30 s |
 
-### 13.3. Onglet Synchronisation
+### 14.3. Onglet Synchronisation
 
 Voir la section [Synchronisation distante](#12-synchronisation-distante).
 
 ---
 
-## 14. Changement du mot de passe maitre
+## 15. Changement du mot de passe maitre
 
 **Acces** : Edition > Changer mot de passe maitre
 
@@ -605,15 +656,15 @@ Le changement de mot de passe ne re-chiffre **pas** l'ensemble des donnees. Seul
 
 ---
 
-## 15. Securite
+## 16. Securite
 
-### 15.1. Chiffrement
+### 16.1. Chiffrement
 
 - **Algorithme** : AES-256-GCM (chiffrement authentifie)
 - **Derivation de cle** : PBKDF2-HMAC-SHA256 avec 600 000 iterations et sel de 32 octets
 - **Architecture** : chiffrement par enveloppe (DEK/KEK) separant la cle de donnees de la cle derivee du mot de passe
 
-### 15.2. Protection du mot de passe maitre
+### 16.2. Protection du mot de passe maitre
 
 - Politique stricte : minimum 12 caracteres, 4 types requis, rejet des mots de passe courants (44 mots de passe connus incluant des variantes francaises comme "motdepasse")
 - Le mot de passe n'est **jamais conserve en memoire** apres l'authentification
@@ -621,26 +672,26 @@ Le changement de mot de passe ne re-chiffre **pas** l'ensemble des donnees. Seul
 - Comparaison a temps constant contre la liste de mots de passe courants (empeche les attaques par canal auxiliaire de timing)
 - Sur Android, les formulaires contenant des mots de passe effacent automatiquement leurs donnees a la destruction du ViewModel
 
-### 15.3. Verrouillage automatique
+### 16.3. Verrouillage automatique
 
 Apres une periode d'inactivite configurable (defaut : 15 minutes), le coffre se verrouille automatiquement. Les cles sont effacees de la memoire et l'ecran de connexion est affiche.
 
 L'inactivite est detectee par l'absence d'evenements clavier et souris.
 
-### 15.4. Presse-papiers
+### 16.4. Presse-papiers
 
 Lorsqu'un mot de passe ou un identifiant est copie :
 - Le presse-papiers est automatiquement efface apres le delai configure (defaut : 30 secondes)
 - Le presse-papiers est egalement efface au verrouillage et a la fermeture de l'application
 - Sur Android 13+ (API 33), le flag `EXTRA_IS_SENSITIVE` empeche l'affichage du contenu dans la previsualisation du presse-papiers
 
-### 15.5. Masquage des mots de passe
+### 16.5. Masquage des mots de passe
 
 - Les mots de passe sont masques par defaut dans tous les affichages
 - Le devoilement est temporaire : **retour automatique au masquage apres 30 secondes**
 - L'ecran de connexion et le formulaire de creation d'utilisateur disposent d'une case a cocher pour afficher/masquer le mot de passe
 
-### 15.6. Securite des fichiers
+### 16.6. Securite des fichiers
 
 - Tous les fichiers sensibles (coffres, configuration, cle) ont des permissions restreintes au proprietaire uniquement
   - Linux/macOS : `rw-------` (600) pour les fichiers, `rwx------` (700) pour les repertoires
@@ -648,13 +699,13 @@ Lorsqu'un mot de passe ou un identifiant est copie :
 - Ecriture atomique (fichier temporaire + permissions + renommage) pour prevenir la corruption
 - Les fichiers exportes en clair recoivent egalement des permissions restrictives
 
-### 15.7. Aucune recuperation
+### 16.7. Aucune recuperation
 
 Par conception, il n'existe **aucun mecanisme de recuperation** du mot de passe maitre. Cela garantit qu'un attaquant ne peut pas contourner le chiffrement. Il est recommande de conserver une sauvegarde chiffree du coffre en lieu sur.
 
 ---
 
-## 16. Raccourcis clavier
+## 17. Raccourcis clavier
 
 | Raccourci | Action |
 |-----------|--------|
@@ -668,23 +719,23 @@ Par conception, il n'existe **aucun mecanisme de recuperation** du mot de passe 
 
 ---
 
-## 17. Verification des mises a jour
+## 18. Verification des mises a jour
 
 L'application verifie automatiquement la disponibilite de nouvelles versions via l'API GitHub Releases.
 
-### 17.1. Desktop
+### 18.1. Desktop
 
 - **Verification automatique** : au lancement et toutes les 5 minutes en arriere-plan
 - **Verification manuelle** : lien **Verifier les mises a jour** sur l'ecran de connexion
 - **Notification** : une barre jaune non intrusive apparait en haut de la fenetre principale si une mise a jour est disponible, avec un bouton pour ouvrir la page de release
 - La barre de notification est masquable (bouton X)
 
-### 17.2. Android
+### 18.2. Android
 
 - **Verification automatique** : au lancement de l'ecran principal
 - **Notification** : une boite de dialogue s'affiche si une mise a jour est disponible, avec les options **Telecharger** (ouvre le navigateur vers la page GitHub) ou **Plus tard**
 
-### 17.3. Securite
+### 18.3. Securite
 
 - Les URLs sont validees avant ouverture (seul le domaine `https://github.com/` est accepte)
 - La taille maximale de la reponse API est limitee a 1 Mo pour prevenir les attaques par depassement de memoire
@@ -692,7 +743,33 @@ L'application verifie automatiquement la disponibilite de nouvelles versions via
 
 ---
 
-## 18. Structure des donnees utilisateur
+## 19. Service d'auto-remplissage (Android)
+
+Android 8.0+ (API 26) propose un framework d'auto-remplissage (Autofill) que Password Manager integre pour remplir automatiquement les champs de connexion dans les applications et navigateurs.
+
+### Activation
+
+**Acces** : Parametres > Activer le service d'auto-remplissage
+
+Ce bouton ouvre les parametres systeme Android pour selectionner Password Manager comme service d'auto-remplissage.
+
+### Fonctionnement
+
+1. Lorsqu'une application affiche un formulaire de connexion, Android interroge le service d'auto-remplissage
+2. Le service analyse les champs du formulaire (par hints d'auto-remplissage puis heuristiques)
+3. Les entrees du coffre sont comparees par domaine web ou nom de package
+4. Si le coffre est verrouille, une invite d'authentification est affichee
+5. Si le coffre est deverrouille, jusqu'a 5 suggestions sont proposees
+
+### Securite
+
+- Le service n'enregistre jamais automatiquement de nouvelles credentials (pas de `onSaveRequest`)
+- Les mots de passe `char[]` sont effaces immediatement apres conversion en `AutofillValue`
+- Le service ne fonctionne que si le coffre est deverrouille (sinon, redirection vers l'ecran de connexion)
+
+---
+
+## 20. Structure des donnees utilisateur
 
 Les donnees de l'application sont stockees dans le repertoire `~/.password-manager/` :
 
@@ -726,29 +803,34 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 
 ---
 
-## 19. Differences entre plateformes
+## 21. Differences entre plateformes
 
 | Fonctionnalite | Desktop | Android |
 |---|---|---|
-| Coffre-fort chiffre AES-256-GCM | Oui | Oui |
+| Coffre-fort chiffre AES-256-GCM + AAD | Oui | Oui |
 | CRUD entrees | Oui | Oui |
+| Favoris (etoile, tri prioritaire) | Oui | Oui |
+| Filtres avances (categorie, force, date, favoris) | Oui | Oui (FilterChips) |
+| Favicons des sites web | Oui (colonne tableau) | Oui (carte d'entree) |
 | Generateur de mots de passe | Oui | Oui |
-| Analyse de securite | Oui | Oui |
+| Analyse de securite + HIBP | Oui | Oui |
 | Import/export unifie (CSV/JSON/.enc) | Fichier > Importer.../Exporter... | Menu overflow > Importer.../Exporter... (SAF) |
 | Import sauvegarde chiffree | Oui | Oui |
 | Recherche en temps reel | Oui (titre, id, email, pseudo, URL, notes, categorie, tags) | Oui |
 | Tri (7 criteres) | En-tetes cliquables + menu Affichage | Menu overflow tri |
 | Filtrage par categorie | Panneau lateral | Dropdown (liste deroulante) |
-| Selection multiple + operations en masse | Oui (Ctrl/Shift+clic, barre d'actions) | Oui (appui long) |
+| Selection multiple + operations en masse | Oui (menu "Actions...") | Oui (appui long) |
 | Menu contextuel (clic droit) | Oui (modifier, supprimer, copier, ouvrir URL, dupliquer) | Non |
 | Gestion des categories | Ajout via panneau lateral | Ecran dedie (Parametres > Gerer les categories) |
 | Verification des mises a jour | Auto (5 min) + manuel (ecran connexion) | Au lancement (dialog) |
 | URL cliquable dans le detail | Oui (Desktop.browse) | Oui (UriHandler) |
 | Themes Systeme/Clair/Sombre | FlatLaf | Material 3 (Dynamic Colors Android 12+) |
 | Verrouillage automatique | Oui (evenements AWT) | Oui (ProcessLifecycleOwner) |
-| Effacement presse-papiers | Oui | Oui |
+| Verrouillage ecran eteint | Non | Oui (BroadcastReceiver ACTION_SCREEN_OFF) |
+| Presse-papiers securise | SecureClipboard (char[], wipe on lostOwnership) | EXTRA_IS_SENSITIVE + clear on screen-off |
 | Anti brute-force | Oui | Oui |
-| Synchronisation SFTP | Oui | Oui |
+| Synchronisation SFTP bidirectionnelle | Oui (EntryMerger + ConflictResolutionDialog) | Oui |
+| Service d'auto-remplissage (Autofill) | Non | Oui (API 26+) |
 | Injection de dependances | N/A (gestion manuelle) | Hilt/Dagger |
 | Stockage configuration | `config.properties` chiffre | EncryptedSharedPreferences |
 | Raccourcis clavier | Oui | N/A |

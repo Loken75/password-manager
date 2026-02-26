@@ -32,6 +32,9 @@ public class SFTPRepository implements RemoteSyncRepository {
     public void connect() throws JSchException {
         JSch jsch = new JSch();
         jsch.addIdentity(privateKeyPath);
+        // Note: if the key is passphrase-protected, JSch will throw JSchException
+        // if no passphrase is provided. Unencrypted keys work but are less secure.
+        LOGGER.fine("Using SSH key: " + privateKeyPath);
 
         String knownHostsPath = System.getProperty("user.home") + File.separator + ".ssh" + File.separator + "known_hosts";
         if (new File(knownHostsPath).exists()) {

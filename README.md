@@ -4,22 +4,28 @@ Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et prot
 
 ## Fonctionnalites
 
-- Coffre-fort chiffre par utilisateur (AES-256-GCM, PBKDF2 600 000 iterations)
+- Coffre-fort chiffre par utilisateur (AES-256-GCM avec AAD, PBKDF2 600 000 iterations)
 - Chiffrement par enveloppe DEK/KEK (changement de mot de passe instantane)
 - Generateur de mots de passe cryptographiquement sur (SecureRandom)
-- Analyse de securite (mots de passe faibles, reutilises, anciens)
+- Analyse de securite (mots de passe faibles, reutilises, anciens, **compromis HIBP**)
+- Systeme de **favoris** avec tri prioritaire et operations en masse
+- **Filtres avances** combinables (categorie, force, date, favoris, recherche textuelle)
+- **Favicons** des sites web (Google Favicon API + cache disque)
 - Import/export unifie (CSV, JSON, coffre chiffre) avec popup parametrable et import par fusion
-- Synchronisation SFTP avec gestion des conflits et mode hors-ligne
+- Synchronisation SFTP **bidirectionnelle** avec fusion par entree et resolution de conflits
 - Interface bilingue francais / anglais
 - Themes Systeme, Clair et Sombre
 - Verrouillage automatique apres inactivite
-- Effacement automatique du presse-papiers
+- Effacement securise du presse-papiers (`SecureClipboard` avec `char[]`, efface a la perte de propriete)
 - Protection anti brute-force sur l'ecran de connexion
 - Verification semi-automatique des mises a jour via l'API GitHub Releases
 - **Desktop** : distribution autonome avec JRE embarque (aucune installation Java requise)
-- **Desktop** : selection multiple, operations en masse (suppression, changement de categorie) et menu contextuel (clic droit)
+- **Desktop** : selection multiple, menu "Actions..." (suppression, categorie, favoris en masse) et menu contextuel (clic droit)
+- **Desktop** : boutons de copie en ligne dans le panneau de details (identifiant, email, pseudo, mot de passe, URL)
 - **Android** : application native Jetpack Compose / Material 3 avec injection de dependances Hilt (APK)
 - **Android** : gestion des categories (ajout, suppression avec reassignation)
+- **Android** : service d'auto-remplissage (Autofill API 26+)
+- **Android** : verrouillage automatique a l'extinction de l'ecran
 
 ---
 
@@ -137,8 +143,8 @@ Apres connexion, l'interface se compose de :
 - **Barre de menus** : Fichier, Edition, Affichage, Outils, Aide
 - **Barre d'outils** : Nouvelle entree, Generateur, Synchroniser, Verrouiller
 - **Panneau gauche** (180 px) : liste des categories avec filtrage au clic
-- **Panneau central** : barre de recherche en temps reel + tableau des entrees (Titre, Identifiant, Email, Pseudo, Categorie, Force) avec tri par clic sur les en-tetes de colonnes + barre d'actions en masse (visible quand >1 entree selectionnee)
-- **Panneau droit** (300 px) : details de l'entree selectionnee avec boutons copier identifiant/mot de passe
+- **Panneau central** : barre de recherche en temps reel + filtres avances + tableau des entrees (Favori, Favicon, Titre, Identifiant, Email, Pseudo, Categorie, Force) avec tri par clic sur les en-tetes de colonnes + menu "Actions..." en masse (visible quand >1 entree selectionnee)
+- **Panneau droit** (300 px) : details de l'entree selectionnee avec boutons copier en ligne (identifiant, email, pseudo, mot de passe, URL)
 - **Menu contextuel** (clic droit) : modifier, supprimer, copier mot de passe/identifiant/email/URL, ouvrir l'URL, dupliquer
 - **Barre de notification** : mise a jour disponible (barre jaune en haut, masquable)
 - **Barre de statut** : statut de synchronisation, utilisateur connecte, nombre d'entrees
@@ -159,17 +165,23 @@ Apres connexion, l'interface se compose de :
 | Fonctionnalite | Desktop | Android |
 |---|---|---|
 | CRUD entrees | Oui | Oui |
+| Favoris (etoile, tri prioritaire) | Oui | Oui |
+| Filtres avances (categorie, force, date, favoris) | Oui | Oui |
+| Favicons des sites web | Oui | Oui |
 | Generateur de mots de passe | Oui | Oui |
-| Analyse de securite | Oui | Oui |
+| Analyse de securite + HIBP | Oui | Oui |
 | Import/export unifie (CSV/JSON/chiffre) | Oui | Oui (via SAF) |
 | Recherche et tri (7 criteres) | Oui | Oui |
-| Selection multiple + suppression/categorie en masse | Oui | Oui |
+| Selection multiple + actions en masse | Oui (menu "Actions...") | Oui |
 | Menu contextuel (clic droit) | Oui | Non |
 | Gestion des categories | Oui | Oui (ecran dedie) |
 | Verification des mises a jour | Oui (auto + manuel) | Oui (au lancement) |
 | Themes Systeme/Clair/Sombre | Oui (FlatLaf) | Oui (Material 3 / Dynamic Colors) |
 | Verrouillage automatique | Oui | Oui |
-| Synchronisation SFTP | Oui | Oui |
+| Verrouillage ecran eteint | Non | Oui |
+| Synchronisation SFTP bidirectionnelle | Oui | Oui |
+| Resolution de conflits (fusion par entree) | Oui | Oui |
+| Service d'auto-remplissage (Autofill) | Non | Oui (API 26+) |
 | URL cliquable dans le detail | Oui | Oui |
 
 ### Generateur de mots de passe
@@ -183,6 +195,7 @@ Genere un rapport sur :
 - Mots de passe **faibles** (score insuffisant)
 - Mots de passe **reutilises** (partages entre plusieurs entrees)
 - Mots de passe **anciens** (non modifies depuis 180+ jours, configurable)
+- Mots de passe **compromis** (verification HIBP via k-Anonymity, declenchee manuellement)
 
 Indicateur de force : Faible (rouge), Moyen (orange), Fort (vert), Tres fort (bleu).
 
@@ -200,9 +213,11 @@ Sur Android, l'import/export utilise le Storage Access Framework (SAF) — selec
 
 Disponible sur **desktop** et **Android**.
 
+- Synchronisation **bidirectionnelle** avec fusion par entree (`EntryMerger`)
 - Comparaison par empreinte SHA-256 (local vs distant)
 - Mode hors-ligne : modifications mises en attente automatiquement (fichier `.pending`, desktop)
-- Gestion des conflits : garder local, garder distant, ou sauvegarder les deux versions (desktop)
+- Resolution de conflits interactive : vue cote-a-cote local/distant par entree (`ConflictResolutionDialog`)
+- Fusion automatique si aucun conflit (entrees uniquement locales + uniquement distantes)
 - Authentification par cle SSH uniquement
 - `StrictHostKeyChecking` active (`yes` avec known_hosts, ou `accept-new` pour la premiere connexion)
 
@@ -256,23 +271,24 @@ DEK (Data Encryption Key) -- AES-256, 32 octets aleatoires
 | Mesure | Implementation |
 |---|---|
 | Mots de passe en `char[]` | Jamais de `String`, effacement explicite via `SecureWiper` |
-| Barriere anti-optimisation | Lecture volatile apres `Arrays.fill()` pour empecher le JIT dead-store elimination |
+| Barriere anti-optimisation | Lecture volatile par accumulateur sur tout le tableau apres `Arrays.fill()` (empeche le JIT dead-store elimination) |
+| GCM AAD | Le chiffrement AES-256-GCM des donnees du coffre lie la version (`"2.0"`) en tant qu'Additional Authenticated Data, empechant la substitution de parametres |
 | Copies defensives | `VaultEntry.getPassword()` et `VaultSession.getSalt/getKekIv/getEncryptedDek()` retournent des clones |
 | Nettoyage de session | `VaultSession` implemente `Destroyable` et `AutoCloseable` |
+| Presse-papiers securise | `SecureClipboard` (desktop) : stocke en `char[]` via `Transferable` personnalise, efface sur `lostOwnership()` |
+| Presse-papiers sensible | Flag `EXTRA_IS_SENSITIVE` (Android 13+) pour masquer le contenu copie |
+| Presse-papiers lifecycle | Efface automatiquement apres delai configure + au verrouillage + a la fermeture + a l'extinction de l'ecran (Android) |
 | Permissions fichiers | POSIX `rw-------` (600) / `rwx------` (700) ; ACL owner-only sur Windows |
 | Ecriture atomique | Fichier temporaire + permissions + `Files.move(ATOMIC_MOVE)` |
 | Validation des entrees | Regex username, path traversal sur noms de fichiers (local et SFTP) |
 | Anti brute-force | Backoff progressif apres 3 echecs (jusqu'a 30s), compteur par utilisateur |
 | Masquage temporaire | Mot de passe re-masque automatiquement apres 30 secondes |
-| Presse-papiers | Efface automatiquement apres delai configure + au verrouillage + a la fermeture |
-| Presse-papiers sensible | Flag `EXTRA_IS_SENSITIVE` (Android 13+) pour masquer le contenu copie |
 | Validation JSON vault | Null-checks sur les champs obligatoires du fichier `.enc` (corruption detectee) |
 | Nettoyage ViewModel | `onCleared()` efface les mots de passe des formulaires Android |
-| Thread safety | `SessionHolder` : champs `@Volatile` + methodes `@Synchronized` |
+| Thread safety | `VaultService` : toutes les methodes publiques `synchronized` ; `SessionHolder` : `@Volatile` + `@Synchronized` ; `AutoLockManager.lastActivity` : `volatile` |
 | Limite taille fichier | Rejet des fichiers coffre > 50 Mo au chargement |
 | Rejet mots de passe courants | 44 mots de passe connus rejetes (comparaison a temps constant) |
 | Verification mises a jour | API GitHub limitee a 1 Mo de reponse, URLs validees (`https://github.com/` uniquement) |
-| Thread safety VaultService | Methodes de mutation `synchronized` pour prevenir les races |
 | Checksums releases | SHA256SUMS.txt genere et publie avec chaque release |
 
 ### Aucune recuperation
@@ -301,55 +317,62 @@ Par conception, aucun mecanisme de recuperation du mot de passe maitre n'existe.
 ```
 password-manager/
 |-- core/                              # Logique metier partagee (Java 17)
-|   +-- crypto/                        # CryptoService, KeyDerivation, VaultSession
-|   +-- vault/                         # Vault, VaultEntry, VaultManager, VaultService
+|   +-- crypto/                        # CryptoService, KeyDerivation, VaultSession, PasswordGenerator
+|   +-- vault/                         # Vault, VaultEntry, VaultManager, VaultService, EntryFilter
+|   +-- security/                      # HibpChecker (detection de mots de passe compromis)
+|   +-- sync/                          # EntryMerger (fusion bidirectionnelle par entree)
 |   +-- config/                        # AppConfig, ConfigManager, ConfigEncryptor
-|   +-- sync/                          # SyncService, LocalRepository, SFTPRepository
 |   +-- update/                        # UpdateChecker, UpdateInfo, VersionComparator
-|   +-- util/                          # SecureWiper, FileSecurityUtils, PasswordValidator
+|   +-- util/                          # SecureWiper, FileSecurityUtils, PasswordValidator, FaviconService
 |   +-- i18n/                          # LanguageManager (FR/EN)
 |
 |-- desktop/                           # Interface Swing (Java 17)
-|   +-- ui/                            # LoginFrame, MainFrame, VaultPanel, dialogs
+|   +-- ui/                            # LoginFrame, MainFrame, VaultPanel, SecureClipboard, dialogs
+|   +-- sync/                          # SyncService, LocalRepository, SFTPRepository
 |   +-- update/                        # DesktopUpdateManager
 |
 +-- android/                           # Interface Jetpack Compose (Kotlin)
-    +-- data/                          # AndroidVaultRepository, ConfigRepository, SessionHolder
+    +-- autofill/                      # PasswordManagerAutofillService (API 26+)
+    +-- data/                          # AndroidVaultRepository, ConfigRepository, SessionHolder, FaviconRepository
     +-- di/                            # AppModule (Hilt DI)
-    +-- ui/                            # Ecrans Compose (login, vault, generator, settings, audit)
+    +-- ui/                            # Ecrans Compose (login, vault, generator, settings, audit, sync)
     +-- update/                        # AndroidUpdateManager
 ```
 
 ### Tests
 
-**264 tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
+**300 tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
 
 | Module | Classe de test | Tests | Description |
 |---|---|:---:|---|
+| vault | `VaultServiceTest` | 35 | CRUD, recherche, tri, favoris, filtre, doublons, categories, timestamps, mots de passe anciens |
 | security | `SecurityAuditTest` | 31 | IV, KDF, memoire, permissions, format, import/export, generateur |
-| vault | `VaultServiceTest` | 25 | CRUD, recherche, tri, doublons, categories, timestamps, mots de passe anciens |
 | sync | `SyncServiceTest` | 23 | Synchronisation, hash, conflits, mode hors-ligne |
+| vault | `VaultImporterTest` | 20 | CSV (separateurs, alias, BOM, sanitisation, favoris), JSON, limites |
 | sync | `LocalRepositoryTest` | 17 | Path traversal, CRUD, pending, backups |
-| vault | `VaultImporterTest` | 17 | CSV (separateurs, alias, BOM, sanitisation), JSON, limites |
 | vault | `VaultManagerIntegrationTest` | 16 | Cycle complet avec vraie crypto, validation username |
 | util | `PasswordValidatorTest` | 15 | Politique mot de passe maitre, rejet des mots de passe courants |
-| crypto | `CryptoServiceTest` | 13 | Enveloppe DEK/KEK, chiffrement, changement mdp, tampering, legacy |
+| crypto | `CryptoServiceTest` | 14 | Enveloppe DEK/KEK, chiffrement, AAD, changement mdp, tampering, legacy |
 | config | `ConfigEncryptorTest` | 11 | Round-trip, caracteres speciaux, corruption, unicite IV |
 | **android** | `GeneratorViewModelTest` | 11 | Etat initial, generation, longueur, toggles, force, nettoyage |
 | sync | `SFTPRepositoryTest` | 10 | Validation filename sur 4 methodes publiques |
 | crypto | `PasswordStrengthAnalyzerTest` | 9 | Niveaux de force, score, cas limites |
 | vault | `VaultTest` | 9 | Constructeurs, add/remove, unmodifiable, wipe, settings |
-| vault | `VaultExporterTest` | 8 | CSV, JSON, injection, round-trip |
+| vault | `VaultExporterTest` | 9 | CSV, JSON, injection, favoris, round-trip |
 | **android** | `EntryEditViewModelTest` | 8 | Formulaire CRUD, sauvegarde, validation |
 | **android** | `ChangeMasterPasswordViewModelTest` | 7 | Validation, mismatch, nettoyage onCleared |
+| vault | `EntryFilterTest` | 6 | Filtres combines (categorie, force, date, favoris, texte) |
 | i18n | `LanguageManagerTest` | 6 | Singleton, getString, setLanguage, langues disponibles |
+| util | `FaviconServiceTest` | 5 | Extraction domaine, cache disque, favicon null |
+| security | `HibpCheckerTest` | 5 | Null, vide, entree valide, caracteres speciaux, unicode |
+| sync | `EntryMergerTest` | 5 | Fusion locale/distante, conflits, entrees identiques |
 | **android** | `SecurityAuditViewModelTest` | 5 | Audit vide, faibles, dupliques, anciens, total |
 | **android** | `EntryDetailViewModelTest` | 5 | Chargement, visibilite, suppression |
 | **android** | `SettingsViewModelTest` | 5 | Configuration initiale, theme, langue, auto-lock, clipboard |
 | util | `DateUtilsTest` | 5 | ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance |
-| | | **264** | |
+| | | **300** | |
 
 ---
 

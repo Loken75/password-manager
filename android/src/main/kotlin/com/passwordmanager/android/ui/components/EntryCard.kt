@@ -10,6 +10,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,7 +37,8 @@ fun EntryCard(
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
-    onLongClick: () -> Unit = {}
+    onLongClick: () -> Unit = {},
+    onToggleFavorite: () -> Unit = {}
 ) {
     val strength = entry.password?.let { PasswordStrengthAnalyzer.analyze(it) }
     val strengthColor = when (strength) {
@@ -131,6 +134,19 @@ fun EntryCard(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+                }
+
+                // Favorite star
+                IconButton(
+                    onClick = onToggleFavorite,
+                    modifier = Modifier.align(Alignment.CenterVertically).size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = if (entry.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                        contentDescription = null,
+                        tint = if (entry.isFavorite) Color(0xFFFFC107) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
 
                 // Category chip

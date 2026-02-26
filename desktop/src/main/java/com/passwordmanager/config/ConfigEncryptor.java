@@ -86,8 +86,8 @@ final class ConfigEncryptor {
             // Try current iterations first
             try {
                 return doDecrypt(iv, ciphertext, KDF_ITERATIONS);
-            } catch (Exception ignored) {
-                // Fall back to legacy iterations for migration
+            } catch (Exception e) {
+                LOGGER.log(Level.FINE, "Current KDF iteration decryption failed, trying legacy iterations", e);
             }
             return doDecrypt(iv, ciphertext, LEGACY_KDF_ITERATIONS);
         } catch (Exception e) {

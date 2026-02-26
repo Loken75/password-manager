@@ -23,13 +23,29 @@ public interface EncryptionService {
 
     /**
      * Encrypts vault data with the session's DEK.
+     * @param aad optional Additional Authenticated Data (e.g. vault version) bound to ciphertext
      */
-    EncryptedPayload encryptData(byte[] plaintext, SecretKey dataKey) throws VaultEncryptionException;
+    EncryptedPayload encryptData(byte[] plaintext, SecretKey dataKey, byte[] aad) throws VaultEncryptionException;
+
+    /**
+     * Encrypts vault data with the session's DEK (no AAD).
+     */
+    default EncryptedPayload encryptData(byte[] plaintext, SecretKey dataKey) throws VaultEncryptionException {
+        return encryptData(plaintext, dataKey, null);
+    }
 
     /**
      * Decrypts vault data with the session's DEK.
+     * @param aad optional AAD that was used during encryption (must match exactly)
      */
-    byte[] decryptData(byte[] iv, byte[] ciphertext, SecretKey dataKey) throws VaultDecryptionException;
+    byte[] decryptData(byte[] iv, byte[] ciphertext, SecretKey dataKey, byte[] aad) throws VaultDecryptionException;
+
+    /**
+     * Decrypts vault data with the session's DEK (no AAD).
+     */
+    default byte[] decryptData(byte[] iv, byte[] ciphertext, SecretKey dataKey) throws VaultDecryptionException {
+        return decryptData(iv, ciphertext, dataKey, null);
+    }
 
     /**
      * Re-encrypts the DEK with a new password-derived KEK (for password change).

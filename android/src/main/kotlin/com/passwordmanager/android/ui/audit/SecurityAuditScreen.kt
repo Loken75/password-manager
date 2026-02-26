@@ -99,6 +99,79 @@ fun SecurityAuditScreen(
                 entries = state.oldEntries,
                 onEntryClick = onEntryClick
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Breached passwords section (HIBP)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${stringResource(R.string.audit_breached_passwords)} (${state.breachedEntries.size})",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        OutlinedButton(
+                            onClick = { viewModel.checkBreaches() },
+                            enabled = !state.isCheckingBreaches
+                        ) {
+                            Text(stringResource(R.string.audit_check_now))
+                        }
+                    }
+
+                    if (state.isCheckingBreaches) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        }
+                    }
+
+                    if (state.breachError) {
+                        Text(
+                            text = stringResource(R.string.audit_breach_error),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+
+                    if (state.breachedEntries.isNotEmpty()) {
+                        HorizontalDivider()
+                        state.breachedEntries.forEach { entry ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onEntryClick(entry.id) }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                            ) {
+                                Column {
+                                    Text(
+                                        text = entry.title ?: "",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                    if (!entry.username.isNullOrBlank()) {
+                                        Text(
+                                            text = entry.username,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        }
+                    }
+                }
+            }
         }
     }
 }

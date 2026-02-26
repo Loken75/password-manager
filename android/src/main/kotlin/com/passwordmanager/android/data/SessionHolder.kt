@@ -11,8 +11,16 @@ import kotlinx.coroutines.flow.asStateFlow
  * Singleton holding the current unlocked vault session.
  * Acts as the source of truth for authentication state.
  *
- * Thread safety: all mutable fields are @Volatile and mutations are synchronized
- * to prevent races between IO coroutines (login) and Main thread (UI reads, auto-lock).
+ * Thread safety model:
+ * - Individual field reads are safe via @Volatile (visibility guarantee across threads).
+ * - Multi-field mutations (unlock/lock/save) are @Synchronized to ensure atomicity:
+ *   a reader cannot observe a partially-unlocked state (e.g. vault set but session null).
+ * - Callers reading multiple fields sequentially (e.g. vault + session) should be aware
+ *   that a lock() call can interleave between reads. In practice this is safe because
+ *   UI reads happen on Main and lock() posts _isUnlocked=false via StateFlow, which
+ *   triggers recomposition before the next UI read.
+ * - [isUnlockedFlow] is the canonical reactive signal for UI; prefer collecting it
+ *   over polling [isUnlocked].
  */
 object SessionHolder {
 

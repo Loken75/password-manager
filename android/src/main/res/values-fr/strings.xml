@@ -212,4 +212,26 @@
     <string name="update_download">Télécharger</string>
     <string name="update_dismiss">Plus tard</string>
     <string name="update_check">Vérifier les mises à jour</string>
+
+    <!-- Favoris -->
+    <string name="entry_favorite">Favoris</string>
+    <string name="entry_toggle_favorite">Basculer favori</string>
+
+    <!-- Détection de fuites HIBP -->
+    <string name="audit_breached_passwords">Mots de passe compromis (HIBP)</string>
+    <string name="audit_breach_count">%1$d mot(s) de passe trouvé(s) dans des fuites de données</string>
+    <string name="audit_breach_checking">Vérification des fuites connues…</string>
+    <string name="audit_breach_error">Impossible de vérifier les fuites (erreur réseau)</string>
+    <string name="audit_check_now">Vérifier maintenant</string>
+
+    <!-- Autofill -->
+    <string name="settings_autofill">Activer le service de remplissage automatique</string>
+    <string name="autofill_unlock_prompt">Déverrouiller le coffre pour le remplissage automatique</string>
+
+    <!-- Fusion de synchronisation -->
+    <string name="sync_merge_conflicts">Conflits de fusion détectés</string>
+    <string name="sync_merge_local_version">Version locale</string>
+    <string name="sync_merge_remote_version">Version distante</string>
+    <string name="sync_merge_resolve">Résoudre les conflits</string>
+    <string name="sync_merge_auto_merged">Modifications fusionnées avec succès</string>
 </resources>

@@ -6,7 +6,6 @@ import com.passwordmanager.util.SecureWiper;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.datatransfer.StringSelection;
 
 /**
  * Dialog for generating secure passwords.
@@ -105,8 +104,7 @@ public class PasswordGeneratorDialog extends JDialog {
         copyBtn.addActionListener(e -> {
             char[] pwd = resultField.getPassword();
             if (pwd != null && pwd.length > 0) {
-                Toolkit.getDefaultToolkit().getSystemClipboard()
-                    .setContents(new StringSelection(new String(pwd)), null);
+                SecureClipboard.copyPassword(pwd);
                 SecureWiper.wipe(pwd);
                 // Cancel any previous clipboard clear timer
                 if (clipboardTimer != null) {
@@ -114,8 +112,7 @@ public class PasswordGeneratorDialog extends JDialog {
                 }
                 // Auto-clear clipboard after delay (Swing Timer runs on EDT)
                 clipboardTimer = new Timer(clipboardClearSeconds * 1000, evt ->
-                    Toolkit.getDefaultToolkit().getSystemClipboard()
-                        .setContents(new StringSelection(""), null));
+                    SecureClipboard.clear());
                 clipboardTimer.setRepeats(false);
                 clipboardTimer.start();
             }
@@ -146,12 +143,9 @@ public class PasswordGeneratorDialog extends JDialog {
             upperCheck.isSelected(), lowerCheck.isSelected(),
             digitsCheck.isSelected(), specialCheck.isSelected(),
             ambiguousCheck.isSelected());
-        // Set via Document model to minimize String interning
-        javax.swing.text.Document doc = resultField.getDocument();
-        try {
-            doc.remove(0, doc.getLength());
-            doc.insertString(0, new String(generatedPassword), null);
-        } catch (javax.swing.text.BadLocationException ignored) {}
+        // JPasswordField stores internally as char[] — setText creates a temporary String
+        // but the field's Document model stores char[]. This is the minimal conversion path.
+        resultField.setText(new String(generatedPassword));
         StrengthBarHelper.update(strengthBar, strengthLabel, generatedPassword);
     }
 

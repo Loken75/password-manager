@@ -8,6 +8,8 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * AES-256-GCM encryption service with DEK/KEK envelope encryption.
@@ -21,6 +23,7 @@ import java.util.Arrays;
  * master password is not needed in memory after unlock.
  */
 public class CryptoService implements EncryptionService {
+    private static final Logger LOGGER = Logger.getLogger(CryptoService.class.getName());
     private static final String ALGORITHM = "AES/GCM/NoPadding";
     private static final int GCM_IV_LENGTH = 12;
     private static final int GCM_TAG_LENGTH = 128;
@@ -43,7 +46,7 @@ public class CryptoService implements EncryptionService {
 
             byte[] kekIv = new byte[GCM_IV_LENGTH];
             RANDOM.nextBytes(kekIv);
-            EncryptedPayload encDek = doEncrypt(dek.getEncoded(), kek, kekIv);
+            EncryptedPayload encDek = doEncrypt(dek.getEncoded(), kek, kekIv, null);
 
             return new VaultSession(dek, salt, kekIv, encDek.getCiphertext(), iterations);
         } catch (VaultEncryptionException e) {
@@ -63,7 +66,7 @@ public class CryptoService implements EncryptionService {
         byte[] rawDek = null;
         try {
             kek = KeyDerivation.deriveKey(masterPassword, salt, kdfIterations);
-            rawDek = doDecrypt(encryptedDek, kekIv, kek);
+            rawDek = doDecrypt(encryptedDek, kekIv, kek, null);
             SecretKey dek = new SecretKeySpec(rawDek, "AES");
 
             return new VaultSession(dek,
@@ -80,20 +83,20 @@ public class CryptoService implements EncryptionService {
     }
 
     @Override
-    public EncryptedPayload encryptData(byte[] plaintext, SecretKey dataKey) throws VaultEncryptionException {
+    public EncryptedPayload encryptData(byte[] plaintext, SecretKey dataKey, byte[] aad) throws VaultEncryptionException {
         try {
             byte[] iv = new byte[GCM_IV_LENGTH];
             RANDOM.nextBytes(iv);
-            return doEncrypt(plaintext, dataKey, iv);
+            return doEncrypt(plaintext, dataKey, iv, aad);
         } catch (Exception e) {
             throw new VaultEncryptionException("Data encryption failed", e);
         }
     }
 
     @Override
-    public byte[] decryptData(byte[] iv, byte[] ciphertext, SecretKey dataKey) throws VaultDecryptionException {
+    public byte[] decryptData(byte[] iv, byte[] ciphertext, SecretKey dataKey, byte[] aad) throws VaultDecryptionException {
         try {
-            return doDecrypt(ciphertext, iv, dataKey);
+            return doDecrypt(ciphertext, iv, dataKey, aad);
         } catch (Exception e) {
             throw new VaultDecryptionException("Data decryption failed", e);
         }
@@ -111,7 +114,7 @@ public class CryptoService implements EncryptionService {
             byte[] newKekIv = new byte[GCM_IV_LENGTH];
             RANDOM.nextBytes(newKekIv);
             rawDek = session.getDataKey().getEncoded();
-            EncryptedPayload encDek = doEncrypt(rawDek, newKek, newKekIv);
+            EncryptedPayload encDek = doEncrypt(rawDek, newKek, newKekIv, null);
 
             session.updateEnvelope(newSalt, newKekIv, encDek.getCiphertext(), iterations);
             return session;
@@ -131,7 +134,7 @@ public class CryptoService implements EncryptionService {
         SecretKey key = null;
         try {
             key = KeyDerivation.deriveKey(masterPassword, salt, LEGACY_ITERATIONS);
-            return doDecrypt(ciphertext, iv, key);
+            return doDecrypt(ciphertext, iv, key, null);
         } catch (Exception e) {
             throw new VaultDecryptionException("Legacy vault decryption failed", e);
         } finally {
@@ -139,24 +142,30 @@ public class CryptoService implements EncryptionService {
         }
     }
 
-    private EncryptedPayload doEncrypt(byte[] plaintext, SecretKey key, byte[] iv) throws Exception {
+    private EncryptedPayload doEncrypt(byte[] plaintext, SecretKey key, byte[] iv, byte[] aad) throws Exception {
         Cipher cipher = Cipher.getInstance(ALGORITHM);
         GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
         cipher.init(Cipher.ENCRYPT_MODE, key, spec);
+        if (aad != null) cipher.updateAAD(aad);
         byte[] ciphertext = cipher.doFinal(plaintext);
         return new EncryptedPayload(Arrays.copyOf(iv, iv.length), ciphertext);
     }
 
-    private byte[] doDecrypt(byte[] ciphertext, byte[] iv, SecretKey key) throws Exception {
+    private byte[] doDecrypt(byte[] ciphertext, byte[] iv, SecretKey key, byte[] aad) throws Exception {
         Cipher cipher = Cipher.getInstance(ALGORITHM);
         GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
         cipher.init(Cipher.DECRYPT_MODE, key, spec);
+        if (aad != null) cipher.updateAAD(aad);
         return cipher.doFinal(ciphertext);
     }
 
     private static void destroyKey(SecretKey key) {
         if (key != null) {
-            try { key.destroy(); } catch (Exception ignored) {}
+            try {
+                key.destroy();
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "Failed to destroy SecretKey", e);
+            }
         }
     }
 }

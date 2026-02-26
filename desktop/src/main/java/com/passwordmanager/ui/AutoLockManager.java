@@ -16,7 +16,7 @@ public class AutoLockManager {
     private final Runnable lockCallback;
     private Timer autoLockTimer;
     private AWTEventListener activityListener;
-    private long lastActivity;
+    private volatile long lastActivity;
 
     public AutoLockManager(AppConfig appConfig, Runnable lockCallback) {
         this.appConfig = appConfig;

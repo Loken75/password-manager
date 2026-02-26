@@ -112,7 +112,7 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
-    // Security - EncryptedSharedPreferences (MasterKey.Builder requires 1.1.0+)
+    // Security - EncryptedSharedPreferences (MasterKey.Builder requires 1.1.0+; alpha is widely used in production)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     // Hilt

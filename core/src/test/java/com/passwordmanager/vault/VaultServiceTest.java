@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Tests for VaultService CRUD, search, and sort operations.
@@ -365,5 +366,57 @@ class VaultServiceTest {
         assertNotNull(entry.getUpdatedAt());
         assertNotEquals("2020-01-01T00:00:00Z", entry.getUpdatedAt(),
                 "updateEntry should update the timestamp");
+    }
+
+    @Test
+    void toggleFavorite() {
+        VaultEntry entry = new VaultEntry("Fav", "u", "p".toCharArray(), "", "", "Cat", null);
+        service.addEntry(entry);
+        assertFalse(entry.isFavorite());
+
+        service.toggleFavorite(entry.getId());
+        assertTrue(vault.getEntries().get(0).isFavorite());
+
+        service.toggleFavorite(entry.getId());
+        assertFalse(vault.getEntries().get(0).isFavorite());
+    }
+
+    @Test
+    void bulkSetFavorite() {
+        VaultEntry e1 = new VaultEntry("A", "u", "p".toCharArray(), "", "", "Cat", null);
+        VaultEntry e2 = new VaultEntry("B", "u", "p".toCharArray(), "", "", "Cat", null);
+        service.addEntry(e1);
+        service.addEntry(e2);
+
+        int count = service.bulkSetFavorite(List.of(e1.getId(), e2.getId()), true);
+        assertEquals(2, count);
+        assertTrue(vault.getEntries().get(0).isFavorite());
+        assertTrue(vault.getEntries().get(1).isFavorite());
+    }
+
+    @Test
+    void sortedPutsFavoritesFirst() {
+        VaultEntry normal = new VaultEntry("Alpha", "u", "p".toCharArray(), "", "", "Cat", null);
+        VaultEntry fav = new VaultEntry("Zebra", "u", "p".toCharArray(), "", "", "Cat", null);
+        fav.setFavorite(true);
+        service.addEntry(normal);
+        service.addEntry(fav);
+
+        List<VaultEntry> sorted = service.sorted(vault.getEntries(), SortField.TITLE);
+        assertEquals("Zebra", sorted.get(0).getTitle(), "Favorite should come first despite alphabetical order");
+        assertEquals("Alpha", sorted.get(1).getTitle());
+    }
+
+    @Test
+    void filterByEntryFilter() {
+        VaultEntry email = new VaultEntry("Gmail", "u", "p".toCharArray(), "", "", "Email", null);
+        VaultEntry banking = new VaultEntry("Bank", "u", "p".toCharArray(), "", "", "Banking", null);
+        service.addEntry(email);
+        service.addEntry(banking);
+
+        EntryFilter filter = new EntryFilter.Builder().category("Email").build();
+        List<VaultEntry> filtered = service.filter(vault.getEntries(), filter);
+        assertEquals(1, filtered.size());
+        assertEquals("Gmail", filtered.get(0).getTitle());
     }
 }
