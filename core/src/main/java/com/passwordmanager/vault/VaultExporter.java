@@ -21,19 +21,21 @@ public class VaultExporter {
 
     public char[] exportAsCsv(Vault vault) {
         StringBuilder sb = new StringBuilder();
-        sb.append("title,username,email,pseudo,password,url,notes,category,tags\n");
+        sb.append("title,username,email,pseudo,password,url,notes,category,tags,favorite\n");
         for (VaultEntry e : vault.getEntries()) {
             sb.append(csvEscape(e.getTitle())).append(",");
             sb.append(csvEscape(e.getUsername())).append(",");
             sb.append(csvEscape(e.getEmail())).append(",");
             sb.append(csvEscape(e.getPseudo())).append(",");
             char[] pwd = e.getPassword();
-            sb.append(csvEscape(pwd != null ? new String(pwd) : "")).append(",");
+            csvEscapeChars(sb, pwd);
+            sb.append(",");
             SecureWiper.wipe(pwd);
             sb.append(csvEscape(e.getUrl())).append(",");
             sb.append(csvEscape(e.getNotes())).append(",");
             sb.append(csvEscape(e.getCategory())).append(",");
-            sb.append(csvEscape(e.getTags() != null ? String.join(";", e.getTags()) : "")).append("\n");
+            sb.append(csvEscape(e.getTags() != null ? String.join(";", e.getTags()) : "")).append(",");
+            sb.append(e.isFavorite() ? "true" : "false").append("\n");
         }
         // Extract to char[] and wipe the StringBuilder
         char[] result = new char[sb.length()];
@@ -42,6 +44,35 @@ public class VaultExporter {
             sb.setCharAt(i, '\0');
         }
         return result;
+    }
+
+    /**
+     * Appends a CSV-escaped char[] directly to the StringBuilder without
+     * creating an intermediate String. Wipes the temporary char arrays.
+     */
+    private static void csvEscapeChars(StringBuilder sb, char[] value) {
+        if (value == null || value.length == 0) return;
+
+        boolean needsQuoting = false;
+        boolean formulaRisk = "=+-@\t\r".indexOf(value[0]) >= 0;
+        for (char c : value) {
+            if (c == ',' || c == '"' || c == '\n' || c == ';') {
+                needsQuoting = true;
+                break;
+            }
+        }
+
+        if (formulaRisk || needsQuoting) {
+            sb.append('"');
+            if (formulaRisk) sb.append('\'');
+            for (char c : value) {
+                if (c == '"') sb.append('"');
+                sb.append(c);
+            }
+            sb.append('"');
+        } else {
+            sb.append(value);
+        }
     }
 
     /**

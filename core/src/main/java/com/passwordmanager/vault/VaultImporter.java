@@ -2,6 +2,7 @@ package com.passwordmanager.vault;
 
 import com.google.gson.Gson;
 import com.passwordmanager.util.DateUtils;
+import com.passwordmanager.util.SecureWiper;
 
 import java.text.Normalizer;
 import java.util.*;
@@ -43,7 +44,7 @@ public class VaultImporter {
         Map<String, String> aliasMap = buildAliasMap();
         int titleIdx = -1, usernameIdx = -1, emailIdx = -1, pseudoIdx = -1;
         int passwordIdx = -1, urlIdx = -1;
-        int notesIdx = -1, categoryIdx = -1, tagsIdx = -1;
+        int notesIdx = -1, categoryIdx = -1, tagsIdx = -1, favoriteIdx = -1;
         boolean headerRecognized = false;
 
         for (int i = 0; i < headers.length; i++) {
@@ -61,6 +62,7 @@ public class VaultImporter {
                     case "notes": notesIdx = i; break;
                     case "category": categoryIdx = i; break;
                     case "tags": tagsIdx = i; break;
+                    case "favorite": favoriteIdx = i; break;
                 }
             }
         }
@@ -83,7 +85,11 @@ public class VaultImporter {
             entry.setEmail(sanitizeField(getField(parts, emailIdx)));
             entry.setPseudo(sanitizeField(getField(parts, pseudoIdx)));
             String pwd = sanitizeField(getField(parts, passwordIdx));
-            entry.setPassword(pwd.isEmpty() ? null : pwd.toCharArray());
+            if (!pwd.isEmpty()) {
+                char[] pwdChars = pwd.toCharArray();
+                entry.setPassword(pwdChars);
+                SecureWiper.wipe(pwdChars);
+            }
             entry.setUrl(sanitizeField(getField(parts, urlIdx)));
             entry.setNotes(sanitizeField(getField(parts, notesIdx)));
             String cat = sanitizeField(getField(parts, categoryIdx));
@@ -92,6 +98,8 @@ public class VaultImporter {
             if (!tagsVal.isEmpty()) {
                 entry.setTags(Arrays.asList(tagsVal.split(";")));
             }
+            String favVal = sanitizeField(getField(parts, favoriteIdx));
+            entry.setFavorite("true".equalsIgnoreCase(favVal));
 
             if (!entry.getTitle().isEmpty() || !entry.getUsername().isEmpty() || entry.getPassword() != null) {
                 vault.addEntry(entry);
@@ -195,6 +203,8 @@ public class VaultImporter {
             map.put(alias, "category");
         for (String alias : new String[]{"tags", "etiquettes"})
             map.put(alias, "tags");
+        for (String alias : new String[]{"favorite", "favori", "starred"})
+            map.put(alias, "favorite");
         return map;
     }
 

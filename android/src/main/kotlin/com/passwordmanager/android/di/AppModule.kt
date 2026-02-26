@@ -4,6 +4,7 @@ import android.content.Context
 import com.passwordmanager.android.data.AndroidConfigRepository
 import com.passwordmanager.android.data.AndroidVaultRepository
 import com.passwordmanager.android.data.ConfigRepository
+import com.passwordmanager.android.data.FaviconRepository
 import com.passwordmanager.android.data.SessionHolder
 import dagger.Module
 import dagger.Provides
@@ -32,4 +33,14 @@ object AppModule {
         SessionHolder.init(repository)
         return SessionHolder
     }
+
+    @Provides
+    @Singleton
+    fun provideFaviconService(@ApplicationContext context: Context): com.passwordmanager.util.FaviconService =
+        com.passwordmanager.util.FaviconService(context.cacheDir.absolutePath + "/favicons")
+
+    @Provides
+    @Singleton
+    fun provideFaviconRepository(faviconService: com.passwordmanager.util.FaviconService): FaviconRepository =
+        FaviconRepository(faviconService)
 }

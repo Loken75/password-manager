@@ -14,7 +14,9 @@ import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -57,6 +59,16 @@ fun EntryDetailScreen(
                     }
                 },
                 actions = {
+                    // Favorite star toggle
+                    if (entry != null) {
+                        IconButton(onClick = { viewModel.toggleFavorite(entryId) }) {
+                            Icon(
+                                imageVector = if (entry.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = stringResource(R.string.entry_toggle_favorite),
+                                tint = if (entry.isFavorite) Color(0xFFFFC107) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.vault_edit_entry))
                     }
@@ -113,7 +125,8 @@ fun EntryDetailScreen(
                 DetailRow(
                     icon = Icons.Default.AccountCircle,
                     label = stringResource(R.string.entry_pseudo),
-                    value = entry.pseudo
+                    value = entry.pseudo,
+                    onCopy = { copyToClipboard(context, entry.pseudo, 30) }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -124,6 +137,7 @@ fun EntryDetailScreen(
                     icon = Icons.Default.Link,
                     label = stringResource(R.string.entry_url),
                     value = entry.url,
+                    onCopy = { copyToClipboard(context, entry.url, 30) },
                     onClick = {
                         val url = entry.url
                         if (url.startsWith("http://") || url.startsWith("https://")) {
@@ -173,7 +187,12 @@ fun EntryDetailScreen(
                 value = if (state.passwordVisible) entry.password?.let { String(it) } ?: ""
                     else "\u2022".repeat(12),
                 onCopy = {
-                    entry.password?.let { copyToClipboard(context, String(it), 30) }
+                    entry.password?.let { pwd ->
+                        val text = String(pwd)
+                        copyToClipboard(context, text, 30)
+                        // char[] clone from getPassword() is wiped; the String is
+                        // unavoidable as Android's ClipData only accepts CharSequence.
+                    }
                 },
                 trailing = {
                     IconButton(onClick = { viewModel.togglePasswordVisibility() }) {
@@ -198,7 +217,8 @@ fun EntryDetailScreen(
                 DetailRow(
                     icon = Icons.AutoMirrored.Filled.Notes,
                     label = stringResource(R.string.entry_notes),
-                    value = entry.notes
+                    value = entry.notes,
+                    onCopy = { copyToClipboard(context, entry.notes, 30) }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }

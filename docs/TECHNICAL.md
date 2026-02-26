@@ -35,7 +35,7 @@ Password Manager est une application multiplateforme (desktop + Android) permett
 - Interface bilingue francais/anglais
 - Themes systeme, clair et sombre
 - Injection de dependances Hilt sur le module Android
-- 264 tests unitaires et d'integration (core, desktop et Android)
+- 300 tests unitaires et d'integration (core, desktop et Android)
 
 ---
 
@@ -100,21 +100,24 @@ Des scripts de lancement sont fournis dans `scripts/` :
 ```
 :core (Java 17, aucune dependance UI)
   |-- crypto/     CryptoService, KeyDerivation, VaultSession, PasswordGenerator, PasswordStrengthAnalyzer
-  |-- vault/      Vault, VaultEntry, VaultManager, VaultService, VaultImporter, VaultExporter
+  |-- vault/      Vault, VaultEntry, VaultManager, VaultService, VaultImporter, VaultExporter, EntryFilter
+  |-- security/   HibpChecker (k-Anonymity API)
+  |-- sync/       EntryMerger (fusion bidirectionnelle par entree)
   |-- config/     AppConfig, ConfigManager, ConfigEncryptor
-  |-- sync/       SyncService, LocalRepository, SFTPRepository
   |-- update/     UpdateChecker, UpdateInfo, VersionComparator
-  |-- util/       SecureWiper, FileSecurityUtils, PasswordValidator
+  |-- util/       SecureWiper, FileSecurityUtils, PasswordValidator, FaviconService
   +-- i18n/       LanguageManager (FR/EN)
 
 :desktop (Java 17, depends on :core)
-  |-- ui/         LoginFrame, MainFrame, VaultPanel, EntryDialog, SettingsDialog, ...
+  |-- ui/         LoginFrame, MainFrame, VaultPanel, SecureClipboard, ConflictResolutionDialog, ...
+  |-- sync/       SyncService, LocalRepository, SFTPRepository
   +-- update/     DesktopUpdateManager
 
 :android (Kotlin 2.1, depends on :core, Hilt DI)
-  |-- data/       AndroidVaultRepository, AndroidConfigRepository, ConfigRepository, SessionHolder
+  |-- autofill/   PasswordManagerAutofillService (API 26+)
+  |-- data/       AndroidVaultRepository, AndroidConfigRepository, ConfigRepository, SessionHolder, FaviconRepository
   |-- di/         AppModule (Hilt @Provides @Singleton)
-  |-- ui/         Compose screens + @HiltViewModel (login, vault, generator, settings, audit)
+  |-- ui/         Compose screens + @HiltViewModel (login, vault, generator, settings, audit, sync)
   +-- update/     AndroidUpdateManager
 ```
 
@@ -239,8 +242,10 @@ DEK (Data Encryption Key) -- AES-256, 32 octets aleatoires (SecureRandom)
 VaultSession createSession(char[] masterPassword)
 VaultSession openSession(byte[] salt, byte[] kekIv, byte[] encryptedDek,
                          int kdfIterations, char[] masterPassword)
-EncryptedPayload encryptData(byte[] plaintext, SecretKey dataKey)
-byte[] decryptData(byte[] iv, byte[] ciphertext, SecretKey dataKey)
+EncryptedPayload encryptData(byte[] plaintext, SecretKey dataKey, byte[] aad)
+EncryptedPayload encryptData(byte[] plaintext, SecretKey dataKey)  // default: aad=null
+byte[] decryptData(byte[] iv, byte[] ciphertext, SecretKey dataKey, byte[] aad)
+byte[] decryptData(byte[] iv, byte[] ciphertext, SecretKey dataKey)  // default: aad=null
 VaultSession changePassword(VaultSession session, char[] newPassword)
 byte[] decryptLegacy(byte[] salt, byte[] iv, byte[] ciphertext, char[] masterPassword)
 ```
@@ -250,6 +255,7 @@ byte[] decryptLegacy(byte[] salt, byte[] iv, byte[] ciphertext, char[] masterPas
 Implemente `EncryptionService` avec AES-256-GCM. Points cles :
 - `createSession()` : genere une DEK aleatoire, derive la KEK, chiffre la DEK avec la KEK, efface `rawDek` et detruit la KEK dans le bloc `finally`.
 - `openSession()` : derive la KEK, dechiffre la DEK, retourne une `VaultSession`. Efface la KEK dans le `finally`.
+- `encryptData()/decryptData()` : supportent un parametre optionnel `byte[] aad` (Additional Authenticated Data) pour lier des metadonnees au ciphertext GCM. Le `VaultManager` passe la version du coffre (`"2.0"`) comme AAD pour prevenir la substitution de parametres.
 - `changePassword()` : genere un nouveau sel + KEK, re-chiffre la DEK existante, met a jour l'enveloppe dans la session. Les octets bruts de la DEK (`rawDek`) sont effaces dans le bloc `finally`, et l'ancienne KEK est detruite.
 - `decryptLegacy()` : supporte les coffres v1.0 ou le mot de passe derivait directement la cle de donnees (100 000 iterations).
 
@@ -376,7 +382,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 - **Compatibilite jlink** : `Vault` et `VaultEntry` disposent de constructeurs no-arg pour que Gson puisse les instancier sans `sun.misc.Unsafe` (absent du module `jdk.unsupported`, non inclus dans le JRE jlink)
 
 **VaultEntry — details :**
-- Champs : `title`, `username` (identifiant), `email`, `pseudo`, `password` (char[]), `url`, `notes`, `category`, `tags` (List\<String\>), `createdAt`, `updatedAt`
+- Champs : `title`, `username` (identifiant), `email`, `pseudo`, `password` (char[]), `url`, `notes`, `category`, `tags` (List\<String\>), `favorite` (boolean), `createdAt`, `updatedAt`
 - `getPassword()` retourne un clone (copie defensive)
 - `setPassword()` efface l'ancien mot de passe via `SecureWiper.wipe()` avant d'affecter le nouveau clone
 - `getTags()` retourne une vue non-modifiable (`Collections.unmodifiableList`)
@@ -390,7 +396,10 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 - `bulkDelete(List<String> entryIds)` : suppression en masse avec effacement securise de chaque entree
 - `bulkChangeCategory(List<String> entryIds, String newCategory)` : reassignation de categorie en masse
 - `addCategory(String)` / `removeCategory(String)` : gestion des categories du coffre
-- **Thread safety** : toutes les methodes de mutation (`addEntry`, `updateEntry`, `deleteEntry`, `bulkDelete`, `bulkChangeCategory`, `addCategory`, `removeCategory`) sont `synchronized`
+- `toggleFavorite(String entryId)` / `bulkSetFavorite(List<String>, boolean)` : bascule et operations en masse sur les favoris
+- `filter(List<VaultEntry>, EntryFilter)` : filtrage combine via `EntryFilter` (categorie, force, date, favoris, texte)
+- `sorted()` : tri avec favoris en priorite (primaire : `Boolean.compare(b.isFavorite(), a.isFavorite())`)
+- **Thread safety** : toutes les methodes publiques sont `synchronized` (mutation ET lecture) pour prevenir les `ConcurrentModificationException`
 
 **VaultImporter — details :**
 - Detection du separateur : frequence `,` vs `;` dans la premiere ligne
@@ -492,15 +501,21 @@ private static volatile byte volatileByte;
 private static volatile char volatileChar;
 
 public static void wipe(byte[] data) {
-    if (data == null || data.length == 0) return;
-    Arrays.fill(data, (byte) 0);
-    volatileByte = data[0]; // empeche le JIT d'eliminer le fill
+    if (data != null && data.length > 0) {
+        Arrays.fill(data, (byte) 0);
+        byte check = 0;
+        for (byte b : data) { check |= b; }
+        volatileByte = check; // accumulateur sur tout le tableau — empeche le JIT d'eliminer le fill
+    }
 }
 
 public static void wipe(char[] data) {
-    if (data == null || data.length == 0) return;
-    Arrays.fill(data, '\0');
-    volatileChar = data[0];
+    if (data != null && data.length > 0) {
+        Arrays.fill(data, '\0');
+        char check = 0;
+        for (char c : data) { check |= c; }
+        volatileChar = check; // accumulateur sur tout le tableau
+    }
 }
 ```
 
@@ -625,7 +640,9 @@ Emplacement : `~/.password-manager/data/.config_key`
 | Mesure | Implementation |
 |--------|----------------|
 | Mots de passe en `char[]` | `VaultEntry.password`, `PasswordGenerator.generate()`, `VaultExporter` retournent `char[]` |
-| Effacement securise | `SecureWiper.wipe()` avec barriere volatile anti-optimisation JIT |
+| Effacement securise | `SecureWiper.wipe()` avec accumulateur volatile sur tout le tableau (empeche le JIT d'eliminer le `Arrays.fill`) |
+| GCM AAD | Le chiffrement des donnees du coffre lie la version (`"2.0"`) en AAD, empechant la substitution de parametres de chiffrement. Migration transparente : essai avec AAD, fallback sans AAD pour les coffres pre-AAD |
+| Presse-papiers securise (Desktop) | `SecureClipboard` : `Transferable` personnalise stockant `char[]`, efface sur `lostOwnership()` + `clear()` en shutdown hook. Aucun `new String(password)` dans le presse-papiers |
 | Copie defensive | `VaultEntry.getPassword()` retourne un clone, `setPassword()` efface l'ancien avant clone |
 | Copie defensive session | `VaultSession.getSalt/getKekIv/getEncryptedDek()` retournent des clones |
 | Nettoyage de session | `VaultSession.destroy()` efface DEK, sel, IV, DEK chiffree |
@@ -793,8 +810,8 @@ Le changement de langue est possible depuis l'ecran de connexion (effet immediat
 | Colonne | Largeur | Contenu |
 |---------|---------|---------|
 | Gauche | 180 px | Liste des categories (JList) + bouton ajout |
-| Centre | flexible | Barre de recherche + table 6 colonnes (Titre, Identifiant, Email, Pseudo, Categorie, Force) — en-tetes cliquables pour tri |
-| Droite | 300 px | Details : titre, grille de champs avec separateurs, boutons copier identifiant/mot de passe, case a cocher afficher |
+| Centre | flexible | Barre de recherche + filtres avances + table 8 colonnes (Favori, Favicon, Titre, Identifiant, Email, Pseudo, Categorie, Force) — en-tetes cliquables pour tri. Menu "Actions..." en masse (supprimer, categorie, favoris) |
+| Droite | 300 px | Details : titre, grille de champs avec boutons copier en ligne (identifiant, email, pseudo, mot de passe, URL), case a cocher afficher |
 
 La colonne Force du tableau est coloree selon le niveau : rouge (Faible), orange (Moyen), vert (Fort), bleu (Tres fort).
 
@@ -806,7 +823,7 @@ La colonne Force du tableau est coloree selon le niveau : rouge (Faible), orange
 
 #### Shutdown hook
 
-Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la session (`session.destroy()`) a la fermeture de la JVM. Le hook est retire proprement lors du verrouillage (`doLock()`) et lors d'un changement de langue (qui reconstruit la fenetre).
+Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`), detruit la session (`session.destroy()`) et efface le presse-papiers (`SecureClipboard.clear()`) a la fermeture de la JVM. Le hook est retire proprement lors du verrouillage (`doLock()`) et lors d'un changement de langue (qui reconstruit la fenetre).
 
 ### 10.2. Android — Jetpack Compose + Material 3
 
@@ -832,7 +849,8 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la ses
 | Parametres | `SettingsScreen` | `SettingsViewModel` | Theme, langue, auto-lock, clipboard, synchronisation SFTP, gestion des categories |
 | Categories | `CategoryManagementScreen` | `CategoryManagementViewModel` | Ajout/suppression de categories avec validation et cascade |
 | Mot de passe | `ChangeMasterPasswordScreen` | `ChangeMasterPasswordViewModel` | Ancien/nouveau/confirmer |
-| Audit | `SecurityAuditScreen` | `SecurityAuditViewModel` | Faibles, dupliques, anciens |
+| Audit | `SecurityAuditScreen` | `SecurityAuditViewModel` | Faibles, dupliques, anciens, compromis HIBP |
+| Conflits | `ConflictResolutionScreen` | — | Resolution de conflits sync (vue cote-a-cote local/distant) |
 
 #### Composants reutilisables (`ui/components/`)
 
@@ -956,11 +974,11 @@ update.enabled=true
 ### 12.1. Vue d'ensemble
 
 **Framework** : JUnit 5 (Jupiter) 5.14.2
-**Total** : **264 tests** (unitaires + integration) repartis sur les 3 modules
+**Total** : **300 tests** (unitaires + integration) repartis sur les 3 modules
 
 | Module Gradle | Tests | Framework |
 |---|---|---|
-| `:core` | 152 | JUnit 5 (Java) |
+| `:core` | 188 | JUnit 5 (Java) |
 | `:desktop` | 71 | JUnit 5 (Java) |
 | `:android` | 41 | JUnit 5 (Kotlin, JVM local) |
 
@@ -968,30 +986,34 @@ update.enabled=true
 
 | Module | Classe de test | Nombre | Description |
 |--------|---------------|--------|-------------|
+| vault | `VaultServiceTest` | 35 | CRUD, recherche, tri, favoris, filtre, doublons, categories, timestamps, mots de passe anciens |
 | security | `SecurityAuditTest` | 31 | IV, KDF, memoire, permissions, format, import/export, generateur |
-| vault | `VaultServiceTest` | 25 | CRUD, recherche, tri, doublons, categories, timestamps, mots de passe anciens, URL |
 | sync | `SyncServiceTest` | 23 | Synchronisation, hash, conflits, mode hors-ligne, mode local |
+| vault | `VaultImporterTest` | 20 | CSV (separateurs, alias, BOM, sanitisation, favoris), JSON (malformed, null), limites |
 | sync | `LocalRepositoryTest` | 17 | Path traversal, lecture/ecriture/suppression, pending, backups |
-| vault | `VaultImporterTest` | 17 | CSV (separateurs, alias, BOM, sanitisation controle), JSON (malformed, null), limites |
 | vault | `VaultManagerIntegrationTest` | 16 | Cycle complet avec vraie crypto, validation username, suppression backups |
 | util | `PasswordValidatorTest` | 15 | Politique mot de passe maitre, rejet des 44 mots de passe courants |
-| crypto | `CryptoServiceTest` | 13 | Enveloppe DEK/KEK, chiffrement, changement mdp, tampering (ciphertext/IV), legacy, destroy/close |
+| crypto | `CryptoServiceTest` | 14 | Enveloppe DEK/KEK, chiffrement, AAD, changement mdp, tampering (ciphertext/IV), legacy, destroy/close |
 | config | `ConfigEncryptorTest` | 11 | Round-trip, caracteres speciaux, null/vide, corruption, unicite IV, reutilisation cle |
 | **android** | `GeneratorViewModelTest` | 11 | Etat initial, generation, clamp longueur, toggles, force, nettoyage onCleared |
 | sync | `SFTPRepositoryTest` | 10 | Validation filename sur upload/download/exists/getRemoteLastModified |
 | crypto | `PasswordStrengthAnalyzerTest` | 9 | Niveaux de force, score, cas limites |
 | vault | `VaultTest` | 9 | Constructeurs, add/remove entries, unmodifiable list, wipe, settings |
-| vault | `VaultExporterTest` | 8 | CSV, JSON, injection formules, round-trip |
+| vault | `VaultExporterTest` | 9 | CSV, JSON, injection formules, favoris, round-trip |
 | **android** | `EntryEditViewModelTest` | 8 | Formulaire CRUD nouveau/existant, sauvegarde, validation titre vide |
 | **android** | `ChangeMasterPasswordViewModelTest` | 7 | Etat initial, validation, mismatch, mot de passe faible, nettoyage onCleared |
+| vault | `EntryFilterTest` | 6 | Filtres combines (categorie, force, date, favoris, texte) |
 | i18n | `LanguageManagerTest` | 6 | Singleton, getString valide/manquant, setLanguage fr/en, getAvailableLanguages |
+| util | `FaviconServiceTest` | 5 | Extraction domaine, cache disque, favicon null |
+| security | `HibpCheckerTest` | 5 | Null, vide, entree valide, caracteres speciaux, unicode |
+| sync | `EntryMergerTest` | 5 | Fusion locale/distante, conflits, entrees identiques |
 | **android** | `SecurityAuditViewModelTest` | 5 | Audit vide, mots de passe faibles, dupliques, anciens, totalIssues |
 | **android** | `EntryDetailViewModelTest` | 5 | Chargement existant/inconnu, toggle visibilite, suppression existant/inexistant |
 | **android** | `SettingsViewModelTest` | 5 | Configuration initiale, setTheme, setLanguage, clamp autoLock, clamp clipboard |
 | util | `DateUtilsTest` | 5 | Format ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types de caracteres, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance, auto-creation |
-| | | **264** | |
+| | | **300** | |
 
 ### 12.3. Infrastructure de test Android
 
@@ -1092,14 +1114,18 @@ password-manager/
 |       |   |-- crypto/                     # CryptoService, EncryptionService, KeyDerivation, VaultSession,
 |       |   |                               # PasswordGenerator, PasswordStrengthAnalyzer, EncryptedPayload
 |       |   |-- i18n/                       # LanguageManager
-|       |   |-- sync/                       # SyncService, LocalRepository, SFTPRepository, ConflictResolver
+|       |   |-- security/                   # HibpChecker (k-Anonymity HIBP breach detection)
+|       |   |-- sync/                       # SyncService, LocalRepository, SFTPRepository, ConflictResolver,
+|       |   |                               # EntryMerger (bidirectional merge)
 |       |   |-- update/                     # UpdateChecker, UpdateInfo, VersionComparator
-|       |   |-- util/                       # SecureWiper, FileSecurityUtils, PasswordValidator, DateUtils
+|       |   |-- util/                       # SecureWiper, FileSecurityUtils, PasswordValidator, DateUtils,
+|       |   |                               # FaviconService (favicons Google API + cache disque)
 |       |   +-- vault/                      # Vault, VaultEntry, VaultManager, VaultService,
-|       |                                   # VaultImporter, VaultExporter, VaultLoadResult, SortField
+|       |                                   # VaultImporter, VaultExporter, VaultLoadResult, SortField,
+|       |                                   # EntryFilter (filtres combines builder pattern)
 |       |-- main/resources/i18n/            # messages_en.properties, messages_fr.properties
 |       |-- main/resources/update.properties # Configuration du systeme de mise a jour
-|       +-- test/java/com/passwordmanager/  # 152 tests (15 classes)
+|       +-- test/java/com/passwordmanager/  # 188 tests (20 classes)
 |
 |-- desktop/                                # :desktop — interface Swing (Java 17)
 |   |-- build.gradle.kts
@@ -1107,9 +1133,10 @@ password-manager/
 |       |-- main/java/com/passwordmanager/
 |       |   |-- Main.java                   # Point d'entree, detection app.home
 |       |   |-- ui/                         # LoginFrame, MainFrame, VaultPanel, EntryDialog,
-|       |   |                               # PasswordGeneratorDialog, SettingsDialog, StrengthBarHelper
+|       |   |                               # PasswordGeneratorDialog, SettingsDialog, StrengthBarHelper,
+|       |   |                               # SecurityAuditController, ConflictResolutionDialog, SecureClipboard
 |       |   +-- update/                     # DesktopUpdateManager
-|       +-- test/java/com/passwordmanager/  # 71 tests (SyncServiceTest, LocalRepositoryTest, etc.)
+|       +-- test/java/com/passwordmanager/  # 71 tests (4 classes)
 |
 +-- android/                                # :android — interface Compose (Kotlin 2.1)
     |-- build.gradle.kts                    # AGP 8.7.3, Compose BOM 2024.12, Hilt 2.54, minSdk 26
@@ -1120,23 +1147,27 @@ password-manager/
         |   |-- res/
         |   |   |-- values/strings.xml      # 100+ cles EN
         |   |   |-- values-fr/strings.xml   # 100+ cles FR
-        |   |   +-- values/themes.xml
+        |   |   |-- values/themes.xml
+        |   |   +-- xml/autofill_service_config.xml  # Configuration Autofill Service
         |   +-- kotlin/com/passwordmanager/android/
         |       |-- PasswordManagerApp.kt   # @HiltAndroidApp
-        |       |-- MainActivity.kt         # @AndroidEntryPoint, AppCompatActivity, locale init
+        |       |-- MainActivity.kt         # @AndroidEntryPoint, AppCompatActivity, locale init, ACTION_SCREEN_OFF lock
+        |       |-- autofill/              # PasswordManagerAutofillService (Android Autofill API 26+)
         |       |-- data/                   # AndroidVaultRepository, AndroidConfigRepository,
-        |       |                           # ConfigRepository (interface), SessionHolder (@Volatile/@Synchronized)
+        |       |                           # ConfigRepository (interface), SessionHolder (@Volatile/@Synchronized),
+        |       |                           # FaviconRepository (wrapper suspend)
         |       |-- di/                     # AppModule (@Module @InstallIn @Provides @Singleton)
         |       |-- update/                # AndroidUpdateManager
         |       +-- ui/
         |           |-- theme/              # Theme.kt, Color.kt, Type.kt
         |           |-- navigation/         # AppNavigation.kt (9 routes)
         |           |-- login/              # LoginScreen, @HiltViewModel LoginViewModel
-        |           |-- vault/              # VaultListScreen/VM (multi-select, SFTP sync), EntryDetailScreen/VM, EntryEditScreen/VM
+        |           |-- vault/              # VaultListScreen/VM (multi-select, SFTP sync, filtres), EntryDetailScreen/VM, EntryEditScreen/VM
         |           |-- generator/          # GeneratorScreen, @HiltViewModel GeneratorViewModel
         |           |-- settings/           # SettingsScreen/VM, ChangeMasterPasswordScreen/VM,
         |           |                       # CategoryManagementScreen/VM
-        |           |-- audit/              # SecurityAuditScreen, @HiltViewModel SecurityAuditViewModel
+        |           |-- audit/              # SecurityAuditScreen, @HiltViewModel SecurityAuditViewModel (HIBP)
+        |           |-- sync/              # ConflictResolutionScreen (resolution bidirectionnelle)
         |           +-- components/         # PasswordStrengthBar, PasswordField, EntryCard, ConfirmDialog, ImportExportDialog
         +-- test/kotlin/com/passwordmanager/android/  # 41 tests (6 classes)
             |-- test/                       # MainDispatcherExtension, FakeConfigRepository, TestSessionHelper

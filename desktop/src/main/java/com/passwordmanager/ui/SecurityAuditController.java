@@ -65,6 +65,23 @@ public class SecurityAuditController {
             issues++;
         }
 
+        // Breached passwords (HIBP)
+        sb.append("\n=== ").append(lang.getString("audit.breached_passwords")).append(" ===\n");
+        for (VaultEntry e : vault.getEntries()) {
+            char[] hibpPwd = e.getPassword();
+            if (hibpPwd != null && hibpPwd.length > 0) {
+                try {
+                    int breachCount = com.passwordmanager.security.HibpChecker.checkPassword(hibpPwd);
+                    if (breachCount > 0) {
+                        sb.append("  - ").append(e.getTitle()).append(" (").append(breachCount).append("x)\n");
+                        issues++;
+                    }
+                } finally {
+                    SecureWiper.wipe(hibpPwd);
+                }
+            }
+        }
+
         if (issues == 0) {
             sb.append("\n").append(lang.getString("audit.no_issues"));
         } else {

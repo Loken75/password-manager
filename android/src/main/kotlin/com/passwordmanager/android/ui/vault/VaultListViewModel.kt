@@ -37,6 +37,7 @@ data class VaultListUiState(
     val isSearchActive: Boolean = false,
     val isSelectionMode: Boolean = false,
     val selectedEntryIds: Set<String> = emptySet(),
+    val favoritesOnly: Boolean = false,
     val message: String? = null
 )
 
@@ -68,8 +69,14 @@ class VaultListViewModel @Inject constructor(
 
         val sorted = service.sorted(entries, _uiState.value.sortField)
 
+        val filtered = if (_uiState.value.favoritesOnly) {
+            sorted.filter { it.isFavorite }
+        } else {
+            sorted
+        }
+
         _uiState.update {
-            it.copy(entries = sorted, categories = vault.categories.sorted())
+            it.copy(entries = filtered, categories = vault.categories)
         }
     }
 
@@ -90,6 +97,18 @@ class VaultListViewModel @Inject constructor(
 
     fun setSortField(field: SortField) {
         _uiState.update { it.copy(sortField = field) }
+        refreshEntries()
+    }
+
+    fun toggleFavorite(entryId: String) {
+        val service = sessionHolder.vaultService ?: return
+        service.toggleFavorite(entryId)
+        viewModelScope.launch(Dispatchers.IO) { sessionHolder.save() }
+        refreshEntries()
+    }
+
+    fun toggleFavoritesFilter() {
+        _uiState.update { it.copy(favoritesOnly = !it.favoritesOnly) }
         refreshEntries()
     }
 

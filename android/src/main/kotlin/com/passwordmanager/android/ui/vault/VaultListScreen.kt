@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -371,6 +372,26 @@ fun VaultListScreen(
                 }
             }
 
+            // Favorites filter chip
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = state.favoritesOnly,
+                    onClick = { viewModel.toggleFavoritesFilter() },
+                    label = { Text(stringResource(R.string.entry_favorite)) },
+                    leadingIcon = {
+                        Icon(
+                            if (state.favoritesOnly) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Entry list or empty state
             if (state.entries.isEmpty()) {
                 Box(
@@ -438,7 +459,8 @@ fun VaultListScreen(
                             modifier = Modifier.animateItem(),
                             isSelected = entry.id in state.selectedEntryIds,
                             isSelectionMode = state.isSelectionMode,
-                            onLongClick = { viewModel.toggleSelection(entry.id) }
+                            onLongClick = { viewModel.toggleSelection(entry.id) },
+                            onToggleFavorite = { viewModel.toggleFavorite(entry.id) }
                         )
                     }
                 }

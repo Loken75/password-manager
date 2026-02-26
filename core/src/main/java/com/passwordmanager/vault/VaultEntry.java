@@ -23,6 +23,7 @@ public class VaultEntry {
     private String notes;
     private String category;
     private List<String> tags;
+    private boolean favorite;
     private String createdAt;
     private String updatedAt;
 
@@ -83,6 +84,10 @@ public class VaultEntry {
     public void setEmail(String email) { this.email = email; }
     public String getPseudo() { return pseudo; }
     public void setPseudo(String pseudo) { this.pseudo = pseudo; }
+    /**
+     * Returns a defensive copy of the password. Caller is responsible for
+     * wiping the returned array via {@link com.passwordmanager.util.SecureWiper#wipe(char[])}.
+     */
     public char[] getPassword() { return password != null ? password.clone() : null; }
     public void setPassword(char[] password) {
         SecureWiper.wipe(this.password);
@@ -98,6 +103,8 @@ public class VaultEntry {
     public void setTags(List<String> tags) { this.tags = tags != null ? new ArrayList<>(tags) : new ArrayList<>(); }
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    public boolean isFavorite() { return favorite; }
+    public void setFavorite(boolean favorite) { this.favorite = favorite; }
     public String getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
 

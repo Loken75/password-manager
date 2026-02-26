@@ -2,6 +2,7 @@ package com.passwordmanager.sync;
 
 import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.StorageMode;
+import com.passwordmanager.sync.EntryMerger;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -194,6 +195,17 @@ public class SyncService {
                 if (remoteRepo != null) remoteRepo.disconnect();
             }
         }
+    }
+
+    /**
+     * Returns the merge result when local and remote vaults differ.
+     * The caller must handle decryption/re-encryption externally.
+     * Package-private so the UI layer (MainFrame) can call it after decrypting both vaults.
+     */
+    public EntryMerger.MergeResult mergeEntries(
+            java.util.List<com.passwordmanager.vault.VaultEntry> local,
+            java.util.List<com.passwordmanager.vault.VaultEntry> remote) {
+        return EntryMerger.merge(local, remote);
     }
 
     public boolean testConnection() {

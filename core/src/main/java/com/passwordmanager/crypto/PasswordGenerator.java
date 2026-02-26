@@ -13,6 +13,8 @@ public class PasswordGenerator {
     private static final String DIGITS = "0123456789";
     private static final String SPECIAL = "!@#$%^&*()-_=+[]{}|;:',.<>?/";
     private static final String AMBIGUOUS = "0O1lI";
+    private static final int MIN_LENGTH = 8;
+    private static final int MAX_LENGTH = 128;
     private static final SecureRandom random = new SecureRandom();
 
     /**
@@ -28,8 +30,8 @@ public class PasswordGenerator {
      */
     public static char[] generate(int length, boolean useUpper, boolean useLower,
                                   boolean useDigits, boolean useSpecial, boolean excludeAmbiguous) {
-        if (length < 8) length = 8;
-        if (length > 128) length = 128;
+        if (length < MIN_LENGTH) length = MIN_LENGTH;
+        if (length > MAX_LENGTH) length = MAX_LENGTH;
 
         StringBuilder pool = new StringBuilder();
         List<String> requiredSets = new ArrayList<String>();

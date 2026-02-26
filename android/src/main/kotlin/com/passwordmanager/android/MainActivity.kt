@@ -1,5 +1,11 @@
 package com.passwordmanager.android
 
+import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
@@ -29,6 +35,7 @@ class MainActivity : AppCompatActivity() {
     @Inject lateinit var sessionHolder: SessionHolder
 
     private var autoLockJob: Job? = null
+    private var screenOffReceiver: BroadcastReceiver? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +72,21 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
+        // Lock vault immediately when screen turns off
+        screenOffReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                    // Clear clipboard before locking to prevent password exposure
+                    try {
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
+                    } catch (_: Exception) {}
+                    sessionHolder.lock()
+                }
+            }
+        }
+        registerReceiver(screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF))
+
         setContent {
             val themeMode by configRepo.themeModeFlow.collectAsStateWithLifecycle(
                 initialValue = ThemeMode.SYSTEM
@@ -74,5 +96,13 @@ class MainActivity : AppCompatActivity() {
                 AppNavigation()
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        screenOffReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) {}
+        }
+        screenOffReceiver = null
     }
 }

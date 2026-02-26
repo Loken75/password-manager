@@ -16,14 +16,24 @@ public final class SecureWiper {
     public static void wipe(byte[] data) {
         if (data != null && data.length > 0) {
             Arrays.fill(data, (byte) 0);
-            volatileByte = data[0];
+            // Read entire array to prevent JIT dead-store elimination of Arrays.fill
+            byte check = 0;
+            for (byte b : data) {
+                check |= b;
+            }
+            volatileByte = check;
         }
     }
 
     public static void wipe(char[] data) {
         if (data != null && data.length > 0) {
             Arrays.fill(data, '\0');
-            volatileChar = data[0];
+            // Read entire array to prevent JIT dead-store elimination of Arrays.fill
+            char check = 0;
+            for (char c : data) {
+                check |= c;
+            }
+            volatileChar = check;
         }
     }
 }

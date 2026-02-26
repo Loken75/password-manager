@@ -1,21 +1,29 @@
 package com.passwordmanager.android.ui.audit
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength
+import com.passwordmanager.security.HibpChecker
 import com.passwordmanager.vault.VaultEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 
 data class SecurityAuditUiState(
     val weakEntries: List<VaultEntry> = emptyList(),
     val duplicateEntries: List<VaultEntry> = emptyList(),
     val oldEntries: List<VaultEntry> = emptyList(),
     val passwordExpiryDays: Int = 180,
+    val breachedEntries: List<VaultEntry> = emptyList(),
+    val isCheckingBreaches: Boolean = false,
+    val breachError: Boolean = false,
     val totalIssues: Int = 0
 )
 
@@ -50,14 +58,56 @@ class SecurityAuditViewModel @Inject constructor(
         // Find old passwords
         val old = service.findOldPasswords(expiryDays)
 
-        val totalIssues = weak.size + duplicates.size + old.size
+        val breached = _uiState.value.breachedEntries
+        val totalIssues = weak.size + duplicates.size + old.size + breached.size
 
-        _uiState.value = SecurityAuditUiState(
+        _uiState.value = _uiState.value.copy(
             weakEntries = weak,
             duplicateEntries = duplicates,
             oldEntries = old,
             passwordExpiryDays = expiryDays,
             totalIssues = totalIssues
         )
+    }
+
+    fun checkBreaches() {
+        val service = sessionHolder.vaultService ?: return
+
+        _uiState.value = _uiState.value.copy(
+            isCheckingBreaches = true,
+            breachError = false
+        )
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val allEntries = service.search("")
+                val breached = mutableListOf<VaultEntry>()
+
+                for (entry in allEntries) {
+                    val password = entry.password ?: continue
+                    val count = HibpChecker.checkPassword(password)
+                    if (count > 0) {
+                        breached.add(entry)
+                    }
+                }
+
+                _uiState.value = _uiState.value.copy(
+                    breachedEntries = breached,
+                    isCheckingBreaches = false,
+                    breachError = false,
+                    totalIssues = _uiState.value.weakEntries.size +
+                        _uiState.value.duplicateEntries.size +
+                        _uiState.value.oldEntries.size +
+                        breached.size
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isCheckingBreaches = false,
+                    breachError = true
+                )
+            }
+        }
     }
 }

@@ -11,26 +11,51 @@ public class PasswordStrengthAnalyzer {
         WEAK, MEDIUM, STRONG, VERY_STRONG
     }
 
+    /** Minimum acceptable password length. */
+    private static final int MIN_LENGTH = 8;
+    /** Threshold for detecting sequential or repeated character patterns. */
+    private static final int PATTERN_THRESHOLD = 4;
+    /** Effective-length penalty per detected weak pattern. */
+    private static final int PATTERN_PENALTY_FACTOR = 4;
+    /** Minimum effective length for strong classification. */
+    private static final int STRONG_MIN_LENGTH = 12;
+    /** Minimum effective length for very-strong classification. */
+    private static final int VERY_STRONG_MIN_LENGTH = 16;
+    /** Length bonus threshold (first tier). */
+    private static final int SCORE_BONUS_LENGTH_1 = 16;
+    /** Length bonus threshold (second tier). */
+    private static final int SCORE_BONUS_LENGTH_2 = 20;
+    /** Points awarded per character (capped). */
+    private static final int SCORE_PER_CHAR = 4;
+    /** Maximum points from character length. */
+    private static final int SCORE_MAX_LENGTH_POINTS = 40;
+    /** Points awarded per character type (upper, lower, digit, special). */
+    private static final int SCORE_PER_TYPE = 15;
+    /** Bonus/penalty points for length tiers and pattern detection. */
+    private static final int SCORE_BONUS = 10;
+    /** Score penalty per detected pattern. */
+    private static final int SCORE_PATTERN_PENALTY = 15;
+
     public static Strength analyze(char[] password) {
         if (password == null || password.length == 0) return Strength.WEAK;
 
         int len = password.length;
         int types = countCharTypes(password);
 
-        if (len < 8 || types <= 1) return Strength.WEAK;
+        if (len < MIN_LENGTH || types <= 1) return Strength.WEAK;
 
         // Penalize weak patterns
         int penalty = 0;
-        if (hasSequentialChars(password, 4)) penalty++;
-        if (hasRepeatedChars(password, 4)) penalty++;
+        if (hasSequentialChars(password, PATTERN_THRESHOLD)) penalty++;
+        if (hasRepeatedChars(password, PATTERN_THRESHOLD)) penalty++;
         if (isAllSameCase(password)) penalty++;
 
         int effectiveTypes = Math.max(1, types - penalty);
         int effectiveLen = len;
-        if (penalty > 0) effectiveLen = Math.max(8, effectiveLen - penalty * 4);
+        if (penalty > 0) effectiveLen = Math.max(MIN_LENGTH, effectiveLen - penalty * PATTERN_PENALTY_FACTOR);
 
-        if (effectiveLen >= 16 && effectiveTypes >= 4) return Strength.VERY_STRONG;
-        if (effectiveLen >= 12 && effectiveTypes >= 3) return Strength.STRONG;
+        if (effectiveLen >= VERY_STRONG_MIN_LENGTH && effectiveTypes >= 4) return Strength.VERY_STRONG;
+        if (effectiveLen >= STRONG_MIN_LENGTH && effectiveTypes >= 3) return Strength.STRONG;
         if (effectiveTypes <= 1) return Strength.WEAK;
         return Strength.MEDIUM;
     }
@@ -105,17 +130,17 @@ public class PasswordStrengthAnalyzer {
         int score = 0;
         int len = password.length;
 
-        score += Math.min(len * 4, 40);
+        score += Math.min(len * SCORE_PER_CHAR, SCORE_MAX_LENGTH_POINTS);
 
         int types = countCharTypes(password);
-        score += types * 15;
+        score += types * SCORE_PER_TYPE;
 
-        if (len >= 16) score += 10;
-        if (len >= 20) score += 10;
+        if (len >= SCORE_BONUS_LENGTH_1) score += SCORE_BONUS;
+        if (len >= SCORE_BONUS_LENGTH_2) score += SCORE_BONUS;
 
         // Penalize detected patterns
-        if (hasSequentialChars(password, 4)) score -= 15;
-        if (hasRepeatedChars(password, 4)) score -= 15;
+        if (hasSequentialChars(password, PATTERN_THRESHOLD)) score -= SCORE_PATTERN_PENALTY;
+        if (hasRepeatedChars(password, PATTERN_THRESHOLD)) score -= SCORE_PATTERN_PENALTY;
 
         return Math.max(0, Math.min(score, 100));
     }

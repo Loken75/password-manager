@@ -20,6 +20,8 @@ import java.util.*;
  */
 public class VaultManager {
     private static final String VAULT_VERSION = "2.0";
+    /** AAD binds the vault version to the GCM ciphertext, preventing parameter substitution. */
+    private static final byte[] VAULT_AAD = VAULT_VERSION.getBytes(StandardCharsets.UTF_8);
     private final Gson gson;
     private final EncryptionService cryptoService;
     private final VaultImporter importer;
@@ -132,7 +134,12 @@ public class VaultManager {
             byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
 
             session = cryptoService.openSession(salt, kekIv, encryptedDek, iterations, masterPassword);
-            vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
+            // Try with AAD first (v2.0+), fall back to without AAD for pre-AAD vaults
+            try {
+                vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey(), VAULT_AAD);
+            } catch (VaultDecryptionException e) {
+                vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
+            }
         } else {
             // Legacy v1.0: password directly derives the data key
             requireJsonField(json, "salt", "iv", "encrypted_data");
@@ -172,7 +179,7 @@ public class VaultManager {
         byte[] vaultBytes = gson.toJson(vault).getBytes(StandardCharsets.UTF_8);
         String envelopeJson;
         try {
-            EncryptedPayload encData = cryptoService.encryptData(vaultBytes, session.getDataKey());
+            EncryptedPayload encData = cryptoService.encryptData(vaultBytes, session.getDataKey(), VAULT_AAD);
 
             JsonObject envelope = new JsonObject();
             envelope.addProperty("version", VAULT_VERSION);
@@ -280,7 +287,12 @@ public class VaultManager {
         byte[] dataIv = Base64.getDecoder().decode(json.get("data_iv").getAsString());
         byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
 
-        byte[] vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
+        byte[] vaultJsonBytes;
+        try {
+            vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey(), VAULT_AAD);
+        } catch (VaultDecryptionException e) {
+            vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
+        }
         try {
             return gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
         } finally {
@@ -352,7 +364,11 @@ public class VaultManager {
             byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
 
             VaultSession session = cryptoService.openSession(salt, kekIv, encryptedDek, iterations, sourcePassword);
-            vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
+            try {
+                vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey(), VAULT_AAD);
+            } catch (VaultDecryptionException e) {
+                vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
+            }
             session.destroy();
         } else {
             requireJsonField(json, "salt", "iv", "encrypted_data");
@@ -404,6 +420,11 @@ public class VaultManager {
     /**
      * Gson TypeAdapter that serializes char[] as a JSON string (not a JSON array).
      * This ensures backward-compatible JSON format while storing passwords as char[].
+     *
+     * Note: {@code new String(value)} is unavoidable here because Gson's
+     * {@link JsonWriter#value(String)} only accepts String. The transient String
+     * will be eligible for GC immediately. The char[] source remains the canonical
+     * copy and is wiped when the vault is locked.
      */
     static class CharArrayAdapter extends com.google.gson.TypeAdapter<char[]> {
         @Override

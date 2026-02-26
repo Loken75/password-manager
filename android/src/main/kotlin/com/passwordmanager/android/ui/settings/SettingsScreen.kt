@@ -1,5 +1,6 @@
 package com.passwordmanager.android.ui.settings
 
+import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -12,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -32,6 +34,7 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     val connectionOkStr = stringResource(R.string.settings_connection_ok)
     val connectionFailStr = stringResource(R.string.settings_connection_fail)
@@ -206,6 +209,20 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(R.string.settings_change_master))
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Autofill service
+            OutlinedButton(
+                onClick = {
+                    val intent = Intent(android.provider.Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE)
+                    intent.data = android.net.Uri.parse("package:${context.packageName}")
+                    try { context.startActivity(intent) } catch (_: Exception) {}
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.settings_autofill))
             }
 
             Spacer(modifier = Modifier.height(32.dp))

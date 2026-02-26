@@ -237,6 +237,30 @@ class CryptoServiceTest {
     }
 
     @Test
+    void encryptDecryptWithAAD() throws Exception {
+        char[] password = "A@dTest!1234567".toCharArray();
+        VaultSession session = service.createSession(password);
+
+        byte[] plaintext = "AAD-protected data".getBytes(StandardCharsets.UTF_8);
+        byte[] aad = "2.0".getBytes(StandardCharsets.UTF_8);
+
+        EncryptedPayload payload = service.encryptData(plaintext, session.getDataKey(), aad);
+        byte[] decrypted = service.decryptData(payload.getIv(), payload.getCiphertext(), session.getDataKey(), aad);
+        assertArrayEquals(plaintext, decrypted);
+
+        // Decrypting with wrong AAD should fail (GCM tag mismatch)
+        byte[] wrongAad = "1.0".getBytes(StandardCharsets.UTF_8);
+        assertThrows(VaultDecryptionException.class, () ->
+            service.decryptData(payload.getIv(), payload.getCiphertext(), session.getDataKey(), wrongAad));
+
+        // Decrypting with no AAD should also fail
+        assertThrows(VaultDecryptionException.class, () ->
+            service.decryptData(payload.getIv(), payload.getCiphertext(), session.getDataKey()));
+
+        session.destroy();
+    }
+
+    @Test
     void decryptLegacyWithWrongPasswordThrows() throws Exception {
         char[] correct = "LegacyC0rrect!1".toCharArray();
         char[] wrong = "LegacyWr0ng!123".toCharArray();

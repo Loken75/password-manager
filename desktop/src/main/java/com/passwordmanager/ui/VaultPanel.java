@@ -4,6 +4,8 @@ import com.passwordmanager.crypto.PasswordStrengthAnalyzer;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.vault.SortField;
 import com.passwordmanager.vault.VaultEntry;
+import com.passwordmanager.vault.EntryFilter;
+import com.passwordmanager.util.FaviconService;
 import com.passwordmanager.util.SecureWiper;
 import com.passwordmanager.vault.VaultService;
 
@@ -20,7 +22,9 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Main panel displaying vault entries with search, categories, and entry details.
@@ -35,15 +39,14 @@ public class VaultPanel extends JPanel {
     private DefaultListModel<String> categoryModel;
     private JTable entryTable;
     private EntryTableModel tableModel;
-    private JLabel detailTitle, detailUser, detailEmail, detailPseudo, detailUrl, detailCategory, detailCreated, detailUpdated;
+    private JLabel detailTitle, detailUser, detailEmail, detailPseudo, detailUrl, detailCategory, detailTags, detailCreated, detailUpdated;
     private JPasswordField detailPassword;
     private JCheckBox showDetailPassword;
-    private JButton copyUserBtn;
-    private JButton copyPassBtn;
     private JTextArea detailNotes;
 
+    // Star column (0), then data columns start at 1
     private static final SortField[] COLUMN_SORT_FIELDS = {
-        SortField.TITLE, SortField.USERNAME, SortField.EMAIL, SortField.PSEUDO, SortField.CATEGORY, null
+        null, SortField.TITLE, SortField.USERNAME, SortField.EMAIL, SortField.PSEUDO, SortField.CATEGORY, null
     };
 
     private List<VaultEntry> displayedEntries = new ArrayList<>();
@@ -58,6 +61,18 @@ public class VaultPanel extends JPanel {
     private JPanel bulkToolbar;
     private JLabel bulkSelectionLabel;
 
+    // Filter panel
+    private JPanel filterPanel;
+    private JComboBox<String> filterCategoryCombo;
+    private JComboBox<String> filterStrengthCombo;
+    private JCheckBox filterFavoritesCheckbox;
+    private JButton clearFiltersBtn;
+    private boolean filtersVisible = false;
+
+    // Favicon support
+    private FaviconService faviconService;
+    private final Map<String, ImageIcon> faviconCache = new HashMap<>();
+
     // Callbacks
     private Runnable onVaultChanged;
 
@@ -66,6 +81,10 @@ public class VaultPanel extends JPanel {
         this.clipboardClearSeconds = clipboardClearSeconds;
         initComponents();
         refreshAll();
+    }
+
+    public void setFaviconService(FaviconService faviconService) {
+        this.faviconService = faviconService;
     }
 
     public void setOnVaultChanged(Runnable onVaultChanged) {
@@ -88,30 +107,68 @@ public class VaultPanel extends JPanel {
         JButton addCatBtn = new JButton(lang.getString("category.add"));
         leftPanel.add(addCatBtn, BorderLayout.SOUTH);
 
-        // === Center: Search + Table ===
+        // === Center: Search + Filters + Table ===
         JPanel centerPanel = new JPanel(new BorderLayout(5, 5));
         centerPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
+        // Search bar with filter toggle
         searchField = new JTextField();
         searchField.setToolTipText(lang.getString("vault.search"));
         JPanel searchPanel = new JPanel(new BorderLayout(5, 0));
         searchPanel.add(new JLabel(lang.getString("vault.search")), BorderLayout.WEST);
         searchPanel.add(searchField, BorderLayout.CENTER);
-        centerPanel.add(searchPanel, BorderLayout.NORTH);
+        JButton filterToggleBtn = new JButton(lang.getString("filter.toggle"));
+        filterToggleBtn.addActionListener(e -> toggleFilterPanel());
+        searchPanel.add(filterToggleBtn, BorderLayout.EAST);
+
+        // Filter panel (collapsible)
+        filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        filterPanel.setVisible(false);
+
+        filterCategoryCombo = new JComboBox<>();
+        filterCategoryCombo.addItem(lang.getString("category.all"));
+        filterCategoryCombo.addActionListener(e -> refreshEntries());
+
+        filterStrengthCombo = new JComboBox<>();
+        filterStrengthCombo.addItem(lang.getString("category.all"));
+        filterStrengthCombo.addItem(lang.getString("strength.weak"));
+        filterStrengthCombo.addItem(lang.getString("strength.medium"));
+        filterStrengthCombo.addItem(lang.getString("strength.strong"));
+        filterStrengthCombo.addItem(lang.getString("strength.very_strong"));
+        filterStrengthCombo.addActionListener(e -> refreshEntries());
+
+        filterFavoritesCheckbox = new JCheckBox(lang.getString("filter.favorites_only"));
+        filterFavoritesCheckbox.addActionListener(e -> refreshEntries());
+
+        clearFiltersBtn = new JButton(lang.getString("filter.clear"));
+        clearFiltersBtn.addActionListener(e -> clearFilters());
+
+        filterPanel.add(new JLabel(lang.getString("entry.category") + ":"));
+        filterPanel.add(filterCategoryCombo);
+        filterPanel.add(new JLabel(lang.getString("filter.strength") + ":"));
+        filterPanel.add(filterStrengthCombo);
+        filterPanel.add(filterFavoritesCheckbox);
+        filterPanel.add(clearFiltersBtn);
+
+        JPanel northPanel = new JPanel(new BorderLayout());
+        northPanel.add(searchPanel, BorderLayout.NORTH);
+        northPanel.add(filterPanel, BorderLayout.SOUTH);
+        centerPanel.add(northPanel, BorderLayout.NORTH);
 
         tableModel = new EntryTableModel();
         entryTable = new JTable(tableModel);
         entryTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         entryTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         entryTable.setRowHeight(28);
-        entryTable.setShowGrid(true);
-        entryTable.setGridColor(Color.LIGHT_GRAY);
-        entryTable.getColumnModel().getColumn(0).setPreferredWidth(160);
-        entryTable.getColumnModel().getColumn(1).setPreferredWidth(130);
-        entryTable.getColumnModel().getColumn(2).setPreferredWidth(150);
-        entryTable.getColumnModel().getColumn(3).setPreferredWidth(100);
+        // Column widths: star(30), title, username, email, pseudo, category, strength
+        entryTable.getColumnModel().getColumn(0).setPreferredWidth(30);
+        entryTable.getColumnModel().getColumn(0).setMaxWidth(30);
+        entryTable.getColumnModel().getColumn(1).setPreferredWidth(160);
+        entryTable.getColumnModel().getColumn(2).setPreferredWidth(130);
+        entryTable.getColumnModel().getColumn(3).setPreferredWidth(150);
         entryTable.getColumnModel().getColumn(4).setPreferredWidth(100);
-        entryTable.getColumnModel().getColumn(5).setPreferredWidth(80);
+        entryTable.getColumnModel().getColumn(5).setPreferredWidth(100);
+        entryTable.getColumnModel().getColumn(6).setPreferredWidth(80);
 
         // Clickable header for sorting
         entryTable.getTableHeader().addMouseListener(new MouseAdapter() {
@@ -124,8 +181,19 @@ public class VaultPanel extends JPanel {
             }
         });
 
-        // Color strength column
-        entryTable.getColumnModel().getColumn(5).setCellRenderer(new DefaultTableCellRenderer() {
+        // Star column renderer
+        entryTable.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int col) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col);
+                setHorizontalAlignment(SwingConstants.CENTER);
+                return c;
+            }
+        });
+
+        // Color strength column (now at index 6)
+        entryTable.getColumnModel().getColumn(6).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
                     boolean isSelected, boolean hasFocus, int row, int col) {
@@ -144,19 +212,28 @@ public class VaultPanel extends JPanel {
 
         centerPanel.add(new JScrollPane(entryTable), BorderLayout.CENTER);
 
-        // Bulk action toolbar (shown when >1 row selected)
+        // Bulk action toolbar — "Actions..." dropdown replacing separate buttons
         bulkToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
         bulkToolbar.setVisible(false);
         bulkSelectionLabel = new JLabel();
-        JButton bulkDeleteBtn = new JButton(lang.getString("vault.bulk.delete"));
-        JButton bulkCategoryBtn = new JButton(lang.getString("vault.bulk.changeCategory"));
+        JButton actionsBtn = new JButton(lang.getString("vault.bulk.actions") + "...");
+        actionsBtn.addActionListener(e -> {
+            JPopupMenu popup = new JPopupMenu();
+            JMenuItem deleteItem = new JMenuItem(lang.getString("vault.bulk.delete"));
+            deleteItem.addActionListener(ev -> bulkDeleteSelected());
+            popup.add(deleteItem);
+            JMenuItem categoryItem = new JMenuItem(lang.getString("vault.bulk.changeCategory"));
+            categoryItem.addActionListener(ev -> bulkChangeCategorySelected());
+            popup.add(categoryItem);
+            JMenuItem toggleFavItem = new JMenuItem(lang.getString("vault.bulk.toggleFavorite"));
+            toggleFavItem.addActionListener(ev -> bulkToggleFavoriteSelected());
+            popup.add(toggleFavItem);
+            popup.show(actionsBtn, 0, actionsBtn.getHeight());
+        });
         bulkToolbar.add(bulkSelectionLabel);
-        bulkToolbar.add(bulkDeleteBtn);
-        bulkToolbar.add(bulkCategoryBtn);
+        bulkToolbar.add(actionsBtn);
         centerPanel.add(bulkToolbar, BorderLayout.SOUTH);
 
-        bulkDeleteBtn.addActionListener(e -> bulkDeleteSelected());
-        bulkCategoryBtn.addActionListener(e -> bulkChangeCategorySelected());
 
         // === Right: Detail panel ===
         JPanel rightPanel = new JPanel(new BorderLayout(0, 5));
@@ -179,16 +256,16 @@ public class VaultPanel extends JPanel {
         Font boldFont = new Font("SansSerif", Font.BOLD, 12);
         int row = 0;
 
-        // Username
+        // Username with inline copy
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblUser = new JLabel(lang.getString("entry.username"));
         lblUser.setFont(boldFont);
         tablePanel.add(createCell(lblUser, true, true), gl);
         gl.gridx = 1; gl.weightx = 1;
         detailUser = new JLabel(" ");
-        tablePanel.add(createCell(detailUser, false, true), gl);
+        tablePanel.add(createCell(createDetailValuePanel(detailUser, this::copyUsernameToClipboard), false, true), gl);
 
-        // Email
+        // Email with inline copy
         row++;
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblEmail = new JLabel(lang.getString("entry.email"));
@@ -196,9 +273,9 @@ public class VaultPanel extends JPanel {
         tablePanel.add(createCell(lblEmail, true, true), gl);
         gl.gridx = 1; gl.weightx = 1;
         detailEmail = new JLabel(" ");
-        tablePanel.add(createCell(detailEmail, false, true), gl);
+        tablePanel.add(createCell(createDetailValuePanel(detailEmail, this::copyEmailToClipboard), false, true), gl);
 
-        // Pseudo
+        // Pseudo with inline copy
         row++;
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblPseudo = new JLabel(lang.getString("entry.pseudo"));
@@ -206,9 +283,9 @@ public class VaultPanel extends JPanel {
         tablePanel.add(createCell(lblPseudo, true, true), gl);
         gl.gridx = 1; gl.weightx = 1;
         detailPseudo = new JLabel(" ");
-        tablePanel.add(createCell(detailPseudo, false, true), gl);
+        tablePanel.add(createCell(createDetailValuePanel(detailPseudo, this::copyPseudoToClipboard), false, true), gl);
 
-        // Password
+        // Password with inline copy + show/hide toggle
         row++;
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblPass = new JLabel(lang.getString("entry.password"));
@@ -217,9 +294,21 @@ public class VaultPanel extends JPanel {
         gl.gridx = 1; gl.weightx = 1;
         detailPassword = new JPasswordField();
         detailPassword.setEditable(false);
-        tablePanel.add(createCell(detailPassword, false, true), gl);
+        showDetailPassword = new JCheckBox();
+        showDetailPassword.setToolTipText(lang.getString("entry.show_password"));
+        JPanel pwdPanel = new JPanel(new BorderLayout());
+        pwdPanel.add(detailPassword, BorderLayout.CENTER);
+        JPanel pwdBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        pwdBtns.add(showDetailPassword);
+        JButton copyPwdSmall = new JButton("\u2398");
+        copyPwdSmall.setMargin(new Insets(1, 4, 1, 4));
+        copyPwdSmall.setToolTipText(lang.getString("entry.copy_password"));
+        copyPwdSmall.addActionListener(e -> copyPasswordToClipboard());
+        pwdBtns.add(copyPwdSmall);
+        pwdPanel.add(pwdBtns, BorderLayout.EAST);
+        tablePanel.add(createCell(pwdPanel, false, true), gl);
 
-        // URL (clickable)
+        // URL with inline copy (clickable)
         row++;
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblUrl = new JLabel(lang.getString("entry.url"));
@@ -242,7 +331,7 @@ public class VaultPanel extends JPanel {
                 }
             }
         });
-        tablePanel.add(createCell(detailUrl, false, true), gl);
+        tablePanel.add(createCell(createDetailValuePanel(detailUrl, this::copyUrlToClipboard), false, true), gl);
 
         // Category
         row++;
@@ -253,6 +342,16 @@ public class VaultPanel extends JPanel {
         gl.gridx = 1; gl.weightx = 1;
         detailCategory = new JLabel(" ");
         tablePanel.add(createCell(detailCategory, false, true), gl);
+
+        // Tags
+        row++;
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
+        JLabel lblTags = new JLabel(lang.getString("entry.tags"));
+        lblTags.setFont(boldFont);
+        tablePanel.add(createCell(lblTags, true, true), gl);
+        gl.gridx = 1; gl.weightx = 1;
+        detailTags = new JLabel(" ");
+        tablePanel.add(createCell(detailTags, false, true), gl);
 
         // Notes (takes remaining vertical space)
         row++;
@@ -290,25 +389,12 @@ public class VaultPanel extends JPanel {
         tablePanel.setBorder(BorderFactory.createMatteBorder(1, 1, 1, 1, Color.GRAY));
         rightPanel.add(new JScrollPane(tablePanel), BorderLayout.CENTER);
 
-        // SOUTH: Buttons (two rows to fit within 300px width)
-        JPanel btnPanel = new JPanel(new GridLayout(2, 1, 0, 2));
-        JPanel copyRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 2));
-        copyUserBtn = new JButton(lang.getString("entry.copy_username"));
-        copyPassBtn = new JButton(lang.getString("entry.copy_password"));
-        copyRow.add(copyUserBtn);
-        copyRow.add(copyPassBtn);
-        JPanel showRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 2));
-        showDetailPassword = new JCheckBox(lang.getString("entry.show_password"));
-        showRow.add(showDetailPassword);
-        btnPanel.add(copyRow);
-        btnPanel.add(showRow);
-        rightPanel.add(btnPanel, BorderLayout.SOUTH);
-
         // === Assemble with resizable JSplitPanes ===
         JSplitPane rightSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, centerPanel, rightPanel);
         rightSplit.setResizeWeight(0.7);
         rightSplit.setDividerLocation(550);
         rightSplit.setContinuousLayout(true);
+
 
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightSplit);
         mainSplit.setResizeWeight(0.0);
@@ -351,7 +437,6 @@ public class VaultPanel extends JPanel {
         showDetailPassword.addActionListener(e -> {
             if (showDetailPassword.isSelected()) {
                 detailPassword.setEchoChar((char) 0);
-                // Auto-hide password after timeout
                 if (passwordVisibilityTimer != null) passwordVisibilityTimer.stop();
                 passwordVisibilityTimer = new javax.swing.Timer(PASSWORD_VISIBILITY_TIMEOUT_MS, evt -> {
                     detailPassword.setEchoChar(echoChar);
@@ -368,9 +453,6 @@ public class VaultPanel extends JPanel {
             }
         });
 
-        copyUserBtn.addActionListener(e -> copyUsernameToClipboard());
-        copyPassBtn.addActionListener(e -> copyPasswordToClipboard());
-
         addCatBtn.addActionListener(e -> {
             String name = JOptionPane.showInputDialog(VaultPanel.this,
                 lang.getString("category.new"), lang.getString("category.add"),
@@ -382,11 +464,18 @@ public class VaultPanel extends JPanel {
             }
         });
 
-        // Double-click to edit, right-click for context menu
+        // Click on star column to toggle favorite; double-click to edit; right-click for context menu
         entryTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
+                int col = entryTable.columnAtPoint(e.getPoint());
+                int row = entryTable.rowAtPoint(e.getPoint());
+                if (col == 0 && row >= 0 && row < displayedEntries.size() && SwingUtilities.isLeftMouseButton(e)) {
+                    // Toggle favorite
+                    vaultService.toggleFavorite(displayedEntries.get(row).getId());
+                    refreshEntries();
+                    notifyChanged();
+                } else if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
                     editSelectedEntry();
                 }
             }
@@ -407,6 +496,30 @@ public class VaultPanel extends JPanel {
                 }
             }
         });
+    }
+
+    private void toggleFilterPanel() {
+        filtersVisible = !filtersVisible;
+        filterPanel.setVisible(filtersVisible);
+        if (filtersVisible) {
+            refreshFilterCategoryCombo();
+        }
+        revalidate();
+    }
+
+    private void refreshFilterCategoryCombo() {
+        filterCategoryCombo.removeAllItems();
+        filterCategoryCombo.addItem(lang.getString("category.all"));
+        for (String cat : vaultService.getVault().getCategories()) {
+            filterCategoryCombo.addItem(cat);
+        }
+    }
+
+    private void clearFilters() {
+        filterCategoryCombo.setSelectedIndex(0);
+        filterStrengthCombo.setSelectedIndex(0);
+        filterFavoritesCheckbox.setSelected(false);
+        refreshEntries();
     }
 
     public void refreshAll() {
@@ -443,6 +556,29 @@ public class VaultPanel extends JPanel {
             entries = vaultService.search("");
         }
 
+        // Apply advanced filters if filter panel is visible
+        if (filtersVisible) {
+            EntryFilter.Builder fb = new EntryFilter.Builder();
+            String filterCat = (String) filterCategoryCombo.getSelectedItem();
+            if (filterCat != null && !filterCat.equals(lang.getString("category.all"))) {
+                fb.category(filterCat);
+            }
+            String filterStr = (String) filterStrengthCombo.getSelectedItem();
+            if (filterStr != null && !filterStr.equals(lang.getString("category.all"))) {
+                PasswordStrengthAnalyzer.Strength minStr = null;
+                if (filterStr.equals(lang.getString("strength.weak"))) minStr = PasswordStrengthAnalyzer.Strength.WEAK;
+                else if (filterStr.equals(lang.getString("strength.medium"))) minStr = PasswordStrengthAnalyzer.Strength.MEDIUM;
+                else if (filterStr.equals(lang.getString("strength.strong"))) minStr = PasswordStrengthAnalyzer.Strength.STRONG;
+                else if (filterStr.equals(lang.getString("strength.very_strong"))) minStr = PasswordStrengthAnalyzer.Strength.VERY_STRONG;
+                if (minStr != null) fb.exactStrength(minStr);
+            }
+            if (filterFavoritesCheckbox.isSelected()) {
+                fb.favoritesOnly(true);
+            }
+            EntryFilter filter = fb.build();
+            entries = vaultService.filter(entries, filter);
+        }
+
         displayedEntries = vaultService.sorted(entries, currentSort);
         if (!sortAscending) {
             java.util.Collections.reverse(displayedEntries);
@@ -457,7 +593,7 @@ public class VaultPanel extends JPanel {
             return;
         }
         VaultEntry e = displayedEntries.get(row);
-        detailTitle.setText(e.getTitle());
+        detailTitle.setText((e.isFavorite() ? "\u2605 " : "") + e.getTitle());
         detailUser.setText(e.getUsername() != null ? e.getUsername() : "");
         detailEmail.setText(e.getEmail() != null ? e.getEmail() : "");
         detailPseudo.setText(e.getPseudo() != null ? e.getPseudo() : "");
@@ -466,6 +602,7 @@ public class VaultPanel extends JPanel {
         SecureWiper.wipe(pwd);
         detailUrl.setText(e.getUrl() != null ? e.getUrl() : "");
         detailCategory.setText(e.getCategory() != null ? e.getCategory() : "");
+        detailTags.setText(e.getTags() != null && !e.getTags().isEmpty() ? String.join(", ", e.getTags()) : "");
         detailNotes.setText(e.getNotes() != null ? e.getNotes() : "");
         detailCreated.setText(e.getCreatedAt() != null ? e.getCreatedAt() : "");
         detailUpdated.setText(e.getUpdatedAt() != null ? e.getUpdatedAt() : "");
@@ -479,6 +616,7 @@ public class VaultPanel extends JPanel {
         detailPassword.setText("");
         detailUrl.setText(" ");
         detailCategory.setText(" ");
+        detailTags.setText(" ");
         detailNotes.setText("");
         detailCreated.setText(" ");
         detailUpdated.setText(" ");
@@ -526,6 +664,23 @@ public class VaultPanel extends JPanel {
         }
     }
 
+    private void bulkToggleFavoriteSelected() {
+        List<String> ids = getSelectedEntryIds();
+        if (ids.isEmpty()) return;
+        // Check if any selected entry is not a favorite
+        boolean anyNotFav = false;
+        for (VaultEntry e : displayedEntries) {
+            if (ids.contains(e.getId()) && !e.isFavorite()) {
+                anyNotFav = true;
+                break;
+            }
+        }
+        // If any is not favorite, set all to favorite; otherwise unfavorite all
+        vaultService.bulkSetFavorite(ids, anyNotFav);
+        refreshEntries();
+        notifyChanged();
+    }
+
     private JPopupMenu createContextMenu() {
         JPopupMenu menu = new JPopupMenu();
         boolean singleSelected = entryTable.getSelectedRowCount() == 1;
@@ -538,6 +693,20 @@ public class VaultPanel extends JPanel {
         JMenuItem deleteItem = new JMenuItem(lang.getString("vault.delete_entry"));
         deleteItem.addActionListener(e -> deleteSelectedEntry());
         menu.add(deleteItem);
+
+        menu.addSeparator();
+
+        JMenuItem toggleFav = new JMenuItem(lang.getString("entry.toggle_favorite"));
+        toggleFav.setEnabled(singleSelected);
+        toggleFav.addActionListener(e -> {
+            VaultEntry se = getSelectedEntry();
+            if (se != null) {
+                vaultService.toggleFavorite(se.getId());
+                refreshEntries();
+                notifyChanged();
+            }
+        });
+        menu.add(toggleFav);
 
         menu.addSeparator();
 
@@ -555,6 +724,11 @@ public class VaultPanel extends JPanel {
         copyEmail.setEnabled(singleSelected);
         copyEmail.addActionListener(e -> copyEmailToClipboard());
         menu.add(copyEmail);
+
+        JMenuItem copyPseudo = new JMenuItem(lang.getString("entry.copy_pseudo"));
+        copyPseudo.setEnabled(singleSelected);
+        copyPseudo.addActionListener(e -> copyPseudoToClipboard());
+        menu.add(copyPseudo);
 
         JMenuItem copyUrl = new JMenuItem(lang.getString("menu.copy.url"));
         copyUrl.setEnabled(singleSelected);
@@ -581,6 +755,14 @@ public class VaultPanel extends JPanel {
         if (e == null || e.getEmail() == null || e.getEmail().isEmpty()) return;
         Toolkit.getDefaultToolkit().getSystemClipboard()
             .setContents(new StringSelection(e.getEmail()), null);
+        scheduleClipboardClear();
+    }
+
+    private void copyPseudoToClipboard() {
+        VaultEntry e = getSelectedEntry();
+        if (e == null || e.getPseudo() == null || e.getPseudo().isEmpty()) return;
+        Toolkit.getDefaultToolkit().getSystemClipboard()
+            .setContents(new StringSelection(e.getPseudo()), null);
         scheduleClipboardClear();
     }
 
@@ -650,8 +832,7 @@ public class VaultPanel extends JPanel {
         char[] clipPwd = e.getPassword();
         if (clipPwd == null) return;
 
-        Toolkit.getDefaultToolkit().getSystemClipboard()
-            .setContents(new StringSelection(new String(clipPwd)), null);
+        SecureClipboard.copyPassword(clipPwd);
         SecureWiper.wipe(clipPwd);
 
         scheduleClipboardClear();
@@ -757,6 +938,7 @@ public class VaultPanel extends JPanel {
     // === Table Model ===
     private class EntryTableModel extends AbstractTableModel {
         private final String[] columns = {
+            "\u2605",  // star column
             lang.getString("entry.title"),
             lang.getString("entry.username"),
             lang.getString("entry.email"),
@@ -773,12 +955,13 @@ public class VaultPanel extends JPanel {
         public Object getValueAt(int row, int col) {
             VaultEntry e = displayedEntries.get(row);
             switch (col) {
-                case 0: return e.getTitle();
-                case 1: return e.getUsername();
-                case 2: return e.getEmail();
-                case 3: return e.getPseudo();
-                case 4: return e.getCategory();
-                case 5:
+                case 0: return e.isFavorite() ? "\u2605" : "\u2606";
+                case 1: return e.getTitle();
+                case 2: return e.getUsername();
+                case 3: return e.getEmail();
+                case 4: return e.getPseudo();
+                case 5: return e.getCategory();
+                case 6:
                     char[] tablePwd = e.getPassword();
                     try {
                         PasswordStrengthAnalyzer.Strength st = PasswordStrengthAnalyzer.analyze(tablePwd);
@@ -809,6 +992,21 @@ public class VaultPanel extends JPanel {
             BorderFactory.createMatteBorder(0, 0, bottomBorder ? 1 : 0, rightBorder ? 1 : 0, Color.GRAY),
             BorderFactory.createEmptyBorder(4, 6, 4, 6)));
         return cell;
+    }
+
+    /**
+     * Creates a detail value panel with the value component on the left and
+     * a small copy button on the right.
+     */
+    private static JPanel createDetailValuePanel(JComponent value, Runnable onCopy) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(value, BorderLayout.CENTER);
+        JButton copyBtn = new JButton("\u2398");
+        copyBtn.setMargin(new Insets(1, 4, 1, 4));
+        copyBtn.setToolTipText("Copy");
+        copyBtn.addActionListener(e -> onCopy.run());
+        panel.add(copyBtn, BorderLayout.EAST);
+        return panel;
     }
 
     /**

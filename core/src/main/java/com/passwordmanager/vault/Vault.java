@@ -85,10 +85,13 @@ public class Vault {
     public List<VaultEntry> getEntries() {
         return Collections.unmodifiableList(entries);
     }
-    /** Direct mutable access (for Gson deserialization and bulk operations like import). */
+    /**
+     * Direct mutable access — callers MUST hold VaultService's synchronized lock
+     * when iterating or modifying. Used by Gson deserialization and bulk operations.
+     */
     public List<VaultEntry> getEntriesMutable() { return entries; }
-    public void addEntry(VaultEntry entry) { entries.add(entry); }
-    public boolean removeEntry(VaultEntry entry) { return entries.remove(entry); }
+    public synchronized void addEntry(VaultEntry entry) { entries.add(entry); }
+    public synchronized boolean removeEntry(VaultEntry entry) { return entries.remove(entry); }
     public void setEntries(List<VaultEntry> entries) { this.entries = entries; }
     public List<String> getCategories() { return categories; }
     public void setCategories(List<String> categories) { this.categories = categories; }
