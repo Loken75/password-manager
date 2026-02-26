@@ -2,9 +2,9 @@ package com.passwordmanager.android
 
 import android.os.Bundle
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     @Inject lateinit var configRepo: ConfigRepository
     @Inject lateinit var sessionHolder: SessionHolder
@@ -33,6 +33,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Apply saved language locale on startup
+        val savedLang = configRepo.getLanguage()
+        val currentLocales = androidx.appcompat.app.AppCompatDelegate.getApplicationLocales()
+        if (currentLocales.isEmpty || currentLocales.get(0)?.language != savedLang) {
+            val localeList = androidx.core.os.LocaleListCompat.forLanguageTags(savedLang)
+            androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(localeList)
+        }
 
         // Prevent screenshots and task switcher from showing passwords
         window.setFlags(

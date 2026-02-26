@@ -261,6 +261,17 @@ class VaultListViewModel @Inject constructor(
         refreshEntries()
     }
 
+    fun bulkDelete() {
+        val service = sessionHolder.vaultService ?: return
+        val selectedIds = _uiState.value.selectedEntryIds
+        for (id in selectedIds) {
+            service.deleteEntry(id)
+        }
+        viewModelScope.launch(Dispatchers.IO) { sessionHolder.save() }
+        clearSelection()
+        refreshEntries()
+    }
+
     // === SFTP Sync ===
 
     fun syncNow() {

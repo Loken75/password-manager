@@ -8,7 +8,7 @@ Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et prot
 - Chiffrement par enveloppe DEK/KEK (changement de mot de passe instantane)
 - Generateur de mots de passe cryptographiquement sur (SecureRandom)
 - Analyse de securite (mots de passe faibles, reutilises, anciens)
-- Import/export unifie (CSV, JSON, coffre chiffre) avec popup parametrable
+- Import/export unifie (CSV, JSON, coffre chiffre) avec popup parametrable et import par fusion
 - Synchronisation SFTP avec gestion des conflits et mode hors-ligne
 - Interface bilingue francais / anglais
 - Themes Systeme, Clair et Sombre
@@ -144,7 +144,7 @@ Apres connexion, l'interface se compose de :
 
 - **TopAppBar** : titre, recherche, tri (7 criteres), menu (import/export, sync, audit, parametres, verrouiller)
 - **Dropdown categories** pour le filtrage par categorie
-- **Liste scrollable** des entrees avec indicateur de force et selection multiple (appui long)
+- **Liste scrollable** des entrees avec indicateur de force et selection multiple (appui long) avec suppression et changement de categorie en masse
 - **FAB** pour nouvelle entree
 - **Navigation** : ecrans detail (URL cliquable), edition (identifiant, email, pseudo), generateur, parametres (SFTP), audit
 
@@ -157,7 +157,7 @@ Apres connexion, l'interface se compose de :
 | Analyse de securite | Oui | Oui |
 | Import/export unifie (CSV/JSON/chiffre) | Oui | Oui (via SAF) |
 | Recherche et tri (7 criteres) | Oui | Oui |
-| Selection multiple + action en masse | Non | Oui |
+| Selection multiple + suppression/categorie en masse | Non | Oui |
 | Themes Systeme/Clair/Sombre | Oui (FlatLaf) | Oui (Material 3 / Dynamic Colors) |
 | Verrouillage automatique | Oui | Oui |
 | Synchronisation SFTP | Oui | Oui |
@@ -181,7 +181,7 @@ Indicateur de force : Faible (rouge), Moyen (orange), Fort (vert), Tres fort (bl
 
 ## Import / Export
 
-Import et export unifies via une popup parametrable proposant 3 formats : **CSV**, **JSON** et **coffre chiffre (.enc)**. Detection automatique du separateur (`,` ou `;`) et des colonnes via alias multilingues (incluant email et pseudo). Limite : 10 000 entrees par import. Pour CSV et JSON, les donnees exportees ne sont **pas chiffrees** (avertissement affiche). Protection anti-injection de formules pour les tableurs. L'import d'un coffre chiffre demande le mot de passe maitre du coffre source.
+Import et export unifies via une popup parametrable proposant 3 formats : **CSV**, **JSON** et **coffre chiffre (.enc)**. Detection automatique du separateur (`,` ou `;`) et des colonnes via alias multilingues (incluant email et pseudo). Limite : 10 000 entrees par import. Pour CSV et JSON, les donnees exportees ne sont **pas chiffrees** (avertissement affiche). Protection anti-injection de formules pour les tableurs. L'import d'un coffre chiffre demande le mot de passe maitre du coffre source (avec option afficher/masquer). L'import fonctionne par **fusion** : les entrees importees sont ajoutees au coffre existant sans ecraser les donnees en place.
 
 Sur Android, l'import/export utilise le Storage Access Framework (SAF) — selecteur de fichiers systeme.
 
@@ -203,7 +203,7 @@ Disponible sur **desktop** et **Android**.
 
 | Parametre | Desktop | Android |
 |---|---|---|
-| Langue (FR/EN) | Oui | Oui |
+| Langue (FR/EN) | Oui | Oui (via AppCompatDelegate + locales_config) |
 | Theme (Systeme/Clair/Sombre) | Oui | Oui |
 | Verrouillage automatique (1-60 min) | Oui | Oui |
 | Effacement presse-papiers (5-120 s) | Oui | Oui |

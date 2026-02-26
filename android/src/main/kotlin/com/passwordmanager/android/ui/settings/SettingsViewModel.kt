@@ -60,6 +60,9 @@ class SettingsViewModel @Inject constructor(
     fun setLanguage(language: String) {
         configRepo.setLanguage(language)
         _uiState.update { it.copy(language = language) }
+        // Apply locale change via AndroidX AppCompat
+        val localeList = androidx.core.os.LocaleListCompat.forLanguageTags(language)
+        androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(localeList)
     }
 
     fun setAutoLockMinutes(minutes: Int) {

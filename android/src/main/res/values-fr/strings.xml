@@ -28,6 +28,7 @@
     <string name="vault_edit_entry">Modifier l\'entrée</string>
     <string name="vault_delete_entry">Supprimer l\'entrée</string>
     <string name="vault_delete_confirm">Êtes-vous sûr de vouloir supprimer cette entrée ?</string>
+    <string name="vault_delete_selected_confirm">Êtes-vous sûr de vouloir supprimer %1$d entrée(s) sélectionnée(s) ?</string>
     <string name="vault_search">Rechercher…</string>
     <string name="vault_entries">entrées</string>
     <string name="vault_details">Détails</string>

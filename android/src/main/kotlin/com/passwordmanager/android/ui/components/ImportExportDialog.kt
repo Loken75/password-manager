@@ -11,6 +11,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import com.passwordmanager.android.R
 
 enum class ImportFormat { CSV, JSON, ENCRYPTED }
@@ -58,6 +59,7 @@ fun ImportDialog(
                 }
 
                 if (selectedFormat == ImportFormat.ENCRYPTED) {
+                    var showPassword by remember { mutableStateOf(false) }
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = encryptedPassword,
@@ -65,8 +67,22 @@ fun ImportDialog(
                         label = { Text(stringResource(R.string.import_vault_password)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        visualTransformation = PasswordVisualTransformation()
+                        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation()
                     )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Checkbox(
+                            checked = showPassword,
+                            onCheckedChange = { showPassword = it }
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.entry_show_password),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             }
         },

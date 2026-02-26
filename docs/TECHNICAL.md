@@ -148,8 +148,9 @@ AppModule (@Module @InstallIn(SingletonComponent))
   +-- @Provides @Singleton SessionHolder (init + return)
 
 @AndroidEntryPoint
-MainActivity (single Activity)
+MainActivity (extends AppCompatActivity, single Activity)
   +-- @Inject ConfigRepository, SessionHolder
+  +-- Applique la locale sauvegardee au demarrage via AppCompatDelegate.setApplicationLocales()
   +-- AppNavigation (NavHost)
         |-- LoginScreen / @HiltViewModel LoginViewModel
         |     +-- @Inject AndroidVaultRepository, SessionHolder
@@ -510,7 +511,7 @@ public static void wipe(char[] data) {
 | `LanguageManager` | Singleton thread-safe (`volatile bundle`), gestion FR/EN via `ResourceBundle` |
 
 - 88 cles de traduction par langue
-- Changement de langue dynamique via `setLanguage()`
+- Changement de langue dynamique via `setLanguage()` (desktop : reconstruit l'interface, Android : `AppCompatDelegate.setApplicationLocales()` + `locales_config.xml`)
 - Retourne la cle elle-meme si la traduction n'est pas trouvee (pas d'exception)
 
 ### 5.6. `com.passwordmanager.ui`
@@ -812,7 +813,7 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la ses
 | Ecran | Composable | ViewModel | Description |
 |-------|-----------|-----------|-------------|
 | Login | `LoginScreen` | `LoginViewModel` | Dropdown utilisateurs, creation, anti brute-force |
-| Liste | `VaultListScreen` | `VaultListViewModel` | Recherche, dropdown categories, tri (7 criteres), import/export unifie, selection multiple, sync SFTP |
+| Liste | `VaultListScreen` | `VaultListViewModel` | Recherche, dropdown categories, tri (7 criteres), import/export unifie (fusion), selection multiple (suppression + categorie en masse), sync SFTP |
 | Detail | `EntryDetailScreen` | `EntryDetailViewModel` | Lecture seule avec email/pseudo, URL cliquable, copier, supprimer |
 | Edition | `EntryEditScreen` | `EntryEditViewModel` | Formulaire CRUD (identifiant, email, pseudo), lien generateur |
 | Generateur | `GeneratorScreen` | `GeneratorViewModel` | Options, barre de force, copier/utiliser |
@@ -828,7 +829,7 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la ses
 | `PasswordField` | OutlinedTextField avec toggle visibilite |
 | `EntryCard` | Carte pour la liste (titre, username, categorie, point de force). Support selection multiple (checkbox, long press) |
 | `ConfirmDialog` | AlertDialog de confirmation reutilisable |
-| `ImportExportDialog` | Popups import/export unifiees (CSV/JSON/chiffre) avec champ mot de passe masque |
+| `ImportExportDialog` | Popups import/export unifiees (CSV/JSON/chiffre) avec champ mot de passe masquable (toggle Afficher) |
 
 #### Navigation
 
@@ -1041,7 +1042,7 @@ password-manager/
         |   |   +-- values/themes.xml
         |   +-- kotlin/com/passwordmanager/android/
         |       |-- PasswordManagerApp.kt   # @HiltAndroidApp
-        |       |-- MainActivity.kt         # @AndroidEntryPoint, @Inject configRepo/sessionHolder
+        |       |-- MainActivity.kt         # @AndroidEntryPoint, AppCompatActivity, locale init
         |       |-- data/                   # AndroidVaultRepository, AndroidConfigRepository,
         |       |                           # ConfigRepository (interface), SessionHolder (@Volatile/@Synchronized)
         |       |-- di/                     # AppModule (@Module @InstallIn @Provides @Singleton)

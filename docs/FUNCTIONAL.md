@@ -184,7 +184,7 @@ Apres connexion, l'interface Android se compose de :
 - **TopAppBar** avec titre, icone de recherche et menu overflow (importer..., exporter..., synchroniser, audit de securite, parametres, verrouiller)
 - **Dropdown categorie** pour le filtrage (remplace les FilterChips) : liste deroulante "Toutes les categories" + categories existantes
 - **Liste scrollable** (LazyColumn) des entrees avec indicateur de force, titre, identifiant et categorie
-- **Selection multiple** : appui long sur une entree pour activer le mode selection, checkbox sur chaque entree, bouton "Modifier la categorie" pour changement en masse
+- **Selection multiple** : appui long sur une entree pour activer le mode selection, checkbox sur chaque entree, bouton "Modifier" (changement de categorie en masse) et bouton "Supprimer" (suppression en masse avec confirmation)
 - **FAB** (bouton flottant) pour creer une nouvelle entree
 - **Navigation** par ecrans : detail, edition, generateur, parametres, changement de mot de passe maitre, audit
 
@@ -433,7 +433,7 @@ Importe un fichier JSON au format d'export de l'application. Chaque entree recoi
 
 ### 11.3. Import sauvegarde chiffree
 
-Importe les entrees depuis un fichier coffre chiffre (`.enc`) provenant d'un autre utilisateur ou d'une sauvegarde. Un champ de mot de passe (masque) permet de saisir le mot de passe maitre du vault source. Les entrees dechiffrees sont ajoutees au coffre courant.
+Importe les entrees depuis un fichier coffre chiffre (`.enc`) provenant d'un autre utilisateur ou d'une sauvegarde. Un champ de mot de passe (masque par defaut, avec case a cocher **Afficher**) permet de saisir le mot de passe maitre du vault source. Les entrees dechiffrees sont **ajoutees par fusion** au coffre courant (les entrees existantes ne sont pas ecrasees).
 
 ### 11.4. Export CSV
 
@@ -667,7 +667,7 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | Recherche en temps reel | Oui (titre, id, email, pseudo, URL, notes, categorie, tags) | Oui |
 | Tri (7 criteres) | En-tetes cliquables + menu Affichage | Menu overflow tri |
 | Filtrage par categorie | Panneau lateral | Dropdown (liste deroulante) |
-| Selection multiple + changement categorie en masse | Non | Oui (appui long) |
+| Selection multiple + suppression/categorie en masse | Non | Oui (appui long) |
 | URL cliquable dans le detail | Oui (Desktop.browse) | Oui (UriHandler) |
 | Themes Systeme/Clair/Sombre | FlatLaf | Material 3 (Dynamic Colors Android 12+) |
 | Verrouillage automatique | Oui (evenements AWT) | Oui (ProcessLifecycleOwner) |
@@ -678,4 +678,4 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | Stockage configuration | `config.properties` chiffre | EncryptedSharedPreferences |
 | Raccourcis clavier | Oui | N/A |
 | Distribution | JRE embarque (jlink) | APK |
-| Langue | Changeable dans l'app | Suit la langue systeme |
+| Langue | Changeable dans l'app | Changeable dans l'app (AppCompatDelegate + locales_config) |

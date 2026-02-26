@@ -42,6 +42,7 @@ fun VaultListScreen(
     var showExportDialog by remember { mutableStateOf(false) }
     var entryToDelete by remember { mutableStateOf<String?>(null) }
     var showBulkCategoryDialog by remember { mutableStateOf(false) }
+    var showBulkDeleteDialog by remember { mutableStateOf(false) }
 
     // For encrypted import: store password until file is picked
     var pendingEncPassword by remember { mutableStateOf<CharArray?>(null) }
@@ -284,12 +285,22 @@ fun VaultListScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        horizontalArrangement = Arrangement.Center
+                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
                     ) {
                         Button(onClick = { showBulkCategoryDialog = true }) {
                             Icon(Icons.Default.Label, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(stringResource(R.string.vault_change_category))
+                        }
+                        Button(
+                            onClick = { showBulkDeleteDialog = true },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.common_delete))
                         }
                     }
                 }
@@ -457,6 +468,21 @@ fun VaultListScreen(
                 entryToDelete = null
             },
             onDismiss = { entryToDelete = null }
+        )
+    }
+
+    // Bulk delete confirmation dialog
+    if (showBulkDeleteDialog) {
+        ConfirmDialog(
+            title = stringResource(R.string.vault_delete_entry),
+            message = stringResource(R.string.vault_delete_selected_confirm)
+                .replace("%1\$d", state.selectedEntryIds.size.toString()),
+            confirmText = stringResource(R.string.common_delete),
+            onConfirm = {
+                viewModel.bulkDelete()
+                showBulkDeleteDialog = false
+            },
+            onDismiss = { showBulkDeleteDialog = false }
         )
     }
 
