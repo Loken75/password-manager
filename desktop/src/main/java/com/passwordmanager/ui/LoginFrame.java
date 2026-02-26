@@ -1,6 +1,7 @@
 package com.passwordmanager.ui;
 
 import com.passwordmanager.config.AppConfig;
+import com.passwordmanager.config.AppVersion;
 import com.passwordmanager.config.ConfigManager;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.util.PasswordValidator;
@@ -57,7 +58,7 @@ public class LoginFrame extends JFrame {
         mainPanel.add(titleLabel);
         mainPanel.add(Box.createVerticalStrut(5));
 
-        JLabel subtitleLabel = new JLabel(lang.getString("app.version"));
+        JLabel subtitleLabel = new JLabel(lang.getString("app.version").replace("{0}", AppVersion.get()));
         subtitleLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
         subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         mainPanel.add(subtitleLabel);

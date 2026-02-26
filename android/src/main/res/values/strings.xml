@@ -2,7 +2,7 @@
 <resources>
     <!-- Application -->
     <string name="app_title">Password Manager</string>
-    <string name="app_version">Version 1.0</string>
+    <string name="app_version">V%1$s</string>
 
     <!-- Login -->
     <string name="login_username">Username</string>
@@ -145,7 +145,7 @@
 
     <!-- About -->
     <string name="about_title">About</string>
-    <string name="about_description">Secure Password Manager\nAES-256-GCM Encryption\nVersion 1.0</string>
+    <string name="about_description">Secure Password Manager\nAES-256-GCM Encryption\nV%1$s</string>
 
     <!-- Navigation -->
     <string name="nav_vault">Vault</string>

@@ -4,6 +4,7 @@ import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.passwordmanager.Main;
 import com.passwordmanager.config.AppConfig;
+import com.passwordmanager.config.AppVersion;
 import com.passwordmanager.config.ConfigManager;
 import com.passwordmanager.config.StorageMode;
 import com.passwordmanager.config.ThemeMode;
@@ -220,7 +221,7 @@ public class MainFrame extends JFrame {
         syncNow.addActionListener(e -> doSync());
         about.addActionListener(e ->
             JOptionPane.showMessageDialog(MainFrame.this,
-                lang.getString("about.description"),
+                lang.getString("about.description").replace("{0}", AppVersion.get()),
                 lang.getString("about.title"), JOptionPane.INFORMATION_MESSAGE));
 
         return bar;

@@ -8,6 +8,8 @@ plugins {
     id("com.google.dagger.hilt.android") version "2.54"
 }
 
+val appVersion: String by project
+
 android {
     namespace = "com.passwordmanager.android"
     compileSdk = 35
@@ -16,8 +18,8 @@ android {
         applicationId = "com.passwordmanager.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersion.replace(".", "").toIntOrNull() ?: 1
+        versionName = appVersion
     }
 
     signingConfigs {
@@ -51,6 +53,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {

@@ -285,22 +285,34 @@ fun VaultListScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Button(onClick = { showBulkCategoryDialog = true }) {
+                        Button(
+                            onClick = { showBulkCategoryDialog = true },
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Icon(Icons.Default.Label, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.vault_change_category))
+                            Text(
+                                stringResource(R.string.vault_change_category),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                         }
                         Button(
                             onClick = { showBulkDeleteDialog = true },
+                            modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.error
                             )
                         ) {
                             Icon(Icons.Default.Delete, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.common_delete))
+                            Text(
+                                stringResource(R.string.common_delete),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
