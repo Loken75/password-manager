@@ -37,7 +37,7 @@ class EntryEditViewModel @Inject constructor(
 
     fun loadEntry(entryId: String?) {
         val vault = sessionHolder.vault ?: return
-        val categories = vault.categories
+        val categories = vault.categories.sorted()
 
         if (entryId != null) {
             val entry = sessionHolder.vaultService?.search("")?.find { it.id == entryId }

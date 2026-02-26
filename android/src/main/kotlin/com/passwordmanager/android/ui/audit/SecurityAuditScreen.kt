@@ -109,7 +109,7 @@ private fun AuditSection(
     entries: List<VaultEntry>,
     onEntryClick: (String) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(entries.isNotEmpty()) }
+    var expanded by remember { mutableStateOf(false) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {

@@ -46,6 +46,10 @@ public class MainFrame extends JFrame {
     private AutoLockManager autoLockManager;
     private DesktopUpdateManager updateManager;
 
+    // Menu items that need dynamic state
+    private JMenuItem syncNowMenuItem;
+    private JButton syncToolbarBtn;
+
     public MainFrame(Vault vault, String username, VaultSession session,
                      VaultManager vaultManager, AppConfig appConfig, ConfigManager configManager) {
         this.vault = vault;
@@ -185,12 +189,13 @@ public class MainFrame extends JFrame {
         JMenu toolsMenu = new JMenu(lang.getString("menu.tools"));
         JMenuItem generator = new JMenuItem(lang.getString("menu.tools.generator"));
         JMenuItem audit = new JMenuItem(lang.getString("menu.tools.security_audit"));
-        JMenuItem syncNow = new JMenuItem(lang.getString("menu.tools.sync_now"));
+        syncNowMenuItem = new JMenuItem(lang.getString("menu.tools.sync_now"));
+        syncNowMenuItem.setEnabled(appConfig.getStorageMode() == StorageMode.REMOTE);
 
         toolsMenu.add(generator);
         toolsMenu.add(audit);
         toolsMenu.addSeparator();
-        toolsMenu.add(syncNow);
+        toolsMenu.add(syncNowMenuItem);
         bar.add(toolsMenu);
 
         // Help menu
@@ -225,7 +230,7 @@ public class MainFrame extends JFrame {
         generator.addActionListener(e ->
             new PasswordGeneratorDialog(MainFrame.this).setVisible(true));
         audit.addActionListener(e -> securityAuditController.doSecurityAudit());
-        syncNow.addActionListener(e -> doSync());
+        syncNowMenuItem.addActionListener(e -> doSync());
         about.addActionListener(e ->
             JOptionPane.showMessageDialog(MainFrame.this,
                 lang.getString("about.description").replace("{0}", AppVersion.get()),
@@ -241,18 +246,19 @@ public class MainFrame extends JFrame {
         JButton newBtn = new JButton(lang.getString("vault.new_entry"));
         JButton genBtn = new JButton(lang.getString("menu.tools.generator"));
         JButton lockBtn = new JButton(lang.getString("menu.file.lock"));
-        JButton syncBtn = new JButton(lang.getString("menu.tools.sync_now"));
+        syncToolbarBtn = new JButton(lang.getString("menu.tools.sync_now"));
+        syncToolbarBtn.setEnabled(appConfig.getStorageMode() == StorageMode.REMOTE);
 
         newBtn.addActionListener(e -> vaultPanel.addNewEntry());
         genBtn.addActionListener(e -> new PasswordGeneratorDialog(MainFrame.this).setVisible(true));
         lockBtn.addActionListener(e -> doLock());
-        syncBtn.addActionListener(e -> doSync());
+        syncToolbarBtn.addActionListener(e -> doSync());
 
         tb.add(newBtn);
         tb.addSeparator();
         tb.add(genBtn);
         tb.addSeparator();
-        tb.add(syncBtn);
+        tb.add(syncToolbarBtn);
         tb.add(Box.createHorizontalGlue());
         tb.add(lockBtn);
 
@@ -291,6 +297,9 @@ public class MainFrame extends JFrame {
             statusLabel.setText(getStatusText());
             vaultPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
             autoLockManager.startAutoLock();
+            boolean remoteEnabled = appConfig.getStorageMode() == StorageMode.REMOTE;
+            syncNowMenuItem.setEnabled(remoteEnabled);
+            syncToolbarBtn.setEnabled(remoteEnabled);
 
             if (themeChanged) {
                 applyTheme();

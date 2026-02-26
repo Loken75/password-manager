@@ -12,6 +12,7 @@ import com.passwordmanager.vault.VaultService;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.awt.Window;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -83,9 +84,15 @@ public class ImportExportController {
         passLabel.setVisible(false);
         passField.setVisible(false);
 
-        encRadio.addActionListener(e -> { passLabel.setVisible(true); passField.setVisible(true); });
-        csvRadio.addActionListener(e -> { passLabel.setVisible(false); passField.setVisible(false); });
-        jsonRadio.addActionListener(e -> { passLabel.setVisible(false); passField.setVisible(false); });
+        Runnable resizeDialog = () -> {
+            panel.revalidate();
+            panel.repaint();
+            Window w = SwingUtilities.getWindowAncestor(panel);
+            if (w != null) w.pack();
+        };
+        encRadio.addActionListener(e -> { passLabel.setVisible(true); passField.setVisible(true); resizeDialog.run(); });
+        csvRadio.addActionListener(e -> { passLabel.setVisible(false); passField.setVisible(false); resizeDialog.run(); });
+        jsonRadio.addActionListener(e -> { passLabel.setVisible(false); passField.setVisible(false); resizeDialog.run(); });
 
         int result = JOptionPane.showConfirmDialog(parentComponent, panel,
             lang.getString("import.title"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);

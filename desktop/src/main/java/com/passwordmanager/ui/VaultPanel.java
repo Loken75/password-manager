@@ -49,6 +49,7 @@ public class VaultPanel extends JPanel {
     private List<VaultEntry> displayedEntries = new ArrayList<>();
     private String currentCategory = null;
     private SortField currentSort = SortField.TITLE;
+    private boolean sortAscending = true;
     private javax.swing.Timer clipboardTimer;
     private javax.swing.Timer passwordVisibilityTimer;
     private static final int PASSWORD_VISIBILITY_TIMEOUT_MS = 30_000;
@@ -87,8 +88,6 @@ public class VaultPanel extends JPanel {
         JButton addCatBtn = new JButton(lang.getString("category.add"));
         leftPanel.add(addCatBtn, BorderLayout.SOUTH);
 
-        add(leftPanel, BorderLayout.WEST);
-
         // === Center: Search + Table ===
         JPanel centerPanel = new JPanel(new BorderLayout(5, 5));
         centerPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
@@ -103,7 +102,10 @@ public class VaultPanel extends JPanel {
         tableModel = new EntryTableModel();
         entryTable = new JTable(tableModel);
         entryTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        entryTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         entryTable.setRowHeight(28);
+        entryTable.setShowGrid(true);
+        entryTable.setGridColor(Color.LIGHT_GRAY);
         entryTable.getColumnModel().getColumn(0).setPreferredWidth(160);
         entryTable.getColumnModel().getColumn(1).setPreferredWidth(130);
         entryTable.getColumnModel().getColumn(2).setPreferredWidth(150);
@@ -155,8 +157,6 @@ public class VaultPanel extends JPanel {
 
         bulkDeleteBtn.addActionListener(e -> bulkDeleteSelected());
         bulkCategoryBtn.addActionListener(e -> bulkChangeCategorySelected());
-
-        add(centerPanel, BorderLayout.CENTER);
 
         // === Right: Detail panel ===
         JPanel rightPanel = new JPanel(new BorderLayout(0, 5));
@@ -304,7 +304,18 @@ public class VaultPanel extends JPanel {
         btnPanel.add(showRow);
         rightPanel.add(btnPanel, BorderLayout.SOUTH);
 
-        add(rightPanel, BorderLayout.EAST);
+        // === Assemble with resizable JSplitPanes ===
+        JSplitPane rightSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, centerPanel, rightPanel);
+        rightSplit.setResizeWeight(0.7);
+        rightSplit.setDividerLocation(550);
+        rightSplit.setContinuousLayout(true);
+
+        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightSplit);
+        mainSplit.setResizeWeight(0.0);
+        mainSplit.setDividerLocation(180);
+        mainSplit.setContinuousLayout(true);
+
+        add(mainSplit, BorderLayout.CENTER);
 
         // === Listeners ===
         categoryList.addListSelectionListener(e -> {
@@ -433,6 +444,9 @@ public class VaultPanel extends JPanel {
         }
 
         displayedEntries = vaultService.sorted(entries, currentSort);
+        if (!sortAscending) {
+            java.util.Collections.reverse(displayedEntries);
+        }
         tableModel.fireTableDataChanged();
     }
 
@@ -727,7 +741,12 @@ public class VaultPanel extends JPanel {
     }
 
     public void setSortMode(SortField sort) {
-        this.currentSort = sort;
+        if (this.currentSort == sort) {
+            sortAscending = !sortAscending;
+        } else {
+            this.currentSort = sort;
+            sortAscending = true;
+        }
         refreshEntries();
     }
 

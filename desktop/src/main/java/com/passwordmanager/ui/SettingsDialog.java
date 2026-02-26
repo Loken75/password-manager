@@ -174,7 +174,7 @@ public class SettingsDialog extends JDialog {
         // Bottom buttons
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton cancelBtn = new JButton(lang.getString("common.cancel"));
-        JButton saveBtn = new JButton(lang.getString("common.save"));
+        JButton saveBtn = new JButton(lang.getString("common.apply"));
         btnPanel.add(cancelBtn);
         btnPanel.add(saveBtn);
         add(btnPanel, BorderLayout.SOUTH);

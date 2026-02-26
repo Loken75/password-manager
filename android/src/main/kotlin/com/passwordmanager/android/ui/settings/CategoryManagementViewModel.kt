@@ -25,7 +25,7 @@ class CategoryManagementViewModel @Inject constructor(
 
     fun load() {
         val vault = sessionHolder.vault ?: return
-        _uiState.value = CategoryManagementUiState(categories = vault.categories.toList())
+        _uiState.value = CategoryManagementUiState(categories = vault.categories.sorted())
     }
 
     fun updateNewCategoryName(name: String) {
@@ -52,7 +52,7 @@ class CategoryManagementViewModel @Inject constructor(
         sessionHolder.save()
         _uiState.update {
             it.copy(
-                categories = sessionHolder.vault?.categories?.toList() ?: emptyList(),
+                categories = sessionHolder.vault?.categories?.sorted() ?: emptyList(),
                 newCategoryName = "",
                 error = null
             )
@@ -71,7 +71,7 @@ class CategoryManagementViewModel @Inject constructor(
         service.removeCategory(category)
         sessionHolder.save()
         _uiState.update {
-            it.copy(categories = sessionHolder.vault?.categories?.toList() ?: emptyList())
+            it.copy(categories = sessionHolder.vault?.categories?.sorted() ?: emptyList())
         }
     }
 }

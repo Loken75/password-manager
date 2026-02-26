@@ -69,7 +69,7 @@ class VaultListViewModel @Inject constructor(
         val sorted = service.sorted(entries, _uiState.value.sortField)
 
         _uiState.update {
-            it.copy(entries = sorted, categories = vault.categories)
+            it.copy(entries = sorted, categories = vault.categories.sorted())
         }
     }
 
