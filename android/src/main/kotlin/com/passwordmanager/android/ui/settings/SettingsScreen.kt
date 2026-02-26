@@ -26,6 +26,7 @@ import com.passwordmanager.config.ThemeMode
 fun SettingsScreen(
     onBack: () -> Unit,
     onChangeMasterPassword: () -> Unit,
+    onManageCategories: () -> Unit = {},
     showBackNavigation: Boolean = true,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -150,6 +151,16 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Manage categories
+            OutlinedButton(
+                onClick = onManageCategories,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.settings_manage_categories))
             }
 
             Spacer(modifier = Modifier.height(32.dp))

@@ -124,7 +124,6 @@
     <string name="export_format_json">JSON</string>
     <string name="export_format_encrypted">Sauvegarde chiffrée (.enc)</string>
     <string name="export_unencrypted_warning">Les données exportées ne seront pas chiffrées</string>
-    <string name="export_warning">Attention : les données exportées ne sont pas chiffrées !</string>
 
     <!-- Common -->
     <string name="common_cancel">Annuler</string>
@@ -200,4 +199,17 @@
     <string name="sync_conflict_message">Le coffre distant a été modifié depuis votre dernière synchronisation.</string>
     <string name="sync_keep_local">Garder mes modifications locales</string>
     <string name="sync_keep_remote">Utiliser la version du serveur</string>
+
+    <!-- Category management -->
+    <string name="settings_manage_categories">Gérer les catégories</string>
+    <string name="category_delete_confirm">Supprimer cette catégorie ?</string>
+    <string name="category_name_required">Le nom de la catégorie est requis</string>
+    <string name="category_name_too_long">Le nom de la catégorie est trop long (max 50 caractères)</string>
+    <string name="category_already_exists">Cette catégorie existe déjà</string>
+
+    <!-- Updates -->
+    <string name="update_available">Une nouvelle version est disponible : %1$s</string>
+    <string name="update_download">Télécharger</string>
+    <string name="update_dismiss">Plus tard</string>
+    <string name="update_check">Vérifier les mises à jour</string>
 </resources>

@@ -26,6 +26,7 @@ import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.android.ui.audit.SecurityAuditScreen
 import com.passwordmanager.android.ui.generator.GeneratorScreen
 import com.passwordmanager.android.ui.login.LoginScreen
+import com.passwordmanager.android.ui.settings.CategoryManagementScreen
 import com.passwordmanager.android.ui.settings.ChangeMasterPasswordScreen
 import com.passwordmanager.android.ui.settings.SettingsScreen
 import com.passwordmanager.android.ui.vault.EntryDetailScreen
@@ -46,6 +47,7 @@ object Routes {
     const val ENTRY_EDIT = "entry_edit?entryId={entryId}"
     const val GENERATOR = "generator?returnPassword={returnPassword}"
     const val CHANGE_MASTER_PASSWORD = "change_master_password"
+    const val CATEGORY_MANAGEMENT = "category_management"
 
     fun entryDetail(entryId: String) = "entry_detail/$entryId"
     fun entryEdit(entryId: String? = null) =
@@ -168,6 +170,9 @@ fun AppNavigation() {
                     onChangeMasterPassword = {
                         navController.navigate(Routes.CHANGE_MASTER_PASSWORD)
                     },
+                    onManageCategories = {
+                        navController.navigate(Routes.CATEGORY_MANAGEMENT)
+                    },
                     showBackNavigation = false
                 )
             }
@@ -255,6 +260,21 @@ fun AppNavigation() {
                         password.fill('\u0000')
                         navController.popBackStack()
                     } else null
+                )
+            }
+
+            // ── Modal: Category Management ──
+            composable(
+                route = Routes.CATEGORY_MANAGEMENT,
+                enterTransition = {
+                    slideInVertically(initialOffsetY = { it }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
+                },
+                popExitTransition = {
+                    slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
+                }
+            ) {
+                CategoryManagementScreen(
+                    onBack = { navController.popBackStack() }
                 )
             }
 

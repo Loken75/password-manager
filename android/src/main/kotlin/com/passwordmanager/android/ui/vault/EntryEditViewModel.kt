@@ -123,6 +123,11 @@ class EntryEditViewModel @Inject constructor(
             service.addEntry(entry)
         }
 
+        // Persist new category if not already in vault
+        if (state.category.isNotBlank() && !state.categories.contains(state.category)) {
+            service.addCategory(state.category)
+        }
+
         sessionHolder.save()
         return true
     }

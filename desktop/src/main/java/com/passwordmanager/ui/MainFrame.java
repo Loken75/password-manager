@@ -12,6 +12,7 @@ import com.passwordmanager.crypto.VaultSession;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.sync.SyncService;
 import com.passwordmanager.util.PasswordValidator;
+import com.passwordmanager.update.DesktopUpdateManager;
 import com.passwordmanager.vault.*;
 
 import javax.swing.*;
@@ -43,6 +44,7 @@ public class MainFrame extends JFrame {
     private ImportExportController importExportController;
     private SecurityAuditController securityAuditController;
     private AutoLockManager autoLockManager;
+    private DesktopUpdateManager updateManager;
 
     public MainFrame(Vault vault, String username, VaultSession session,
                      VaultManager vaultManager, AppConfig appConfig, ConfigManager configManager) {
@@ -89,9 +91,14 @@ public class MainFrame extends JFrame {
         // Menu bar
         setJMenuBar(createMenuBar());
 
-        // Toolbar
+        // Update notification bar + Toolbar
+        updateManager = new DesktopUpdateManager();
+        JPanel northPanel = new JPanel(new BorderLayout());
+        northPanel.add(updateManager.createNotificationBar(), BorderLayout.NORTH);
         JToolBar toolbar = createToolBar();
-        add(toolbar, BorderLayout.NORTH);
+        northPanel.add(toolbar, BorderLayout.SOUTH);
+        add(northPanel, BorderLayout.NORTH);
+        updateManager.startPeriodicCheck();
 
         // Vault panel
         vaultPanel = new VaultPanel(vaultService, appConfig.getClipboardClearSeconds());
@@ -373,6 +380,7 @@ public class MainFrame extends JFrame {
     private void cleanup() {
         autoLockManager.cleanup();
         vaultPanel.cancelClipboardTimer();
+        if (updateManager != null) updateManager.stop();
     }
 
     private void clearClipboard() {

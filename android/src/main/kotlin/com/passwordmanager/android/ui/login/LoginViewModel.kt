@@ -85,19 +85,20 @@ class LoginViewModel @Inject constructor(
         _uiState.update { it.copy(isLoading = true, error = null) }
 
         viewModelScope.launch(Dispatchers.IO) {
+            val passwordChars = password.toCharArray()
             try {
-                val passwordChars = password.toCharArray()
                 val result = repository.loadVault(user, passwordChars)
-                passwordChars.fill('\u0000')
                 failedAttempts.remove(user)
                 sessionHolder.unlock(result.vault, result.session, user)
-                _uiState.update { it.copy(isLoading = false) }
+                _uiState.update { it.copy(isLoading = false, password = "") }
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: VaultDecryptionException) {
                 failedAttempts[user] = (failedAttempts[user] ?: 0) + 1
-                _uiState.update { it.copy(isLoading = false, error = "error_invalid_password") }
+                _uiState.update { it.copy(isLoading = false, password = "", error = "error_invalid_password") }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, error = e.message) }
+                _uiState.update { it.copy(isLoading = false, password = "", error = e.message) }
+            } finally {
+                passwordChars.fill('\u0000')
             }
         }
     }
@@ -157,19 +158,21 @@ class LoginViewModel @Inject constructor(
         _uiState.update { it.copy(isLoading = true) }
 
         viewModelScope.launch(Dispatchers.IO) {
+            val passwordChars = password.toCharArray()
             try {
-                val passwordChars = password.toCharArray()
                 repository.createVault(username, passwordChars, localizedCategories)
-                passwordChars.fill('\u0000')
                 loadUsers()
                 _uiState.update {
                     it.copy(
                         isLoading = false, showCreateDialog = false,
-                        createSuccess = true, selectedUser = username
+                        createSuccess = true, selectedUser = username,
+                        newPassword = "", newPasswordConfirm = ""
                     )
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, createError = e.message) }
+            } finally {
+                passwordChars.fill('\u0000')
             }
         }
     }

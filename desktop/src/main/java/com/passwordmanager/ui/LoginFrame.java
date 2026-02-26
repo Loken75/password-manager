@@ -4,6 +4,7 @@ import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.AppVersion;
 import com.passwordmanager.config.ConfigManager;
 import com.passwordmanager.i18n.LanguageManager;
+import com.passwordmanager.update.DesktopUpdateManager;
 import com.passwordmanager.util.PasswordValidator;
 import com.passwordmanager.vault.VaultLoadResult;
 import com.passwordmanager.vault.VaultManager;
@@ -129,6 +130,17 @@ public class LoginFrame extends JFrame {
         languageCombo.setSelectedIndex("en".equals(appConfig.getLanguage()) ? 1 : 0);
         langPanel.add(languageCombo);
         mainPanel.add(langPanel);
+        mainPanel.add(Box.createVerticalStrut(10));
+
+        // Check for updates link
+        JButton checkUpdateBtn = new JButton(lang.getString("update.check"));
+        checkUpdateBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        checkUpdateBtn.setBorderPainted(false);
+        checkUpdateBtn.setContentAreaFilled(false);
+        checkUpdateBtn.setForeground(new Color(0, 102, 204));
+        checkUpdateBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        checkUpdateBtn.addActionListener(e -> new DesktopUpdateManager().checkManually(this));
+        mainPanel.add(checkUpdateBtn);
 
         setContentPane(mainPanel);
 

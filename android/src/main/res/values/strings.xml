@@ -124,7 +124,6 @@
     <string name="export_format_json">JSON</string>
     <string name="export_format_encrypted">Encrypted backup (.enc)</string>
     <string name="export_unencrypted_warning">Exported data will not be encrypted</string>
-    <string name="export_warning">Warning: exported data is not encrypted!</string>
 
     <!-- Common -->
     <string name="common_cancel">Cancel</string>
@@ -200,4 +199,17 @@
     <string name="sync_conflict_message">The remote vault has been modified since your last sync.</string>
     <string name="sync_keep_local">Keep my local changes</string>
     <string name="sync_keep_remote">Use server version</string>
+
+    <!-- Category management -->
+    <string name="settings_manage_categories">Manage categories</string>
+    <string name="category_delete_confirm">Delete this category?</string>
+    <string name="category_name_required">Category name is required</string>
+    <string name="category_name_too_long">Category name is too long (max 50 characters)</string>
+    <string name="category_already_exists">This category already exists</string>
+
+    <!-- Updates -->
+    <string name="update_available">A new version is available: %1$s</string>
+    <string name="update_download">Download</string>
+    <string name="update_dismiss">Later</string>
+    <string name="update_check">Check for updates</string>
 </resources>

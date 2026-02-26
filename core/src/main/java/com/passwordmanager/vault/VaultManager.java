@@ -262,7 +262,12 @@ public class VaultManager {
     public Vault reloadVault(String username, VaultSession session)
             throws VaultDecryptionException, IOException {
         String path = getVaultPath(username);
-        byte[] fileBytes = Files.readAllBytes(Paths.get(path));
+        Path filePath = Paths.get(path);
+        long fileSize = Files.size(filePath);
+        if (fileSize > MAX_VAULT_FILE_SIZE) {
+            throw new IOException("Vault file exceeds maximum size (" + MAX_VAULT_FILE_SIZE / (1024 * 1024) + " MB)");
+        }
+        byte[] fileBytes = Files.readAllBytes(filePath);
         String fileContent;
         try {
             fileContent = new String(fileBytes, StandardCharsets.UTF_8);

@@ -23,13 +23,13 @@ public class VaultService {
     public Vault getVault() { return vault; }
     public void setVault(Vault vault) { this.vault = vault; }
 
-    public void addEntry(VaultEntry entry) {
+    public synchronized void addEntry(VaultEntry entry) {
         entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
         vault.addEntry(entry);
         vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
     }
 
-    public boolean updateEntry(VaultEntry updated) {
+    public synchronized boolean updateEntry(VaultEntry updated) {
         List<VaultEntry> entries = vault.getEntriesMutable();
         for (int i = 0; i < entries.size(); i++) {
             if (entries.get(i).getId().equals(updated.getId())) {
@@ -42,7 +42,7 @@ public class VaultService {
         return false;
     }
 
-    public boolean deleteEntry(String entryId) {
+    public synchronized boolean deleteEntry(String entryId) {
         Iterator<VaultEntry> it = vault.getEntriesMutable().iterator();
         while (it.hasNext()) {
             VaultEntry entry = it.next();
@@ -183,13 +183,36 @@ public class VaultService {
         return old;
     }
 
-    public void addCategory(String category) {
+    public synchronized int bulkDelete(List<String> entryIds) {
+        int count = 0;
+        for (String id : entryIds) {
+            if (deleteEntry(id)) count++;
+        }
+        return count;
+    }
+
+    public synchronized int bulkChangeCategory(List<String> entryIds, String newCategory) {
+        int count = 0;
+        for (VaultEntry entry : vault.getEntriesMutable()) {
+            if (entryIds.contains(entry.getId())) {
+                entry.setCategory(newCategory);
+                entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
+                count++;
+            }
+        }
+        if (count > 0) {
+            vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
+        }
+        return count;
+    }
+
+    public synchronized void addCategory(String category) {
         if (!vault.getCategories().contains(category)) {
             vault.getCategories().add(category);
         }
     }
 
-    public boolean removeCategory(String category) {
+    public synchronized boolean removeCategory(String category) {
         return vault.getCategories().remove(category);
     }
 }

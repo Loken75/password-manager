@@ -18,6 +18,7 @@ import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -51,6 +52,10 @@ public class VaultPanel extends JPanel {
     private javax.swing.Timer clipboardTimer;
     private javax.swing.Timer passwordVisibilityTimer;
     private static final int PASSWORD_VISIBILITY_TIMEOUT_MS = 30_000;
+
+    // Bulk action toolbar
+    private JPanel bulkToolbar;
+    private JLabel bulkSelectionLabel;
 
     // Callbacks
     private Runnable onVaultChanged;
@@ -97,7 +102,7 @@ public class VaultPanel extends JPanel {
 
         tableModel = new EntryTableModel();
         entryTable = new JTable(tableModel);
-        entryTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        entryTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         entryTable.setRowHeight(28);
         entryTable.getColumnModel().getColumn(0).setPreferredWidth(160);
         entryTable.getColumnModel().getColumn(1).setPreferredWidth(130);
@@ -136,6 +141,21 @@ public class VaultPanel extends JPanel {
         });
 
         centerPanel.add(new JScrollPane(entryTable), BorderLayout.CENTER);
+
+        // Bulk action toolbar (shown when >1 row selected)
+        bulkToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        bulkToolbar.setVisible(false);
+        bulkSelectionLabel = new JLabel();
+        JButton bulkDeleteBtn = new JButton(lang.getString("vault.bulk.delete"));
+        JButton bulkCategoryBtn = new JButton(lang.getString("vault.bulk.changeCategory"));
+        bulkToolbar.add(bulkSelectionLabel);
+        bulkToolbar.add(bulkDeleteBtn);
+        bulkToolbar.add(bulkCategoryBtn);
+        centerPanel.add(bulkToolbar, BorderLayout.SOUTH);
+
+        bulkDeleteBtn.addActionListener(e -> bulkDeleteSelected());
+        bulkCategoryBtn.addActionListener(e -> bulkChangeCategorySelected());
+
         add(centerPanel, BorderLayout.CENTER);
 
         // === Right: Detail panel ===
@@ -302,7 +322,18 @@ public class VaultPanel extends JPanel {
         });
 
         entryTable.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) showSelectedEntry();
+            if (!e.getValueIsAdjusting()) {
+                int count = entryTable.getSelectedRowCount();
+                if (count > 1) {
+                    bulkToolbar.setVisible(true);
+                    bulkSelectionLabel.setText(
+                        lang.getString("vault.bulk.selected").replace("{0}", String.valueOf(count)));
+                    clearDetails();
+                } else {
+                    bulkToolbar.setVisible(false);
+                    showSelectedEntry();
+                }
+            }
         });
 
         final char echoChar = detailPassword.getEchoChar();
@@ -340,12 +371,28 @@ public class VaultPanel extends JPanel {
             }
         });
 
-        // Double-click to edit
+        // Double-click to edit, right-click for context menu
         entryTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
+                if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
                     editSelectedEntry();
+                }
+            }
+
+            @Override
+            public void mousePressed(MouseEvent e) { showContextMenuIfPopup(e); }
+
+            @Override
+            public void mouseReleased(MouseEvent e) { showContextMenuIfPopup(e); }
+
+            private void showContextMenuIfPopup(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    int row = entryTable.rowAtPoint(e.getPoint());
+                    if (row >= 0 && !entryTable.isRowSelected(row)) {
+                        entryTable.setRowSelectionInterval(row, row);
+                    }
+                    createContextMenu().show(entryTable, e.getX(), e.getY());
                 }
             }
         });
@@ -423,6 +470,152 @@ public class VaultPanel extends JPanel {
         detailUpdated.setText(" ");
     }
 
+    private List<String> getSelectedEntryIds() {
+        List<String> ids = new ArrayList<>();
+        for (int row : entryTable.getSelectedRows()) {
+            if (row >= 0 && row < displayedEntries.size()) {
+                ids.add(displayedEntries.get(row).getId());
+            }
+        }
+        return ids;
+    }
+
+    private void bulkDeleteSelected() {
+        List<String> ids = getSelectedEntryIds();
+        if (ids.isEmpty()) return;
+        String msg = lang.getString("vault.bulk.confirm.delete").replace("{0}", String.valueOf(ids.size()));
+        int confirm = JOptionPane.showConfirmDialog(this, msg,
+            lang.getString("vault.delete_entry"),
+            JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (confirm == JOptionPane.YES_OPTION) {
+            vaultService.bulkDelete(ids);
+            refreshEntries();
+            clearDetails();
+            notifyChanged();
+        }
+    }
+
+    private void bulkChangeCategorySelected() {
+        List<String> ids = getSelectedEntryIds();
+        if (ids.isEmpty()) return;
+        List<String> categories = vaultService.getVault().getCategories();
+        String chosen = (String) JOptionPane.showInputDialog(this,
+            lang.getString("vault.bulk.changeCategory"),
+            lang.getString("entry.category"),
+            JOptionPane.PLAIN_MESSAGE, null,
+            categories.toArray(new String[0]),
+            categories.isEmpty() ? null : categories.get(0));
+        if (chosen != null) {
+            vaultService.bulkChangeCategory(ids, chosen);
+            refreshEntries();
+            notifyChanged();
+        }
+    }
+
+    private JPopupMenu createContextMenu() {
+        JPopupMenu menu = new JPopupMenu();
+        boolean singleSelected = entryTable.getSelectedRowCount() == 1;
+
+        JMenuItem editItem = new JMenuItem(lang.getString("vault.edit_entry"));
+        editItem.setEnabled(singleSelected);
+        editItem.addActionListener(e -> editSelectedEntry());
+        menu.add(editItem);
+
+        JMenuItem deleteItem = new JMenuItem(lang.getString("vault.delete_entry"));
+        deleteItem.addActionListener(e -> deleteSelectedEntry());
+        menu.add(deleteItem);
+
+        menu.addSeparator();
+
+        JMenuItem copyPwd = new JMenuItem(lang.getString("entry.copy_password"));
+        copyPwd.setEnabled(singleSelected);
+        copyPwd.addActionListener(e -> copyPasswordToClipboard());
+        menu.add(copyPwd);
+
+        JMenuItem copyUser = new JMenuItem(lang.getString("entry.copy_username"));
+        copyUser.setEnabled(singleSelected);
+        copyUser.addActionListener(e -> copyUsernameToClipboard());
+        menu.add(copyUser);
+
+        JMenuItem copyEmail = new JMenuItem(lang.getString("entry.copy_email"));
+        copyEmail.setEnabled(singleSelected);
+        copyEmail.addActionListener(e -> copyEmailToClipboard());
+        menu.add(copyEmail);
+
+        JMenuItem copyUrl = new JMenuItem(lang.getString("menu.copy.url"));
+        copyUrl.setEnabled(singleSelected);
+        copyUrl.addActionListener(e -> copyUrlToClipboard());
+        menu.add(copyUrl);
+
+        menu.addSeparator();
+
+        JMenuItem openUrl = new JMenuItem(lang.getString("menu.open.url"));
+        openUrl.setEnabled(singleSelected);
+        openUrl.addActionListener(e -> openUrlInBrowser());
+        menu.add(openUrl);
+
+        JMenuItem duplicate = new JMenuItem(lang.getString("menu.duplicate"));
+        duplicate.setEnabled(singleSelected);
+        duplicate.addActionListener(e -> duplicateEntry());
+        menu.add(duplicate);
+
+        return menu;
+    }
+
+    private void copyEmailToClipboard() {
+        VaultEntry e = getSelectedEntry();
+        if (e == null || e.getEmail() == null || e.getEmail().isEmpty()) return;
+        Toolkit.getDefaultToolkit().getSystemClipboard()
+            .setContents(new StringSelection(e.getEmail()), null);
+        scheduleClipboardClear();
+    }
+
+    private void copyUrlToClipboard() {
+        VaultEntry e = getSelectedEntry();
+        if (e == null || e.getUrl() == null || e.getUrl().isEmpty()) return;
+        Toolkit.getDefaultToolkit().getSystemClipboard()
+            .setContents(new StringSelection(e.getUrl()), null);
+        scheduleClipboardClear();
+    }
+
+    private void openUrlInBrowser() {
+        VaultEntry e = getSelectedEntry();
+        if (e == null || e.getUrl() == null || e.getUrl().isBlank()) return;
+        String url = e.getUrl();
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            url = "https://" + url;
+        }
+        try {
+            Desktop.getDesktop().browse(new URI(url));
+        } catch (Exception ex) {
+            // ignore
+        }
+    }
+
+    private void duplicateEntry() {
+        VaultEntry selected = getSelectedEntry();
+        if (selected == null) return;
+        char[] pwdCopy = selected.getPassword();
+        try {
+            VaultEntry dup = new VaultEntry(
+                lang.getString("menu.duplicate.prefix") + " " + selected.getTitle(),
+                selected.getUsername(),
+                selected.getEmail(),
+                selected.getPseudo(),
+                pwdCopy,
+                selected.getUrl(),
+                selected.getNotes(),
+                selected.getCategory(),
+                selected.getTags() != null ? new ArrayList<>(selected.getTags()) : null
+            );
+            vaultService.addEntry(dup);
+            refreshEntries();
+            notifyChanged();
+        } finally {
+            SecureWiper.wipe(pwdCopy);
+        }
+    }
+
     private void copyUsernameToClipboard() {
         int row = entryTable.getSelectedRow();
         if (row < 0 || row >= displayedEntries.size()) return;
@@ -482,6 +675,7 @@ public class VaultPanel extends JPanel {
     }
 
     public void editSelectedEntry() {
+        if (entryTable.getSelectedRowCount() != 1) return;
         VaultEntry selected = getSelectedEntry();
         if (selected == null) return;
         EntryDialog dlg = new EntryDialog(
@@ -512,14 +706,16 @@ public class VaultPanel extends JPanel {
     }
 
     public void deleteSelectedEntry() {
-        VaultEntry selected = getSelectedEntry();
-        if (selected == null) return;
-        int confirm = JOptionPane.showConfirmDialog(this,
-            lang.getString("vault.delete_confirm"),
+        List<String> ids = getSelectedEntryIds();
+        if (ids.isEmpty()) return;
+        String msg = ids.size() == 1
+            ? lang.getString("vault.delete_confirm")
+            : lang.getString("vault.bulk.confirm.delete").replace("{0}", String.valueOf(ids.size()));
+        int confirm = JOptionPane.showConfirmDialog(this, msg,
             lang.getString("vault.delete_entry"),
             JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (confirm == JOptionPane.YES_OPTION) {
-            vaultService.deleteEntry(selected.getId());
+            vaultService.bulkDelete(ids);
             refreshEntries();
             clearDetails();
             notifyChanged();
