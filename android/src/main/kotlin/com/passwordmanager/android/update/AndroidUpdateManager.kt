@@ -9,6 +9,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
+ * Result of an update check.
+ */
+sealed class UpdateResult {
+    data class Available(val info: UpdateInfo) : UpdateResult()
+    data object UpToDate : UpdateResult()
+    data class Error(val message: String?) : UpdateResult()
+}
+
+/**
  * Manages update checks for the Android app.
  * Opens the browser to the GitHub release page when an update is available.
  */
@@ -18,13 +27,13 @@ object AndroidUpdateManager {
 
     /**
      * Checks for updates on a background thread.
-     * @return UpdateInfo if a newer version is available, null otherwise
      */
-    suspend fun checkForUpdate(): UpdateInfo? = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
         try {
-            checker.checkForUpdate()
+            val info = checker.checkForUpdate()
+            if (info != null) UpdateResult.Available(info) else UpdateResult.UpToDate
         } catch (e: Exception) {
-            null
+            UpdateResult.Error(e.message)
         }
     }
 

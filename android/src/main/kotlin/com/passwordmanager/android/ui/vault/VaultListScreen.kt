@@ -24,8 +24,6 @@ import com.passwordmanager.android.ui.components.ConfirmDialog
 import com.passwordmanager.android.ui.components.EntryCard
 import com.passwordmanager.android.ui.components.ExportDialog
 import com.passwordmanager.android.ui.components.ImportDialog
-import com.passwordmanager.android.update.AndroidUpdateManager
-import com.passwordmanager.update.UpdateInfo
 import com.passwordmanager.vault.SortField
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -118,38 +116,6 @@ fun VaultListScreen(
 
     // Refresh when returning from edit/detail
     LaunchedEffect(Unit) { viewModel.refreshEntries() }
-
-    // Update check
-    val context = androidx.compose.ui.platform.LocalContext.current
-    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
-    LaunchedEffect(Unit) {
-        updateInfo = AndroidUpdateManager.checkForUpdate()
-    }
-    if (updateInfo != null) {
-        AlertDialog(
-            onDismissRequest = { updateInfo = null },
-            title = { Text(stringResource(R.string.update_check)) },
-            text = {
-                Text(
-                    stringResource(R.string.update_available)
-                        .replace("%1\$s", updateInfo!!.version)
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    AndroidUpdateManager.openReleasePage(context, updateInfo!!)
-                    updateInfo = null
-                }) {
-                    Text(stringResource(R.string.update_download))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { updateInfo = null }) {
-                    Text(stringResource(R.string.update_dismiss))
-                }
-            }
-        )
-    }
 
     var menuExpanded by remember { mutableStateOf(false) }
     var sortMenuExpanded by remember { mutableStateOf(false) }

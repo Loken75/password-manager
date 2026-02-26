@@ -212,4 +212,7 @@
     <string name="update_download">Télécharger</string>
     <string name="update_dismiss">Plus tard</string>
     <string name="update_check">Vérifier les mises à jour</string>
+    <string name="update_checking">Vérification…</string>
+    <string name="update_up_to_date">Vous êtes à jour !</string>
+    <string name="update_error">Impossible de vérifier les mises à jour</string>
 </resources>

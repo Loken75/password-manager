@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -18,6 +19,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.BuildConfig
 import com.passwordmanager.android.R
 import com.passwordmanager.android.ui.components.PasswordField
+import com.passwordmanager.android.update.AndroidUpdateManager
+import com.passwordmanager.android.update.UpdateResult
+import com.passwordmanager.update.UpdateInfo
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,9 +50,18 @@ fun LoginScreen(
         stringResource(R.string.category_default_other)
     )
 
+    // Update check state
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
     // Snackbar for user created success
     val snackbarHostState = remember { SnackbarHostState() }
     val userCreatedMsg = stringResource(R.string.login_user_created)
+    val upToDateMsg = stringResource(R.string.update_up_to_date)
+    val updateErrorMsg = stringResource(R.string.update_error)
 
     LaunchedEffect(state.createSuccess) {
         if (state.createSuccess) {
@@ -181,8 +195,65 @@ fun LoginScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Check for updates button
+            TextButton(
+                onClick = {
+                    isCheckingUpdate = true
+                    coroutineScope.launch {
+                        when (val result = AndroidUpdateManager.checkForUpdate()) {
+                            is UpdateResult.Available -> {
+                                updateInfo = result.info
+                                showUpdateDialog = true
+                            }
+                            is UpdateResult.UpToDate -> {
+                                snackbarHostState.showSnackbar(upToDateMsg)
+                            }
+                            is UpdateResult.Error -> {
+                                snackbarHostState.showSnackbar(updateErrorMsg)
+                            }
+                        }
+                        isCheckingUpdate = false
+                    }
+                },
+                enabled = !isCheckingUpdate
+            ) {
+                if (isCheckingUpdate) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.update_checking))
+                } else {
+                    Text(stringResource(R.string.update_check))
+                }
+            }
+
             Spacer(modifier = Modifier.weight(1f))
         }
+    }
+
+    // Update available dialog
+    if (showUpdateDialog && updateInfo != null) {
+        AlertDialog(
+            onDismissRequest = { showUpdateDialog = false },
+            title = { Text(stringResource(R.string.update_available, updateInfo!!.version)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showUpdateDialog = false
+                    AndroidUpdateManager.openReleasePage(context, updateInfo!!)
+                }) {
+                    Text(stringResource(R.string.update_download))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdateDialog = false }) {
+                    Text(stringResource(R.string.update_dismiss))
+                }
+            }
+        )
     }
 
     // Create user dialog
