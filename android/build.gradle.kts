@@ -57,6 +57,12 @@ android {
         unitTests.all { it.useJUnitPlatform() }
     }
 
+    packaging {
+        resources {
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
