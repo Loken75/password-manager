@@ -18,8 +18,9 @@
 14. [Changement du mot de passe maitre](#14-changement-du-mot-de-passe-maitre)
 15. [Securite](#15-securite)
 16. [Raccourcis clavier](#16-raccourcis-clavier)
-17. [Structure des donnees utilisateur](#17-structure-des-donnees-utilisateur)
-18. [Differences entre plateformes](#18-differences-entre-plateformes)
+17. [Verification des mises a jour](#17-verification-des-mises-a-jour)
+18. [Structure des donnees utilisateur](#18-structure-des-donnees-utilisateur)
+19. [Differences entre plateformes](#19-differences-entre-plateformes)
 
 ---
 
@@ -128,6 +129,7 @@ L'ecran de connexion propose les actions suivantes :
 | Afficher / masquer le mot de passe | Case a cocher pour verifier la saisie |
 | Creer un nouvel utilisateur | Lien en bas du formulaire |
 | Changer la langue | Selecteur Francais / English en bas de l'ecran (effet immediat) |
+| Verifier les mises a jour | Lien en bas de l'ecran, verifie la derniere version sur GitHub |
 
 ### Protection anti brute-force
 
@@ -167,7 +169,7 @@ Acces rapide aux fonctions courantes :
 | Colonne | Contenu |
 |---------|---------|
 | **Gauche** (180 px) | Liste des categories avec bouton d'ajout |
-| **Centre** | Barre de recherche + tableau des entrees (Titre, Identifiant, Email, Pseudo, Categorie, Force) — en-tetes cliquables pour trier |
+| **Centre** | Barre de recherche + tableau des entrees (Titre, Identifiant, Email, Pseudo, Categorie, Force) — en-tetes cliquables pour trier. Barre d'actions en masse en bas (visible quand >1 entree selectionnee) |
 | **Droite** (300 px) | Details de l'entree selectionnee |
 
 ### 5.4. Barre de statut
@@ -222,16 +224,47 @@ Un bouton **Generer** permet d'ouvrir le generateur integre et d'inserer directe
 
 - **Double-clic** sur l'entree dans le tableau
 - Ou selectionner l'entree puis Edition > Modifier l'entree
+- Ou **clic droit** > Modifier (menu contextuel)
 
 Le formulaire de modification est identique a celui de creation, pre-rempli avec les valeurs existantes.
 
 ### 6.3. Supprimer une entree
 
-**Acces** : Edition > Supprimer l'entree | Touche `Suppr`
+**Acces** : Edition > Supprimer l'entree | Touche `Suppr` | Clic droit > Supprimer
 
-Une boite de confirmation est affichee avant la suppression. L'action est irreversible.
+Une boite de confirmation est affichee avant la suppression. L'action est irreversible. Si plusieurs entrees sont selectionnees, la confirmation indique le nombre d'entrees concernees.
 
-### 6.4. Consulter les details
+### 6.4. Selection multiple et operations en masse (Desktop)
+
+Le tableau des entrees supporte la selection multiple (Ctrl+clic, Shift+clic). Lorsque plus d'une entree est selectionnee, une barre d'actions en masse apparait sous le tableau :
+
+| Action | Description |
+|--------|-------------|
+| **Supprimer la selection (N)** | Supprime les N entrees selectionnees apres confirmation |
+| **Changer la categorie** | Reassigne toutes les entrees selectionnees a la categorie choisie |
+
+### 6.5. Menu contextuel (Desktop - clic droit)
+
+Un clic droit sur le tableau affiche un menu contextuel avec les actions suivantes :
+
+| Action | Disponibilite | Description |
+|--------|:------------:|-------------|
+| Modifier | 1 entree | Ouvre le formulaire d'edition |
+| Supprimer | 1+ entrees | Supprime avec confirmation |
+| Copier le mot de passe | 1 entree | Copie dans le presse-papiers |
+| Copier l'identifiant | 1 entree | Copie dans le presse-papiers |
+| Copier l'email | 1 entree | Copie dans le presse-papiers |
+| Copier l'URL | 1 entree | Copie dans le presse-papiers |
+| Ouvrir l'URL | 1 entree | Ouvre l'URL dans le navigateur par defaut |
+| Dupliquer | 1 entree | Cree une copie de l'entree avec le prefixe "Copie de" |
+
+### 6.6. Dupliquer une entree (Desktop)
+
+**Acces** : Clic droit > Dupliquer
+
+Cree une nouvelle entree identique a l'entree selectionnee avec le titre prefixe par "Copie de". Tous les champs sont copies (identifiant, email, pseudo, mot de passe, URL, notes, categorie, tags).
+
+### 6.7. Consulter les details
 
 Cliquer sur une entree dans le tableau affiche ses details dans le panneau droit :
 
@@ -299,13 +332,26 @@ Les noms des categories par defaut sont localises selon la langue de l'interface
 
 ### Actions
 
-| Action | Comment |
-|--------|---------|
-| Voir toutes les entrees | Cliquer sur **Toutes les categories** dans le panneau gauche |
-| Filtrer par categorie | Cliquer sur une categorie dans le panneau gauche |
-| Ajouter une categorie | Bouton **Ajouter une categorie** en bas du panneau gauche |
+| Action | Desktop | Android |
+|--------|---------|---------|
+| Voir toutes les entrees | Cliquer sur **Toutes les categories** dans le panneau gauche | Selectionner "Toutes les categories" dans le dropdown |
+| Filtrer par categorie | Cliquer sur une categorie dans le panneau gauche | Selectionner dans le dropdown |
+| Ajouter une categorie | Bouton **Ajouter une categorie** en bas du panneau gauche | Parametres > Gerer les categories > champ d'ajout |
+| Supprimer une categorie | Non disponible | Parametres > Gerer les categories > icone supprimer |
 
 Les categories personnalisees sont sauvegardees dans le coffre et persistent entre les sessions.
+
+### Gestion des categories (Android)
+
+**Acces** : Parametres > Gerer les categories
+
+Cet ecran permet de :
+- **Ajouter** une nouvelle categorie (max 50 caracteres, pas de doublons)
+- **Supprimer** une categorie existante (confirmation requise)
+
+Lors de la suppression d'une categorie, toutes les entrees qui lui etaient assignees sont automatiquement reassignees sans categorie.
+
+Les categories creees dans le formulaire d'edition d'entree (en saisissant un nouveau nom dans le champ categorie) sont automatiquement ajoutees a la liste des categories du coffre.
 
 ---
 
@@ -617,10 +663,36 @@ Par conception, il n'existe **aucun mecanisme de recuperation** du mot de passe 
 | `F5` | Actualiser l'affichage |
 | `Entree` (ecran de connexion) | Se connecter |
 | Double-clic sur une entree | Modifier l'entree |
+| Clic droit sur une entree | Menu contextuel (modifier, supprimer, copier, ouvrir URL, dupliquer) |
+| `Ctrl+Clic` / `Shift+Clic` | Selection multiple d'entrees |
 
 ---
 
-## 17. Structure des donnees utilisateur
+## 17. Verification des mises a jour
+
+L'application verifie automatiquement la disponibilite de nouvelles versions via l'API GitHub Releases.
+
+### 17.1. Desktop
+
+- **Verification automatique** : au lancement et toutes les 5 minutes en arriere-plan
+- **Verification manuelle** : lien **Verifier les mises a jour** sur l'ecran de connexion
+- **Notification** : une barre jaune non intrusive apparait en haut de la fenetre principale si une mise a jour est disponible, avec un bouton pour ouvrir la page de release
+- La barre de notification est masquable (bouton X)
+
+### 17.2. Android
+
+- **Verification automatique** : au lancement de l'ecran principal
+- **Notification** : une boite de dialogue s'affiche si une mise a jour est disponible, avec les options **Telecharger** (ouvre le navigateur vers la page GitHub) ou **Plus tard**
+
+### 17.3. Securite
+
+- Les URLs sont validees avant ouverture (seul le domaine `https://github.com/` est accepte)
+- La taille maximale de la reponse API est limitee a 1 Mo pour prevenir les attaques par depassement de memoire
+- La comparaison de version gere le format semantique (major.minor.patch) et ignore les suffixes pre-release (ex: `-rc1`)
+
+---
+
+## 18. Structure des donnees utilisateur
 
 Les donnees de l'application sont stockees dans le repertoire `~/.password-manager/` :
 
@@ -654,7 +726,7 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 
 ---
 
-## 18. Differences entre plateformes
+## 19. Differences entre plateformes
 
 | Fonctionnalite | Desktop | Android |
 |---|---|---|
@@ -667,7 +739,10 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | Recherche en temps reel | Oui (titre, id, email, pseudo, URL, notes, categorie, tags) | Oui |
 | Tri (7 criteres) | En-tetes cliquables + menu Affichage | Menu overflow tri |
 | Filtrage par categorie | Panneau lateral | Dropdown (liste deroulante) |
-| Selection multiple + suppression/categorie en masse | Non | Oui (appui long) |
+| Selection multiple + operations en masse | Oui (Ctrl/Shift+clic, barre d'actions) | Oui (appui long) |
+| Menu contextuel (clic droit) | Oui (modifier, supprimer, copier, ouvrir URL, dupliquer) | Non |
+| Gestion des categories | Ajout via panneau lateral | Ecran dedie (Parametres > Gerer les categories) |
+| Verification des mises a jour | Auto (5 min) + manuel (ecran connexion) | Au lancement (dialog) |
 | URL cliquable dans le detail | Oui (Desktop.browse) | Oui (UriHandler) |
 | Themes Systeme/Clair/Sombre | FlatLaf | Material 3 (Dynamic Colors Android 12+) |
 | Verrouillage automatique | Oui (evenements AWT) | Oui (ProcessLifecycleOwner) |

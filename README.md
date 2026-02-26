@@ -15,8 +15,11 @@ Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et prot
 - Verrouillage automatique apres inactivite
 - Effacement automatique du presse-papiers
 - Protection anti brute-force sur l'ecran de connexion
+- Verification semi-automatique des mises a jour via l'API GitHub Releases
 - **Desktop** : distribution autonome avec JRE embarque (aucune installation Java requise)
+- **Desktop** : selection multiple, operations en masse (suppression, changement de categorie) et menu contextuel (clic droit)
 - **Android** : application native Jetpack Compose / Material 3 avec injection de dependances Hilt (APK)
+- **Android** : gestion des categories (ajout, suppression avec reassignation)
 
 ---
 
@@ -134,8 +137,10 @@ Apres connexion, l'interface se compose de :
 - **Barre de menus** : Fichier, Edition, Affichage, Outils, Aide
 - **Barre d'outils** : Nouvelle entree, Generateur, Synchroniser, Verrouiller
 - **Panneau gauche** (180 px) : liste des categories avec filtrage au clic
-- **Panneau central** : barre de recherche en temps reel + tableau des entrees (Titre, Identifiant, Email, Pseudo, Categorie, Force) avec tri par clic sur les en-tetes de colonnes
+- **Panneau central** : barre de recherche en temps reel + tableau des entrees (Titre, Identifiant, Email, Pseudo, Categorie, Force) avec tri par clic sur les en-tetes de colonnes + barre d'actions en masse (visible quand >1 entree selectionnee)
 - **Panneau droit** (300 px) : details de l'entree selectionnee avec boutons copier identifiant/mot de passe
+- **Menu contextuel** (clic droit) : modifier, supprimer, copier mot de passe/identifiant/email/URL, ouvrir l'URL, dupliquer
+- **Barre de notification** : mise a jour disponible (barre jaune en haut, masquable)
 - **Barre de statut** : statut de synchronisation, utilisateur connecte, nombre d'entrees
 
 ### Android
@@ -146,7 +151,8 @@ Apres connexion, l'interface se compose de :
 - **Dropdown categories** pour le filtrage par categorie
 - **Liste scrollable** des entrees avec indicateur de force et selection multiple (appui long) avec suppression et changement de categorie en masse
 - **FAB** pour nouvelle entree
-- **Navigation** : ecrans detail (URL cliquable), edition (identifiant, email, pseudo), generateur, parametres (SFTP), audit
+- **Notification** de mise a jour disponible au lancement (dialog avec lien vers la release GitHub)
+- **Navigation** : ecrans detail (URL cliquable), edition (identifiant, email, pseudo), generateur, parametres (SFTP, gestion des categories), audit
 
 ### Fonctionnalites communes
 
@@ -157,7 +163,10 @@ Apres connexion, l'interface se compose de :
 | Analyse de securite | Oui | Oui |
 | Import/export unifie (CSV/JSON/chiffre) | Oui | Oui (via SAF) |
 | Recherche et tri (7 criteres) | Oui | Oui |
-| Selection multiple + suppression/categorie en masse | Non | Oui |
+| Selection multiple + suppression/categorie en masse | Oui | Oui |
+| Menu contextuel (clic droit) | Oui | Non |
+| Gestion des categories | Oui | Oui (ecran dedie) |
+| Verification des mises a jour | Oui (auto + manuel) | Oui (au lancement) |
 | Themes Systeme/Clair/Sombre | Oui (FlatLaf) | Oui (Material 3 / Dynamic Colors) |
 | Verrouillage automatique | Oui | Oui |
 | Synchronisation SFTP | Oui | Oui |
@@ -222,6 +231,7 @@ Changement de mot de passe maitre : seule la DEK est re-chiffree (operation quas
 | `F5` | Actualiser l'affichage |
 | `Entree` | Se connecter (ecran de connexion) |
 | Double-clic | Modifier l'entree |
+| Clic droit | Menu contextuel (modifier, supprimer, copier, ouvrir URL, dupliquer) |
 
 ---
 
@@ -261,6 +271,9 @@ DEK (Data Encryption Key) -- AES-256, 32 octets aleatoires
 | Thread safety | `SessionHolder` : champs `@Volatile` + methodes `@Synchronized` |
 | Limite taille fichier | Rejet des fichiers coffre > 50 Mo au chargement |
 | Rejet mots de passe courants | 44 mots de passe connus rejetes (comparaison a temps constant) |
+| Verification mises a jour | API GitHub limitee a 1 Mo de reponse, URLs validees (`https://github.com/` uniquement) |
+| Thread safety VaultService | Methodes de mutation `synchronized` pour prevenir les races |
+| Checksums releases | SHA256SUMS.txt genere et publie avec chaque release |
 
 ### Aucune recuperation
 
@@ -292,16 +305,19 @@ password-manager/
 |   +-- vault/                         # Vault, VaultEntry, VaultManager, VaultService
 |   +-- config/                        # AppConfig, ConfigManager, ConfigEncryptor
 |   +-- sync/                          # SyncService, LocalRepository, SFTPRepository
+|   +-- update/                        # UpdateChecker, UpdateInfo, VersionComparator
 |   +-- util/                          # SecureWiper, FileSecurityUtils, PasswordValidator
 |   +-- i18n/                          # LanguageManager (FR/EN)
 |
 |-- desktop/                           # Interface Swing (Java 17)
 |   +-- ui/                            # LoginFrame, MainFrame, VaultPanel, dialogs
+|   +-- update/                        # DesktopUpdateManager
 |
 +-- android/                           # Interface Jetpack Compose (Kotlin)
     +-- data/                          # AndroidVaultRepository, ConfigRepository, SessionHolder
     +-- di/                            # AppModule (Hilt DI)
     +-- ui/                            # Ecrans Compose (login, vault, generator, settings, audit)
+    +-- update/                        # AndroidUpdateManager
 ```
 
 ### Tests

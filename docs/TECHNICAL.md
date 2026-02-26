@@ -12,9 +12,10 @@
 8. [Synchronisation SFTP](#8-synchronisation-sftp)
 9. [Internationalisation](#9-internationalisation)
 10. [Interface graphique](#10-interface-graphique)
-11. [Tests](#11-tests)
-12. [Dependances](#12-dependances)
-13. [Arbre des fichiers sources](#13-arbre-des-fichiers-sources)
+11. [Systeme de mise a jour](#11-systeme-de-mise-a-jour)
+12. [Tests](#12-tests)
+13. [Dependances](#13-dependances)
+14. [Arbre des fichiers sources](#14-arbre-des-fichiers-sources)
 
 ---
 
@@ -102,16 +103,19 @@ Des scripts de lancement sont fournis dans `scripts/` :
   |-- vault/      Vault, VaultEntry, VaultManager, VaultService, VaultImporter, VaultExporter
   |-- config/     AppConfig, ConfigManager, ConfigEncryptor
   |-- sync/       SyncService, LocalRepository, SFTPRepository
+  |-- update/     UpdateChecker, UpdateInfo, VersionComparator
   |-- util/       SecureWiper, FileSecurityUtils, PasswordValidator
   +-- i18n/       LanguageManager (FR/EN)
 
 :desktop (Java 17, depends on :core)
-  +-- ui/         LoginFrame, MainFrame, VaultPanel, EntryDialog, SettingsDialog, ...
+  |-- ui/         LoginFrame, MainFrame, VaultPanel, EntryDialog, SettingsDialog, ...
+  +-- update/     DesktopUpdateManager
 
 :android (Kotlin 2.1, depends on :core, Hilt DI)
   |-- data/       AndroidVaultRepository, AndroidConfigRepository, ConfigRepository, SessionHolder
   |-- di/         AppModule (Hilt @Provides @Singleton)
-  +-- ui/         Compose screens + @HiltViewModel (login, vault, generator, settings, audit)
+  |-- ui/         Compose screens + @HiltViewModel (login, vault, generator, settings, audit)
+  +-- update/     AndroidUpdateManager
 ```
 
 ### 3.2. Diagramme desktop
@@ -129,6 +133,8 @@ Main
               |-- SyncService (sync)
               |     |-- LocalRepository
               |     +-- SFTPRepository
+              |-- DesktopUpdateManager (update)
+              |     +-- UpdateChecker (core/update)
               +-- VaultPanel (ui)
                     |-- EntryDialog
                     |     +-- PasswordGeneratorDialog
@@ -164,6 +170,8 @@ MainActivity (extends AppCompatActivity, single Activity)
         |     +-- PasswordGenerator.generate()
         |-- SettingsScreen / @HiltViewModel SettingsViewModel
         |     +-- @Inject ConfigRepository
+        |-- CategoryManagementScreen / @HiltViewModel CategoryManagementViewModel
+        |     +-- @Inject SessionHolder (addCategory, removeCategory with cascade)
         |-- ChangeMasterPasswordScreen / @HiltViewModel ChangeMasterPasswordViewModel
         |     +-- @Inject SessionHolder (onCleared efface les passwords)
         +-- SecurityAuditScreen / @HiltViewModel SecurityAuditViewModel
@@ -347,7 +355,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 | `Vault` | Modele de donnees du coffre (version, utilisateur, entrees, categories, parametres). Constructeur prive no-arg pour la deserialisation Gson (les JRE jlink n'incluent pas `jdk.unsupported` / `sun.misc.Unsafe`) |
 | `VaultEntry` | Entree individuelle (titre, identifiant, email, pseudo, mot de passe `char[]`, URL, notes, categorie, tags, dates) |
 | `VaultManager` | Persistance : creation, chargement, sauvegarde, migration v1->v2, backup, import/export |
-| `VaultService` | Operations metier : CRUD, recherche, tri, filtrage, detection de doublons/anciens mots de passe |
+| `VaultService` | Operations metier : CRUD, recherche, tri, filtrage, detection de doublons/anciens mots de passe, operations en masse, gestion des categories. Methodes de mutation `synchronized` |
 | `VaultExporter` | Export CSV/JSON en `char[]` avec protection anti-injection de formules |
 | `VaultImporter` | Import CSV/JSON avec detection automatique du separateur et alias multilingues |
 | `VaultLoadResult` | Objet de valeur : `Vault` + `VaultSession` |
@@ -379,6 +387,10 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 - Tri : `TITLE`, `USERNAME`, `EMAIL`, `PSEUDO`, `URL` (alphabetique croissant, insensible a la casse), `DATE` (plus recent en premier), `CATEGORY` (alphabetique croissant, insensible a la casse)
 - `findDuplicatePasswords()` : utilise des hashes SHA-256 des mots de passe comme cles (evite de stocker le clair comme cle de Map). Chaque clone `getPassword()` est efface dans un bloc `finally`
 - `findOldPasswords(int days)` : compare les timestamps `updatedAt` au seuil configure
+- `bulkDelete(List<String> entryIds)` : suppression en masse avec effacement securise de chaque entree
+- `bulkChangeCategory(List<String> entryIds, String newCategory)` : reassignation de categorie en masse
+- `addCategory(String)` / `removeCategory(String)` : gestion des categories du coffre
+- **Thread safety** : toutes les methodes de mutation (`addEntry`, `updateEntry`, `deleteEntry`, `bulkDelete`, `bulkChangeCategory`, `addCategory`, `removeCategory`) sont `synchronized`
 
 **VaultImporter — details :**
 - Detection du separateur : frequence `,` vs `;` dans la premiere ligne
@@ -520,7 +532,7 @@ public static void wipe(char[] data) {
 |--------|------|
 | `LoginFrame` | Ecran de connexion, creation d'utilisateur, toggle visibilite mot de passe, changement de langue |
 | `MainFrame` | Fenetre principale avec menus, barre d'outils, auto-lock, shutdown hook (retire au verrouillage) |
-| `VaultPanel` | Panneau 3 colonnes : categories, table d'entrees, details avec boutons copier. Timers `javax.swing.Timer` (pas `java.util.Timer`) |
+| `VaultPanel` | Panneau 3 colonnes : categories, table d'entrees, details avec boutons copier. Selection multiple (`MULTIPLE_INTERVAL_SELECTION`), barre d'actions en masse, menu contextuel (clic droit). Timers `javax.swing.Timer` (pas `java.util.Timer`) |
 | `EntryDialog` | Formulaire modal de creation/edition d'entree |
 | `PasswordGeneratorDialog` | Dialogue du generateur de mots de passe. Timer clipboard `javax.swing.Timer` annule a la fermeture |
 | `ImportExportController` | Popup unifiee d'import/export (CSV, JSON, coffre chiffre .enc) avec champ mot de passe pour l'import chiffre |
@@ -817,7 +829,8 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la ses
 | Detail | `EntryDetailScreen` | `EntryDetailViewModel` | Lecture seule avec email/pseudo, URL cliquable, copier, supprimer |
 | Edition | `EntryEditScreen` | `EntryEditViewModel` | Formulaire CRUD (identifiant, email, pseudo), lien generateur |
 | Generateur | `GeneratorScreen` | `GeneratorViewModel` | Options, barre de force, copier/utiliser |
-| Parametres | `SettingsScreen` | `SettingsViewModel` | Theme, langue, auto-lock, clipboard, synchronisation SFTP |
+| Parametres | `SettingsScreen` | `SettingsViewModel` | Theme, langue, auto-lock, clipboard, synchronisation SFTP, gestion des categories |
+| Categories | `CategoryManagementScreen` | `CategoryManagementViewModel` | Ajout/suppression de categories avec validation et cascade |
 | Mot de passe | `ChangeMasterPasswordScreen` | `ChangeMasterPasswordViewModel` | Ancien/nouveau/confirmer |
 | Audit | `SecurityAuditScreen` | `SecurityAuditViewModel` | Faibles, dupliques, anciens |
 
@@ -833,7 +846,7 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`) et detruit la ses
 
 #### Navigation
 
-8 routes definies dans `AppNavigation.kt` : `Login`, `VaultList`, `EntryDetail(entryId)`, `EntryEdit(entryId?)`, `Generator(returnPassword)`, `Settings`, `ChangeMasterPassword`, `SecurityAudit`.
+9 routes definies dans `AppNavigation.kt` : `Login`, `VaultList`, `EntryDetail(entryId)`, `EntryEdit(entryId?)`, `Generator(returnPassword)`, `Settings`, `CategoryManagement`, `ChangeMasterPassword`, `SecurityAudit`.
 
 Le mot de passe genere est passe de `GeneratorScreen` a `EntryEditScreen` via `savedStateHandle`.
 
@@ -873,9 +886,74 @@ La langue suit les parametres systeme du telephone.
 
 ---
 
-## 11. Tests
+## 11. Systeme de mise a jour
 
-### 11.1. Vue d'ensemble
+### 11.1. Architecture
+
+Le systeme de verification des mises a jour repose sur trois couches :
+
+```
+:core/update/
+  |-- UpdateChecker      # Client HTTP pour l'API GitHub Releases
+  |-- UpdateInfo         # Modele de donnees (version, URL, assets)
+  +-- VersionComparator  # Comparaison semantique de versions
+
+:desktop/update/
+  +-- DesktopUpdateManager  # SwingWorker + javax.swing.Timer
+
+:android/update/
+  +-- AndroidUpdateManager  # Coroutines (Dispatchers.IO)
+```
+
+### 11.2. UpdateChecker (core)
+
+- Interroge `https://api.github.com/repos/{owner}/{repo}/releases/latest`
+- Parse la reponse JSON avec Gson
+- Compare la version distante a `AppVersion.get()` via `VersionComparator`
+- Retourne `UpdateInfo` si une version plus recente est disponible, `null` sinon
+- Configuration via `update.properties` (owner, repo, intervalle, activation)
+
+**Mesures de securite :**
+- Limite de taille de reponse : 1 Mo (`MAX_RESPONSE_SIZE`)
+- Validation des URLs : seul le domaine `https://github.com/` est accepte pour `releaseUrl` et les URLs de telechargement des assets
+- Timeouts : connexion et lecture 10 secondes
+
+### 11.3. VersionComparator (core)
+
+- Compare des versions semantiques `major.minor.patch`
+- Gere le prefixe `v` / `V` (ex: `v2.1.0` -> `2.1.0`)
+- Gere les suffixes pre-release (ex: `2.0.0-rc1` -> version de base `2.0.0`)
+- `isPreRelease(String)` : detecte les versions contenant un suffixe `-`
+
+### 11.4. DesktopUpdateManager
+
+- Cree une barre de notification jaune (panel NORTH de MainFrame)
+- Verification au lancement + toutes les 5 minutes (`javax.swing.Timer`)
+- Verification manuelle via le bouton sur `LoginFrame`
+- `SwingWorker` pour les appels reseau (hors EDT)
+- Le bouton "Telecharger" ouvre la page de release dans le navigateur (apres validation de l'URL)
+- Barre masquable (bouton X)
+
+### 11.5. AndroidUpdateManager
+
+- Verification au lancement via `LaunchedEffect` + coroutine `Dispatchers.IO`
+- `AlertDialog` Material 3 avec boutons "Telecharger" / "Plus tard"
+- "Telecharger" ouvre le navigateur via `Intent.ACTION_VIEW` (apres validation de l'URL)
+
+### 11.6. Configuration (`update.properties`)
+
+```properties
+update.github.owner=Loken75
+update.github.repo=password-manager
+update.check.interval.minutes=5
+update.enabled=true
+```
+
+---
+
+## 12. Tests
+
+### 12.1. Vue d'ensemble
 
 **Framework** : JUnit 5 (Jupiter) 5.14.2
 **Total** : **264 tests** (unitaires + integration) repartis sur les 3 modules
@@ -886,7 +964,7 @@ La langue suit les parametres systeme du telephone.
 | `:desktop` | 71 | JUnit 5 (Java) |
 | `:android` | 41 | JUnit 5 (Kotlin, JVM local) |
 
-### 11.2. Matrice des tests
+### 12.2. Matrice des tests
 
 | Module | Classe de test | Nombre | Description |
 |--------|---------------|--------|-------------|
@@ -915,7 +993,7 @@ La langue suit les parametres systeme du telephone.
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance, auto-creation |
 | | | **264** | |
 
-### 11.3. Infrastructure de test Android
+### 12.3. Infrastructure de test Android
 
 Les tests Android s'executent sur la JVM locale (pas d'emulateur) :
 
@@ -927,7 +1005,7 @@ Les tests Android s'executent sur la JVM locale (pas d'emulateur) :
 
 Tous les tests utilisant `SessionHolder` ont un `@AfterEach` qui appelle `SessionHolder.lock()` pour garantir l'isolation entre tests.
 
-### 11.4. Tests de securite remarquables (`SecurityAuditTest`)
+### 12.4. Tests de securite remarquables (`SecurityAuditTest`)
 
 - **Unicite des IV** : 100 chiffrements successifs -> tous les IV distincts
 - **KDF** : iterations >= 600 000, taille du sel = 32 octets
@@ -938,7 +1016,7 @@ Tous les tests utilisant `SessionHolder` ont un `@AfterEach` qui appelle `Sessio
 - **Assainissement import** : caracteres de controle supprimes, tabulations preservees
 - **Anti-injection export** : tous les caracteres declencheurs (`=`, `+`, `-`, `@`) sont prefixes
 
-### 11.5. Tests de validation des entrees
+### 12.5. Tests de validation des entrees
 
 - **ConfigEncryptor** : round-trip chiffrement/dechiffrement, caracteres speciaux et Unicode, entrees null/vides, donnees corrompues (prefixe `ENC:` invalide), unicite des IV, reutilisation du fichier de cle entre appels
 - **LocalRepository** : rejet des noms de fichiers malicieux (`..`, `/`, `\`, `~`, null, vide), operations CRUD, pending changes, creation et nettoyage de backups
@@ -947,9 +1025,9 @@ Tous les tests utilisant `SessionHolder` ont un `@AfterEach` qui appelle `Sessio
 
 ---
 
-## 12. Dependances
+## 13. Dependances
 
-### 12.1. Core + Desktop
+### 13.1. Core + Desktop
 
 | Bibliotheque | GroupId | Version | Module | Usage |
 |--------------|---------|---------|--------|-------|
@@ -958,7 +1036,7 @@ Tous les tests utilisant `SessionHolder` ont un `@AfterEach` qui appelle `Sessio
 | FlatLaf | `com.formdev` | 3.7 | :desktop | Look & Feel Swing moderne |
 | JUnit 5 | `org.junit.jupiter` | 5.14.2 | :core, :desktop | Tests (scope test) |
 
-### 12.2. Android
+### 13.2. Android
 
 | Bibliotheque | Version | Usage |
 |--------------|---------|-------|
@@ -976,7 +1054,7 @@ Tous les tests utilisant `SessionHolder` ont un `@AfterEach` qui appelle `Sessio
 | Coroutines Test | 1.9.0 | `UnconfinedTestDispatcher` pour les tests |
 | kotlin-test-junit5 | 2.1.0 | Assertions Kotlin + JUnit 5 |
 
-### 12.3. Build
+### 13.3. Build
 
 | Outil | Version | Role |
 |-------|---------|------|
@@ -990,7 +1068,7 @@ Tous les tests utilisant `SessionHolder` ont un `@AfterEach` qui appelle `Sessio
 
 ---
 
-## 13. Arbre des fichiers sources
+## 14. Arbre des fichiers sources
 
 ```
 password-manager/
@@ -1015,10 +1093,12 @@ password-manager/
 |       |   |                               # PasswordGenerator, PasswordStrengthAnalyzer, EncryptedPayload
 |       |   |-- i18n/                       # LanguageManager
 |       |   |-- sync/                       # SyncService, LocalRepository, SFTPRepository, ConflictResolver
+|       |   |-- update/                     # UpdateChecker, UpdateInfo, VersionComparator
 |       |   |-- util/                       # SecureWiper, FileSecurityUtils, PasswordValidator, DateUtils
 |       |   +-- vault/                      # Vault, VaultEntry, VaultManager, VaultService,
 |       |                                   # VaultImporter, VaultExporter, VaultLoadResult, SortField
 |       |-- main/resources/i18n/            # messages_en.properties, messages_fr.properties
+|       |-- main/resources/update.properties # Configuration du systeme de mise a jour
 |       +-- test/java/com/passwordmanager/  # 152 tests (15 classes)
 |
 |-- desktop/                                # :desktop — interface Swing (Java 17)
@@ -1026,8 +1106,9 @@ password-manager/
 |   +-- src/
 |       |-- main/java/com/passwordmanager/
 |       |   |-- Main.java                   # Point d'entree, detection app.home
-|       |   +-- ui/                         # LoginFrame, MainFrame, VaultPanel, EntryDialog,
-|       |                                   # PasswordGeneratorDialog, SettingsDialog, StrengthBarHelper
+|       |   |-- ui/                         # LoginFrame, MainFrame, VaultPanel, EntryDialog,
+|       |   |                               # PasswordGeneratorDialog, SettingsDialog, StrengthBarHelper
+|       |   +-- update/                     # DesktopUpdateManager
 |       +-- test/java/com/passwordmanager/  # 71 tests (SyncServiceTest, LocalRepositoryTest, etc.)
 |
 +-- android/                                # :android — interface Compose (Kotlin 2.1)
@@ -1046,13 +1127,15 @@ password-manager/
         |       |-- data/                   # AndroidVaultRepository, AndroidConfigRepository,
         |       |                           # ConfigRepository (interface), SessionHolder (@Volatile/@Synchronized)
         |       |-- di/                     # AppModule (@Module @InstallIn @Provides @Singleton)
+        |       |-- update/                # AndroidUpdateManager
         |       +-- ui/
         |           |-- theme/              # Theme.kt, Color.kt, Type.kt
-        |           |-- navigation/         # AppNavigation.kt (8 routes)
+        |           |-- navigation/         # AppNavigation.kt (9 routes)
         |           |-- login/              # LoginScreen, @HiltViewModel LoginViewModel
         |           |-- vault/              # VaultListScreen/VM (multi-select, SFTP sync), EntryDetailScreen/VM, EntryEditScreen/VM
         |           |-- generator/          # GeneratorScreen, @HiltViewModel GeneratorViewModel
-        |           |-- settings/           # SettingsScreen/VM, ChangeMasterPasswordScreen/VM
+        |           |-- settings/           # SettingsScreen/VM, ChangeMasterPasswordScreen/VM,
+        |           |                       # CategoryManagementScreen/VM
         |           |-- audit/              # SecurityAuditScreen, @HiltViewModel SecurityAuditViewModel
         |           +-- components/         # PasswordStrengthBar, PasswordField, EntryCard, ConfirmDialog, ImportExportDialog
         +-- test/kotlin/com/passwordmanager/android/  # 41 tests (6 classes)

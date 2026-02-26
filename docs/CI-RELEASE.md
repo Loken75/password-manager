@@ -96,8 +96,9 @@ automatiquement des releases du Password Manager pour **Linux**, **Windows**,
         |         build-android]    |
         +---------------------------+
         | 1. Download all artifacts |
-        | 2. gh release create      |
-        |    + attach 4 archives    |
+        | 2. Generate SHA256SUMS    |
+        | 3. gh release create      |
+        |    + attach 5 files       |
         +---------------------------+
                   |
                   v
@@ -107,6 +108,7 @@ automatiquement des releases du Password Manager pour **Linux**, **Windows**,
         |   - 1.0.0-windows-x64.zip         |
         |   - 1.0.0-macos-aarch64.tar.gz    |
         |   - 1.0.0-android.apk             |
+        |   - SHA256SUMS.txt                 |
         +------------------------------------+
 ```
 
@@ -300,18 +302,28 @@ Le JDK 17 est suffisant pour la compilation Android (AGP 8.7.3 le requiert).
 L'action `android-actions/setup-android@v3` installe le SDK Android et les
 build tools necessaires.
 
-#### 2. Build APK debug
+#### 2. Decodage du keystore et build APK signe
 
 ```yaml
-- run: ./gradlew :android:assembleDebug
+- name: Decode keystore
+  run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/build/keystore.p12
+
+- name: Build signed release APK
+  env:
+    KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+    KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+    KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+  run: ./gradlew :android:assembleRelease
 ```
 
-Produit `android/build/outputs/apk/debug/android-debug.apk`.
+Le keystore est decode depuis un secret GitHub (base64). L'APK release est signe avec les identifiants fournis via des variables d'environnement.
+
+Produit `android/build/outputs/apk/release/android-release.apk`.
 
 #### 3. Renommage et upload
 
 ```yaml
-- run: mv android/build/outputs/apk/debug/android-debug.apk password-manager-<version>-android.apk
+- run: mv android/build/outputs/apk/release/android-release.apk password-manager-<version>-android.apk
 
 - uses: actions/upload-artifact@v4
   with:
@@ -339,7 +351,18 @@ Ce job s'execute sur `ubuntu-latest` apres que les 4 builds (3 desktop + 1 Andro
 
 Telecharge les 4 archives produites par les jobs `build-desktop` et `build-android`.
 
-#### 2. Creation de la release GitHub
+#### 2. Generation des checksums SHA-256
+
+```yaml
+- name: Generate checksums
+  run: |
+    cd release-assets
+    sha256sum *.tar.gz *.zip *.apk > SHA256SUMS.txt
+```
+
+Genere un fichier `SHA256SUMS.txt` contenant les empreintes SHA-256 de chaque archive. Ce fichier permet aux utilisateurs de verifier l'integrite des telechargements.
+
+#### 3. Creation de la release GitHub
 
 ```yaml
 - uses: softprops/action-gh-release@v2
@@ -353,6 +376,7 @@ Telecharge les 4 archives produites par les jobs `build-desktop` et `build-andro
       release-assets/password-manager-<version>-windows-x64.zip
       release-assets/password-manager-<version>-macos-aarch64.tar.gz
       release-assets/password-manager-<version>-android.apk
+      release-assets/SHA256SUMS.txt
 ```
 
 **`generate_release_notes: true`** genere automatiquement les notes de
@@ -414,7 +438,8 @@ Aucune installation de Java n'est requise : le JRE est embarque.
 | **Build system**    | Gradle 8.11 (wrapper), multi-module `:core`/`:desktop`/`:android` |
 | **Tests desktop**   | `:core:test` + `:desktop:test` sur chaque OS desktop (233 tests) |
 | **Taille desktop**  | ~20-25 Mo (JAR 2 Mo + JRE compresse ~57 Mo / par OS)        |
-| **Taille APK**      | ~5-10 Mo (debug, non minifie)                                |
+| **Taille APK**      | ~5-10 Mo (release, signe)                                    |
+| **Checksums**       | SHA256SUMS.txt genere et publie avec chaque release          |
 | **Retention**       | Artifacts temporaires : 1 jour / Release : permanente        |
 | **fail-fast**       | `false` — les builds continuent meme si l'un echoue         |
 | **Permissions**     | `contents: write` pour creer la release                      |
