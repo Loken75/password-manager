@@ -143,19 +143,19 @@ Apres connexion, l'interface se compose de :
 - **Barre de menus** : Fichier, Edition, Affichage, Outils, Aide
 - **Barre d'outils** : Nouvelle entree, Generateur, Synchroniser, Verrouiller
 - **Panneau gauche** (180 px) : liste des categories avec filtrage au clic
-- **Panneau central** : barre de recherche en temps reel + filtres avances + tableau des entrees (Favori, Favicon, Titre, Identifiant, Email, Pseudo, Categorie, Force) avec tri par clic sur les en-tetes de colonnes + menu "Actions..." en masse (visible quand >1 entree selectionnee)
+- **Panneau central** : barre de recherche en temps reel + filtres avances (le filtre favoris s'applique meme quand le panneau de filtres est replie) + tableau des entrees (Favori ★, Titre avec favicon, Identifiant, Email, Pseudo, Categorie, Force) avec tri par clic sur tous les en-tetes de colonnes (y compris Favori et Force) + menu "Actions..." en masse (visible quand >1 entree selectionnee)
 - **Panneau droit** (300 px) : details de l'entree selectionnee avec boutons copier en ligne (identifiant, email, pseudo, mot de passe, URL)
 - **Menu contextuel** (clic droit) : modifier, supprimer, copier mot de passe/identifiant/email/URL, ouvrir l'URL, dupliquer
 - **Barre de notification** : mise a jour disponible (barre jaune en haut, masquable)
-- **Barre de statut** : statut de synchronisation, utilisateur connecte, nombre d'entrees
+- **Barre de statut** : statut de synchronisation, utilisateur connecte, nombre d'entrees (mis a jour dynamiquement)
 
 ### Android
 
 Apres connexion, l'interface se compose de :
 
-- **TopAppBar** : titre, recherche, tri (7 criteres), menu (import/export, sync, audit, parametres, verrouiller)
+- **TopAppBar** : titre, recherche, tri (9 criteres), menu (import/export, sync, audit, parametres, verrouiller)
 - **Dropdown categories** pour le filtrage par categorie
-- **Liste scrollable** des entrees avec indicateur de force et selection multiple (appui long) avec suppression et changement de categorie en masse
+- **Liste scrollable** des entrees avec favicon (ou avatar lettre), URL en sous-titre, etoile favori, indicateur de force et selection multiple (appui long) avec menu "Actions..." (suppression, categorie, favoris en masse)
 - **FAB** pour nouvelle entree
 - **Notification** de mise a jour disponible au lancement (dialog avec lien vers la release GitHub)
 - **Navigation** : ecrans detail (URL cliquable), edition (identifiant, email, pseudo), generateur, parametres (SFTP, gestion des categories), audit
@@ -171,7 +171,7 @@ Apres connexion, l'interface se compose de :
 | Generateur de mots de passe | Oui | Oui |
 | Analyse de securite + HIBP | Oui | Oui |
 | Import/export unifie (CSV/JSON/chiffre) | Oui | Oui (via SAF) |
-| Recherche et tri (7 criteres) | Oui | Oui |
+| Recherche et tri (9 criteres) | Oui | Oui |
 | Selection multiple + actions en masse | Oui (menu "Actions...") | Oui |
 | Menu contextuel (clic droit) | Oui | Non |
 | Gestion des categories | Oui | Oui (ecran dedie) |

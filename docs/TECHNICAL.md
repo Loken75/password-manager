@@ -365,7 +365,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 | `VaultExporter` | Export CSV/JSON en `char[]` avec protection anti-injection de formules |
 | `VaultImporter` | Import CSV/JSON avec detection automatique du separateur et alias multilingues |
 | `VaultLoadResult` | Objet de valeur : `Vault` + `VaultSession` |
-| `SortField` | Enum : `TITLE`, `USERNAME`, `EMAIL`, `PSEUDO`, `URL`, `DATE`, `CATEGORY` |
+| `SortField` | Enum : `TITLE`, `USERNAME`, `EMAIL`, `PSEUDO`, `URL`, `DATE`, `CATEGORY`, `FAVORITE`, `STRENGTH` |
 
 **VaultManager — details :**
 - Format de fichier v2.0 : enveloppe JSON contenant `version`, `kdf`, `kdf_iterations`, `salt`, `kek_iv`, `encrypted_dek`, `data_iv`, `encrypted_data`
@@ -390,7 +390,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 
 **VaultService — details :**
 - Recherche insensible a la casse sur titre, identifiant, email, pseudo, URL, notes, categorie et tags
-- Tri : `TITLE`, `USERNAME`, `EMAIL`, `PSEUDO`, `URL` (alphabetique croissant, insensible a la casse), `DATE` (plus recent en premier), `CATEGORY` (alphabetique croissant, insensible a la casse)
+- Tri : `TITLE`, `USERNAME`, `EMAIL`, `PSEUDO`, `URL` (alphabetique croissant, insensible a la casse), `DATE` (plus recent en premier), `CATEGORY` (alphabetique croissant, insensible a la casse), `FAVORITE` (favoris en premier, titre en secondaire), `STRENGTH` (par force du mot de passe via `PasswordStrengthAnalyzer.ordinal()`, effacement securise du clone dans `finally`)
 - `findDuplicatePasswords()` : utilise des hashes SHA-256 des mots de passe comme cles (evite de stocker le clair comme cle de Map). Chaque clone `getPassword()` est efface dans un bloc `finally`
 - `findOldPasswords(int days)` : compare les timestamps `updatedAt` au seuil configure
 - `bulkDelete(List<String> entryIds)` : suppression en masse avec effacement securise de chaque entree
@@ -547,7 +547,8 @@ public static void wipe(char[] data) {
 |--------|------|
 | `LoginFrame` | Ecran de connexion, creation d'utilisateur, toggle visibilite mot de passe, changement de langue |
 | `MainFrame` | Fenetre principale avec menus, barre d'outils, auto-lock, shutdown hook (retire au verrouillage) |
-| `VaultPanel` | Panneau 3 colonnes : categories, table d'entrees, details avec boutons copier. Selection multiple (`MULTIPLE_INTERVAL_SELECTION`), barre d'actions en masse, menu contextuel (clic droit). Timers `javax.swing.Timer` (pas `java.util.Timer`) |
+| `VaultPanel` | Panneau 3 colonnes : categories, table d'entrees, details avec boutons copier. Selection multiple (`MULTIPLE_INTERVAL_SELECTION`), barre d'actions en masse (menu "Actions..." dropdown), menu contextuel (clic droit). Chargement asynchrone des favicons (`SwingWorker` + `ConcurrentHashMap`). Timers `javax.swing.Timer` (pas `java.util.Timer`) |
+| `SecurityAuditController` | Audit de securite visuel (`JPanel` avec `BoxLayout`). Sections colorees (`TitledBorder`) : faibles (rouge), reutilises (orange), anciens (jaune), compromis HIBP (rouge). Verification HIBP asynchrone via `SwingWorker<List<String>, Integer>` avec `JProgressBar`. Bouton "Verifier maintenant" desactive pendant la verification |
 | `EntryDialog` | Formulaire modal de creation/edition d'entree |
 | `PasswordGeneratorDialog` | Dialogue du generateur de mots de passe. Timer clipboard `javax.swing.Timer` annule a la fermeture |
 | `ImportExportController` | Popup unifiee d'import/export (CSV, JSON, coffre chiffre .enc) avec champ mot de passe pour l'import chiffre |
@@ -810,8 +811,8 @@ Le changement de langue est possible depuis l'ecran de connexion (effet immediat
 | Colonne | Largeur | Contenu |
 |---------|---------|---------|
 | Gauche | 180 px | Liste des categories (JList) + bouton ajout |
-| Centre | flexible | Barre de recherche + filtres avances + table 8 colonnes (Favori, Favicon, Titre, Identifiant, Email, Pseudo, Categorie, Force) — en-tetes cliquables pour tri. Menu "Actions..." en masse (supprimer, categorie, favoris) |
-| Droite | 300 px | Details : titre, grille de champs avec boutons copier en ligne (identifiant, email, pseudo, mot de passe, URL), case a cocher afficher |
+| Centre | flexible | Barre de recherche + filtres avances (categorie, force, date, favoris — le filtre favoris s'applique meme quand le panneau est replie) + table 7 colonnes (Favori ★, Titre avec favicon, Identifiant, Email, Pseudo, Categorie, Force) — tous les en-tetes cliquables pour tri (y compris Favori et Force). Menu "Actions..." en masse (supprimer, categorie, favoris) |
+| Droite | 300 px | Details : titre, grille de champs avec boutons copier en ligne (identifiant, email, pseudo, mot de passe, URL), case a cocher afficher. Favicon affiche a cote du titre |
 
 La colonne Force du tableau est coloree selon le niveau : rouge (Faible), orange (Moyen), vert (Fort), bleu (Tres fort).
 
@@ -842,7 +843,7 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`), detruit la sessi
 | Ecran | Composable | ViewModel | Description |
 |-------|-----------|-----------|-------------|
 | Login | `LoginScreen` | `LoginViewModel` | Dropdown utilisateurs, creation, anti brute-force |
-| Liste | `VaultListScreen` | `VaultListViewModel` | Recherche, dropdown categories, tri (7 criteres), import/export unifie (fusion), selection multiple (suppression + categorie en masse), sync SFTP |
+| Liste | `VaultListScreen` | `VaultListViewModel` | Recherche, dropdown categories, tri (9 criteres), import/export unifie (fusion), selection multiple avec menu "Actions..." (suppression, categorie, favoris en masse), favicons asynchrones, sync SFTP |
 | Detail | `EntryDetailScreen` | `EntryDetailViewModel` | Lecture seule avec email/pseudo, URL cliquable, copier, supprimer |
 | Edition | `EntryEditScreen` | `EntryEditViewModel` | Formulaire CRUD (identifiant, email, pseudo), lien generateur |
 | Generateur | `GeneratorScreen` | `GeneratorViewModel` | Options, barre de force, copier/utiliser |
@@ -858,7 +859,7 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`), detruit la sessi
 |-----------|------|
 | `PasswordStrengthBar` | Barre animee de force (rouge/orange/vert/bleu) |
 | `PasswordField` | OutlinedTextField avec toggle visibilite |
-| `EntryCard` | Carte pour la liste (titre, username, categorie, point de force). Support selection multiple (checkbox, long press) |
+| `EntryCard` | Carte pour la liste (favicon ou avatar lettre, titre, URL ou username en sous-titre, categorie, etoile favori, barre de force). Support selection multiple (checkbox, long press). Swipe gauche = supprimer, swipe droit = copier mot de passe |
 | `ConfirmDialog` | AlertDialog de confirmation reutilisable |
 | `ImportExportDialog` | Popups import/export unifiees (CSV/JSON/chiffre) avec champ mot de passe masquable (toggle Afficher) |
 

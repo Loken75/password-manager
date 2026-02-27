@@ -171,7 +171,7 @@ Acces rapide aux fonctions courantes :
 | Colonne | Contenu |
 |---------|---------|
 | **Gauche** (180 px) | Liste des categories avec bouton d'ajout |
-| **Centre** | Barre de recherche + tableau des entrees (Titre, Identifiant, Email, Pseudo, Categorie, Force) — en-tetes cliquables pour trier. Barre d'actions en masse en bas (visible quand >1 entree selectionnee) |
+| **Centre** | Barre de recherche + filtres avances + tableau des entrees (Favori ★, Titre avec favicon, Identifiant, Email, Pseudo, Categorie, Force) — tous les en-tetes cliquables pour trier (y compris Favori et Force). Menu "Actions..." en masse en bas (visible quand >1 entree selectionnee) |
 | **Droite** (300 px) | Details de l'entree selectionnee |
 
 ### 5.4. Barre de statut
@@ -179,7 +179,7 @@ Acces rapide aux fonctions courantes :
 Affiche en bas de la fenetre :
 - Le statut de synchronisation (Mode local, Synchronise, Erreur, etc.)
 - Le nom de l'utilisateur connecte
-- Le nombre total d'entrees
+- Le nombre total d'entrees (mis a jour dynamiquement apres chaque ajout, modification, suppression ou import)
 
 ### Android
 
@@ -187,8 +187,8 @@ Apres connexion, l'interface Android se compose de :
 
 - **TopAppBar** avec titre, icone de recherche et menu overflow (importer..., exporter..., synchroniser, audit de securite, parametres, verrouiller)
 - **Dropdown categorie** pour le filtrage (remplace les FilterChips) : liste deroulante "Toutes les categories" + categories existantes
-- **Liste scrollable** (LazyColumn) des entrees avec indicateur de force, titre, identifiant et categorie
-- **Selection multiple** : appui long sur une entree pour activer le mode selection, checkbox sur chaque entree, bouton "Modifier" (changement de categorie en masse) et bouton "Supprimer" (suppression en masse avec confirmation)
+- **Liste scrollable** (LazyColumn) des entrees avec favicon (ou avatar lettre), titre, URL du site (ou identifiant en repli), etoile favori, indicateur de force et categorie
+- **Selection multiple** : appui long sur une entree pour activer le mode selection, checkbox sur chaque entree, menu "Actions..." (changement de categorie, ajout/retrait des favoris, suppression en masse avec confirmation)
 - **FAB** (bouton flottant) pour creer une nouvelle entree
 - **Navigation** par ecrans : detail, edition, generateur, parametres, changement de mot de passe maitre, audit
 
@@ -240,10 +240,14 @@ Une boite de confirmation est affichee avant la suppression. L'action est irreve
 
 Le tableau des entrees supporte la selection multiple (Ctrl+clic, Shift+clic). Lorsque plus d'une entree est selectionnee, une barre d'actions en masse apparait sous le tableau :
 
+Le menu **"Actions..."** propose les operations suivantes :
+
 | Action | Description |
 |--------|-------------|
-| **Supprimer la selection (N)** | Supprime les N entrees selectionnees apres confirmation |
+| **Supprimer la selection** | Supprime les entrees selectionnees apres confirmation |
 | **Changer la categorie** | Reassigne toutes les entrees selectionnees a la categorie choisie |
+| **Ajouter aux favoris** | Marque toutes les entrees selectionnees comme favorites |
+| **Retirer des favoris** | Retire le statut favori des entrees selectionnees |
 
 ### 6.5. Menu contextuel (Desktop - clic droit)
 
@@ -298,8 +302,10 @@ La barre de recherche en haut du tableau filtre les entrees au fur et a mesure d
 | Trier par site | Ordre alphabetique sur l'URL |
 | Trier par date | Plus recemment modifie en premier |
 | Trier par categorie | Regroupement alphabetique par categorie |
+| Trier par favori | Favoris en premier, puis tri alphabetique par titre |
+| Trier par force | Tri par force du mot de passe (Faible → Moyen → Fort → Tres fort) |
 
-Sur le desktop, cliquer sur un en-tete de colonne du tableau applique directement le tri correspondant.
+Sur le desktop, cliquer sur un en-tete de colonne du tableau applique directement le tri correspondant (les 7 colonnes sont toutes triables, y compris Favori et Force).
 
 ### 7.3. Filtres de securite
 
@@ -417,7 +423,7 @@ Un indicateur de force du mot de passe est affiche en temps reel.
 
 **Acces** : Outils > Analyse de securite
 
-L'analyse examine l'ensemble du coffre et genere un rapport comprenant trois sections :
+L'analyse examine l'ensemble du coffre et genere un rapport visuel comprenant quatre sections colorees :
 
 ### 12.1. Mots de passe faibles
 
@@ -811,15 +817,15 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | CRUD entrees | Oui | Oui |
 | Favoris (etoile, tri prioritaire) | Oui | Oui |
 | Filtres avances (categorie, force, date, favoris) | Oui | Oui (FilterChips) |
-| Favicons des sites web | Oui (colonne tableau) | Oui (carte d'entree) |
+| Favicons des sites web | Oui (dans la colonne Titre) | Oui (avatar dans la carte d'entree) |
 | Generateur de mots de passe | Oui | Oui |
 | Analyse de securite + HIBP | Oui | Oui |
 | Import/export unifie (CSV/JSON/.enc) | Fichier > Importer.../Exporter... | Menu overflow > Importer.../Exporter... (SAF) |
 | Import sauvegarde chiffree | Oui | Oui |
 | Recherche en temps reel | Oui (titre, id, email, pseudo, URL, notes, categorie, tags) | Oui |
-| Tri (7 criteres) | En-tetes cliquables + menu Affichage | Menu overflow tri |
+| Tri (9 criteres) | En-tetes cliquables (toutes les colonnes) + menu Affichage | Menu overflow tri |
 | Filtrage par categorie | Panneau lateral | Dropdown (liste deroulante) |
-| Selection multiple + operations en masse | Oui (menu "Actions...") | Oui (appui long) |
+| Selection multiple + operations en masse | Oui (menu "Actions..." : supprimer, categorie, favoris) | Oui (appui long + menu "Actions..." : supprimer, categorie, favoris) |
 | Menu contextuel (clic droit) | Oui (modifier, supprimer, copier, ouvrir URL, dupliquer) | Non |
 | Gestion des categories | Ajout via panneau lateral | Ecran dedie (Parametres > Gerer les categories) |
 | Verification des mises a jour | Auto (5 min) + manuel (ecran connexion) | Au lancement (dialog) |
