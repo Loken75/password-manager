@@ -7,5 +7,6 @@ public enum SortField {
     PSEUDO,
     URL,
     DATE,
-    CATEGORY
+    CATEGORY,
+    FAVORITE
 }

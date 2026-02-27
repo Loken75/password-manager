@@ -14,6 +14,7 @@ import com.passwordmanager.sync.SyncService;
 import com.passwordmanager.util.PasswordValidator;
 import com.passwordmanager.update.DesktopUpdateManager;
 import com.passwordmanager.sync.EntryMerger;
+import com.passwordmanager.util.FaviconService;
 import com.passwordmanager.vault.*;
 
 import javax.swing.*;
@@ -66,7 +67,7 @@ public class MainFrame extends JFrame {
         // Initialize controllers
         this.importExportController = new ImportExportController(
             this, vault, username, session, vaultManager,
-            this::saveVault, () -> vaultPanel.refreshAll());
+            this::saveVault, () -> { vaultPanel.refreshAll(); statusLabel.setText(getStatusText()); });
         this.securityAuditController = new SecurityAuditController(this, vault, vaultService);
         this.autoLockManager = new AutoLockManager(appConfig, this::doLock);
 
@@ -109,7 +110,15 @@ public class MainFrame extends JFrame {
 
         // Vault panel
         vaultPanel = new VaultPanel(vaultService, appConfig.getClipboardClearSeconds());
-        vaultPanel.setOnVaultChanged(this::saveVault);
+        vaultPanel.setOnVaultChanged(() -> {
+            saveVault();
+            statusLabel.setText(getStatusText());
+        });
+        // Wire FaviconService with cache dir in user data
+        try {
+            String cacheDir = System.getProperty("user.home") + "/.password-manager/data/favicons";
+            vaultPanel.setFaviconService(new FaviconService(cacheDir));
+        } catch (Exception ignored) {}
         add(vaultPanel, BorderLayout.CENTER);
 
         // Status bar

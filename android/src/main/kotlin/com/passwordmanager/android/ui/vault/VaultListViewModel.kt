@@ -8,7 +8,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSch
+import android.graphics.Bitmap
 import com.passwordmanager.android.data.ConfigRepository
+import com.passwordmanager.android.data.FaviconRepository
 import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.config.StorageMode
 import com.passwordmanager.util.SecureWiper
@@ -38,13 +40,16 @@ data class VaultListUiState(
     val isSelectionMode: Boolean = false,
     val selectedEntryIds: Set<String> = emptySet(),
     val favoritesOnly: Boolean = false,
-    val message: String? = null
+    val message: String? = null,
+    val refreshToken: Long = 0,
+    val favicons: Map<String, Bitmap> = emptyMap()
 )
 
 @HiltViewModel
 class VaultListViewModel @Inject constructor(
     private val sessionHolder: SessionHolder,
     private val configRepo: ConfigRepository,
+    private val faviconRepository: FaviconRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -76,7 +81,23 @@ class VaultListViewModel @Inject constructor(
         }
 
         _uiState.update {
-            it.copy(entries = filtered, categories = vault.categories)
+            it.copy(entries = filtered, categories = vault.categories, refreshToken = it.refreshToken + 1)
+        }
+        loadFavicons(filtered)
+    }
+
+    private fun loadFavicons(entries: List<VaultEntry>) {
+        for (entry in entries) {
+            val url = entry.url ?: continue
+            if (url.isBlank()) continue
+            val domain = com.passwordmanager.util.FaviconService.extractDomain(url) ?: continue
+            if (_uiState.value.favicons.containsKey(domain)) continue
+            viewModelScope.launch(Dispatchers.IO) {
+                val bitmap = faviconRepository.getFavicon(url)
+                if (bitmap != null) {
+                    _uiState.update { it.copy(favicons = it.favicons + (domain to bitmap)) }
+                }
+            }
         }
     }
 
@@ -275,6 +296,15 @@ class VaultListViewModel @Inject constructor(
                 service.updateEntry(entry)
             }
         }
+        viewModelScope.launch(Dispatchers.IO) { sessionHolder.save() }
+        clearSelection()
+        refreshEntries()
+    }
+
+    fun bulkSetFavorite(favorite: Boolean) {
+        val service = sessionHolder.vaultService ?: return
+        val selectedIds = _uiState.value.selectedEntryIds.toList()
+        service.bulkSetFavorite(selectedIds, favorite)
         viewModelScope.launch(Dispatchers.IO) { sessionHolder.save() }
         clearSelection()
         refreshEntries()

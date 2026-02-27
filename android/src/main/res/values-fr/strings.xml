@@ -231,6 +231,11 @@
     <string name="settings_autofill">Activer le service de remplissage automatique</string>
     <string name="autofill_unlock_prompt">Déverrouiller le coffre pour le remplissage automatique</string>
 
+    <!-- Actions en masse -->
+    <string name="vault_bulk_actions">Actions…</string>
+    <string name="vault_add_favorites">Ajouter aux favoris</string>
+    <string name="vault_remove_favorites">Retirer des favoris</string>
+
     <!-- Fusion de synchronisation -->
     <string name="sync_merge_conflicts">Conflits de fusion détectés</string>
     <string name="sync_merge_local_version">Version locale</string>

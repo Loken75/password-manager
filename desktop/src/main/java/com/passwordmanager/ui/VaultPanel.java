@@ -20,11 +20,13 @@ import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Main panel displaying vault entries with search, categories, and entry details.
@@ -46,7 +48,7 @@ public class VaultPanel extends JPanel {
 
     // Star column (0), then data columns start at 1
     private static final SortField[] COLUMN_SORT_FIELDS = {
-        null, SortField.TITLE, SortField.USERNAME, SortField.EMAIL, SortField.PSEUDO, SortField.CATEGORY, null
+        SortField.FAVORITE, SortField.TITLE, SortField.USERNAME, SortField.EMAIL, SortField.PSEUDO, SortField.CATEGORY, null
     };
 
     private List<VaultEntry> displayedEntries = new ArrayList<>();
@@ -71,7 +73,8 @@ public class VaultPanel extends JPanel {
 
     // Favicon support
     private FaviconService faviconService;
-    private final Map<String, ImageIcon> faviconCache = new HashMap<>();
+    private final Map<String, ImageIcon> faviconCache = new ConcurrentHashMap<>();
+    private static final ImageIcon FAVICON_LOADING = new ImageIcon(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB));
 
     // Callbacks
     private Runnable onVaultChanged;
@@ -188,6 +191,27 @@ public class VaultPanel extends JPanel {
                     boolean isSelected, boolean hasFocus, int row, int col) {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col);
                 setHorizontalAlignment(SwingConstants.CENTER);
+                return c;
+            }
+        });
+
+        // Title column renderer with favicon
+        entryTable.getColumnModel().getColumn(1).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int col) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col);
+                if (c instanceof JLabel && row >= 0 && row < displayedEntries.size()) {
+                    JLabel label = (JLabel) c;
+                    VaultEntry entry = displayedEntries.get(row);
+                    ImageIcon icon = getFaviconForEntry(entry);
+                    if (icon != null && icon != FAVICON_LOADING) {
+                        label.setIcon(icon);
+                    } else {
+                        label.setIcon(null);
+                    }
+                    label.setIconTextGap(4);
+                }
                 return c;
             }
         });
@@ -556,27 +580,33 @@ public class VaultPanel extends JPanel {
             entries = vaultService.search("");
         }
 
-        // Apply advanced filters if filter panel is visible
-        if (filtersVisible) {
+        // Apply advanced filters
+        {
             EntryFilter.Builder fb = new EntryFilter.Builder();
-            String filterCat = (String) filterCategoryCombo.getSelectedItem();
-            if (filterCat != null && !filterCat.equals(lang.getString("category.all"))) {
-                fb.category(filterCat);
+            // Category and strength filters only when filter panel is visible
+            if (filtersVisible) {
+                String filterCat = (String) filterCategoryCombo.getSelectedItem();
+                if (filterCat != null && !filterCat.equals(lang.getString("category.all"))) {
+                    fb.category(filterCat);
+                }
+                String filterStr = (String) filterStrengthCombo.getSelectedItem();
+                if (filterStr != null && !filterStr.equals(lang.getString("category.all"))) {
+                    PasswordStrengthAnalyzer.Strength minStr = null;
+                    if (filterStr.equals(lang.getString("strength.weak"))) minStr = PasswordStrengthAnalyzer.Strength.WEAK;
+                    else if (filterStr.equals(lang.getString("strength.medium"))) minStr = PasswordStrengthAnalyzer.Strength.MEDIUM;
+                    else if (filterStr.equals(lang.getString("strength.strong"))) minStr = PasswordStrengthAnalyzer.Strength.STRONG;
+                    else if (filterStr.equals(lang.getString("strength.very_strong"))) minStr = PasswordStrengthAnalyzer.Strength.VERY_STRONG;
+                    if (minStr != null) fb.exactStrength(minStr);
+                }
             }
-            String filterStr = (String) filterStrengthCombo.getSelectedItem();
-            if (filterStr != null && !filterStr.equals(lang.getString("category.all"))) {
-                PasswordStrengthAnalyzer.Strength minStr = null;
-                if (filterStr.equals(lang.getString("strength.weak"))) minStr = PasswordStrengthAnalyzer.Strength.WEAK;
-                else if (filterStr.equals(lang.getString("strength.medium"))) minStr = PasswordStrengthAnalyzer.Strength.MEDIUM;
-                else if (filterStr.equals(lang.getString("strength.strong"))) minStr = PasswordStrengthAnalyzer.Strength.STRONG;
-                else if (filterStr.equals(lang.getString("strength.very_strong"))) minStr = PasswordStrengthAnalyzer.Strength.VERY_STRONG;
-                if (minStr != null) fb.exactStrength(minStr);
-            }
+            // Favorites filter always applies (even when filter panel collapsed)
             if (filterFavoritesCheckbox.isSelected()) {
                 fb.favoritesOnly(true);
             }
             EntryFilter filter = fb.build();
-            entries = vaultService.filter(entries, filter);
+            if (filter.hasActiveFilters()) {
+                entries = vaultService.filter(entries, filter);
+            }
         }
 
         displayedEntries = vaultService.sorted(entries, currentSort);
@@ -929,6 +959,51 @@ public class VaultPanel extends JPanel {
             sortAscending = true;
         }
         refreshEntries();
+    }
+
+    private ImageIcon getFaviconForEntry(VaultEntry entry) {
+        if (faviconService == null) return null;
+        String url = entry.getUrl();
+        if (url == null || url.isBlank()) return null;
+        String domain = FaviconService.extractDomain(url);
+        if (domain == null || domain.isEmpty()) return null;
+
+        ImageIcon cached = faviconCache.get(domain);
+        if (cached != null) return cached;
+
+        // Mark as loading to avoid duplicate fetches
+        faviconCache.put(domain, FAVICON_LOADING);
+
+        // Async fetch via SwingWorker
+        new SwingWorker<ImageIcon, Void>() {
+            @Override
+            protected ImageIcon doInBackground() {
+                try {
+                    byte[] data = faviconService.getFavicon(url);
+                    if (data != null && data.length > 0) {
+                        ImageIcon raw = new ImageIcon(data);
+                        Image scaled = raw.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH);
+                        return new ImageIcon(scaled);
+                    }
+                } catch (Exception ignored) {}
+                return null;
+            }
+            @Override
+            protected void done() {
+                try {
+                    ImageIcon icon = get();
+                    if (icon != null) {
+                        faviconCache.put(domain, icon);
+                        tableModel.fireTableDataChanged();
+                    } else {
+                        faviconCache.remove(domain);
+                    }
+                } catch (Exception ignored) {
+                    faviconCache.remove(domain);
+                }
+            }
+        }.execute();
+        return null;
     }
 
     private void notifyChanged() {

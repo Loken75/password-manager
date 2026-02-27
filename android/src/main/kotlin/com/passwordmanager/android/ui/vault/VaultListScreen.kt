@@ -275,44 +275,52 @@ fun VaultListScreen(
             }
         },
         bottomBar = {
-            // Bulk change category button in selection mode
+            // Bulk "Actions..." button in selection mode
             AnimatedVisibility(
                 visible = state.isSelectionMode && state.selectedEntryIds.isNotEmpty(),
                 enter = slideInVertically { it },
                 exit = slideOutVertically { it }
             ) {
+                var showActionsMenu by remember { mutableStateOf(false) }
                 Surface(tonalElevation = 3.dp) {
-                    Row(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        contentAlignment = Alignment.Center
                     ) {
-                        Button(
-                            onClick = { showBulkCategoryDialog = true },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Label, contentDescription = null)
+                        Button(onClick = { showActionsMenu = true }) {
+                            Icon(Icons.Default.MoreHoriz, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                stringResource(R.string.vault_change_category),
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                stringResource(R.string.vault_bulk_actions),
+                                maxLines = 1
                             )
                         }
-                        Button(
-                            onClick = { showBulkDeleteDialog = true },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error
-                            )
+                        DropdownMenu(
+                            expanded = showActionsMenu,
+                            onDismissRequest = { showActionsMenu = false }
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                stringResource(R.string.common_delete),
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            DropdownMenuItem(
+                                leadingIcon = { Icon(Icons.Default.Label, contentDescription = null) },
+                                text = { Text(stringResource(R.string.vault_change_category)) },
+                                onClick = { showActionsMenu = false; showBulkCategoryDialog = true }
+                            )
+                            DropdownMenuItem(
+                                leadingIcon = { Icon(Icons.Default.Star, contentDescription = null) },
+                                text = { Text(stringResource(R.string.vault_add_favorites)) },
+                                onClick = { showActionsMenu = false; viewModel.bulkSetFavorite(true) }
+                            )
+                            DropdownMenuItem(
+                                leadingIcon = { Icon(Icons.Default.StarBorder, contentDescription = null) },
+                                text = { Text(stringResource(R.string.vault_remove_favorites)) },
+                                onClick = { showActionsMenu = false; viewModel.bulkSetFavorite(false) }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                text = { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) },
+                                onClick = { showActionsMenu = false; showBulkDeleteDialog = true }
                             )
                         }
                     }
@@ -450,7 +458,11 @@ fun VaultListScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(state.entries, key = { it.id }) { entry ->
+                    items(state.entries, key = { "${it.id}_${it.isFavorite}_${state.refreshToken}" }) { entry ->
+                        val domain = entry.url?.let {
+                            com.passwordmanager.util.FaviconService.extractDomain(it)
+                        }
+                        val favicon = domain?.let { state.favicons[it] }
                         EntryCard(
                             entry = entry,
                             onClick = { onEntryClick(entry.id) },
@@ -460,7 +472,8 @@ fun VaultListScreen(
                             isSelected = entry.id in state.selectedEntryIds,
                             isSelectionMode = state.isSelectionMode,
                             onLongClick = { viewModel.toggleSelection(entry.id) },
-                            onToggleFavorite = { viewModel.toggleFavorite(entry.id) }
+                            onToggleFavorite = { viewModel.toggleFavorite(entry.id) },
+                            favicon = favicon
                         )
                     }
                 }

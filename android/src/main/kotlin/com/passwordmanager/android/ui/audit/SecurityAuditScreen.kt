@@ -114,13 +114,15 @@ fun SecurityAuditScreen(
                     ) {
                         Text(
                             text = "${stringResource(R.string.audit_breached_passwords)} (${state.breachedEntries.size})",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f)
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
                         OutlinedButton(
                             onClick = { viewModel.checkBreaches() },
                             enabled = !state.isCheckingBreaches
                         ) {
-                            Text(stringResource(R.string.audit_check_now))
+                            Text(stringResource(R.string.audit_check_now), maxLines = 1)
                         }
                     }
 

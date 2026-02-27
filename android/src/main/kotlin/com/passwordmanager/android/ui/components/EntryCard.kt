@@ -22,6 +22,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
 import com.passwordmanager.android.ui.theme.*
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength
@@ -38,7 +41,8 @@ fun EntryCard(
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
     onLongClick: () -> Unit = {},
-    onToggleFavorite: () -> Unit = {}
+    onToggleFavorite: () -> Unit = {},
+    favicon: Bitmap? = null
 ) {
     val strength = entry.password?.let { PasswordStrengthAnalyzer.analyze(it) }
     val strengthColor = when (strength) {
@@ -92,7 +96,7 @@ fun EntryCard(
 
                 Spacer(modifier = Modifier.width(if (isSelectionMode) 8.dp else 12.dp))
 
-                // Avatar
+                // Avatar (favicon if available, otherwise letter)
                 val avatarColor = categoryColor(entry.category)
                 val initial = (entry.title?.firstOrNull() ?: '?').uppercaseChar()
                 Box(
@@ -100,15 +104,23 @@ fun EntryCard(
                         .padding(vertical = 12.dp)
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(avatarColor),
+                        .background(if (favicon != null) Color.Transparent else avatarColor),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = initial.toString(),
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
+                    if (favicon != null) {
+                        Image(
+                            bitmap = favicon.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    } else {
+                        Text(
+                            text = initial.toString(),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -125,9 +137,14 @@ fun EntryCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (!entry.username.isNullOrBlank()) {
+                    val subtitle = when {
+                        !entry.url.isNullOrBlank() -> entry.url
+                        !entry.username.isNullOrBlank() -> entry.username
+                        else -> null
+                    }
+                    if (subtitle != null) {
                         Text(
-                            text = entry.username,
+                            text = subtitle,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,

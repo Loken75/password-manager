@@ -113,14 +113,26 @@ public class VaultService {
             case CATEGORY:
                 comp = (a, b) -> safe(a.getCategory()).compareToIgnoreCase(safe(b.getCategory()));
                 break;
+            case FAVORITE:
+                comp = (a, b) -> Boolean.compare(b.isFavorite(), a.isFavorite());
+                break;
             default:
                 comp = (a, b) -> safe(a.getTitle()).compareToIgnoreCase(safe(b.getTitle()));
         }
-        Comparator<VaultEntry> withFavorites = (a, b) -> {
-            int favCmp = Boolean.compare(b.isFavorite(), a.isFavorite());
-            return favCmp != 0 ? favCmp : comp.compare(a, b);
-        };
-        sorted.sort(withFavorites);
+        if (sortBy == SortField.FAVORITE) {
+            // When explicitly sorting by favorite, use title as secondary
+            Comparator<VaultEntry> withTitle = (a, b) -> {
+                int favCmp = comp.compare(a, b);
+                return favCmp != 0 ? favCmp : safe(a.getTitle()).compareToIgnoreCase(safe(b.getTitle()));
+            };
+            sorted.sort(withTitle);
+        } else {
+            Comparator<VaultEntry> withFavorites = (a, b) -> {
+                int favCmp = Boolean.compare(b.isFavorite(), a.isFavorite());
+                return favCmp != 0 ? favCmp : comp.compare(a, b);
+            };
+            sorted.sort(withFavorites);
+        }
         return sorted;
     }
 

@@ -80,6 +80,17 @@ public class EntryFilter {
         return true;
     }
 
+    /**
+     * Returns true if any filter criterion is active.
+     */
+    public boolean hasActiveFilters() {
+        return (category != null && !category.isEmpty())
+            || (tags != null && !tags.isEmpty())
+            || exactStrength != null
+            || favoritesOnly
+            || (searchQuery != null && !searchQuery.isEmpty());
+    }
+
     private static boolean containsIC(String str, String q) {
         return str != null && str.toLowerCase().contains(q);
     }
