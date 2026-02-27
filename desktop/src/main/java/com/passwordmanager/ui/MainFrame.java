@@ -87,6 +87,7 @@ public class MainFrame extends JFrame {
         setSize(1100, 700);
         setMinimumSize(new Dimension(900, 600));
         setLocationRelativeTo(null);
+        LoginFrame.setFrameIcon(this);
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -174,7 +175,6 @@ public class MainFrame extends JFrame {
         JMenuItem sortName = new JMenuItem(lang.getString("menu.view.sort_name"));
         JMenuItem sortUsername = new JMenuItem(lang.getString("menu.view.sort_username"));
         JMenuItem sortEmail = new JMenuItem(lang.getString("menu.view.sort_email"));
-        JMenuItem sortPseudo = new JMenuItem(lang.getString("menu.view.sort_pseudo"));
         JMenuItem sortUrl = new JMenuItem(lang.getString("menu.view.sort_url"));
         JMenuItem sortDate = new JMenuItem(lang.getString("menu.view.sort_date"));
         JMenuItem sortCat = new JMenuItem(lang.getString("menu.view.sort_category"));
@@ -188,7 +188,6 @@ public class MainFrame extends JFrame {
         viewMenu.add(sortName);
         viewMenu.add(sortUsername);
         viewMenu.add(sortEmail);
-        viewMenu.add(sortPseudo);
         viewMenu.add(sortUrl);
         viewMenu.add(sortDate);
         viewMenu.add(sortCat);
@@ -232,7 +231,6 @@ public class MainFrame extends JFrame {
         sortName.addActionListener(e -> vaultPanel.setSortMode(SortField.TITLE));
         sortUsername.addActionListener(e -> vaultPanel.setSortMode(SortField.USERNAME));
         sortEmail.addActionListener(e -> vaultPanel.setSortMode(SortField.EMAIL));
-        sortPseudo.addActionListener(e -> vaultPanel.setSortMode(SortField.PSEUDO));
         sortUrl.addActionListener(e -> vaultPanel.setSortMode(SortField.URL));
         sortDate.addActionListener(e -> vaultPanel.setSortMode(SortField.DATE));
         sortCat.addActionListener(e -> vaultPanel.setSortMode(SortField.CATEGORY));

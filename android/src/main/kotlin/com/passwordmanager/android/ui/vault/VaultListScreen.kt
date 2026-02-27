@@ -193,13 +193,6 @@ fun VaultListScreen(
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_sort_pseudo)) },
-                                    onClick = {
-                                        viewModel.setSortField(SortField.PSEUDO)
-                                        sortMenuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
                                     text = { Text(stringResource(R.string.menu_sort_url)) },
                                     onClick = {
                                         viewModel.setSortField(SortField.URL)
@@ -290,12 +283,7 @@ fun VaultListScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Button(onClick = { showActionsMenu = true }) {
-                            Icon(Icons.Default.MoreHoriz, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                stringResource(R.string.vault_bulk_actions),
-                                maxLines = 1
-                            )
+                            Text(stringResource(R.string.vault_bulk_actions))
                         }
                         DropdownMenu(
                             expanded = showActionsMenu,
@@ -307,14 +295,9 @@ fun VaultListScreen(
                                 onClick = { showActionsMenu = false; showBulkCategoryDialog = true }
                             )
                             DropdownMenuItem(
-                                leadingIcon = { Icon(Icons.Default.Star, contentDescription = null) },
-                                text = { Text(stringResource(R.string.vault_add_favorites)) },
-                                onClick = { showActionsMenu = false; viewModel.bulkSetFavorite(true) }
-                            )
-                            DropdownMenuItem(
-                                leadingIcon = { Icon(Icons.Default.StarBorder, contentDescription = null) },
-                                text = { Text(stringResource(R.string.vault_remove_favorites)) },
-                                onClick = { showActionsMenu = false; viewModel.bulkSetFavorite(false) }
+                                leadingIcon = { Icon(Icons.Default.SwapHoriz, contentDescription = null) },
+                                text = { Text(stringResource(R.string.vault_toggle_favorites)) },
+                                onClick = { showActionsMenu = false; viewModel.bulkToggleFavorite() }
                             )
                             HorizontalDivider()
                             DropdownMenuItem(
@@ -380,7 +363,7 @@ fun VaultListScreen(
                 }
             }
 
-            // Favorites filter chip
+            // Favorites and strength filter chips
             Row(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -397,6 +380,51 @@ fun VaultListScreen(
                         )
                     }
                 )
+                // Strength filter
+                Box {
+                    var strengthExpanded by remember { mutableStateOf(false) }
+                    FilterChip(
+                        selected = state.selectedStrength != null,
+                        onClick = { strengthExpanded = true },
+                        label = {
+                            Text(
+                                state.selectedStrength?.let { strength ->
+                                    when (strength) {
+                                        com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.WEAK -> stringResource(R.string.strength_weak)
+                                        com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.MEDIUM -> stringResource(R.string.strength_medium)
+                                        com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.STRONG -> stringResource(R.string.strength_strong)
+                                        com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.VERY_STRONG -> stringResource(R.string.strength_very_strong)
+                                    }
+                                } ?: stringResource(R.string.filter_strength)
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                    )
+                    DropdownMenu(expanded = strengthExpanded, onDismissRequest = { strengthExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.category_all)) },
+                            onClick = { viewModel.selectStrength(null); strengthExpanded = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.strength_weak)) },
+                            onClick = { viewModel.selectStrength(com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.WEAK); strengthExpanded = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.strength_medium)) },
+                            onClick = { viewModel.selectStrength(com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.MEDIUM); strengthExpanded = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.strength_strong)) },
+                            onClick = { viewModel.selectStrength(com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.STRONG); strengthExpanded = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.strength_very_strong)) },
+                            onClick = { viewModel.selectStrength(com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.VERY_STRONG); strengthExpanded = false }
+                        )
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
 

@@ -37,7 +37,6 @@
     <string name="entry_title">Title</string>
     <string name="entry_username">Username</string>
     <string name="entry_email">Email</string>
-    <string name="entry_pseudo">Nickname</string>
     <string name="entry_password">Password</string>
     <string name="entry_url">Website URL</string>
     <string name="entry_notes">Notes</string>
@@ -70,6 +69,7 @@
     <string name="strength_strong">Strong</string>
     <string name="strength_very_strong">Very strong</string>
     <string name="strength_label">Password strength</string>
+    <string name="filter_strength">Strength</string>
 
     <!-- Categories -->
     <string name="category_default_email">Email</string>
@@ -104,7 +104,6 @@
     <string name="menu_sort_name">Sort by name</string>
     <string name="menu_sort_username">Sort by username</string>
     <string name="menu_sort_email">Sort by email</string>
-    <string name="menu_sort_pseudo">Sort by nickname</string>
     <string name="menu_sort_url">Sort by URL</string>
     <string name="menu_sort_date">Sort by date</string>
     <string name="menu_sort_category">Sort by category</string>
@@ -232,9 +231,8 @@
     <string name="autofill_unlock_prompt">Unlock vault to autofill</string>
 
     <!-- Bulk Actions -->
-    <string name="vault_bulk_actions">Actions…</string>
-    <string name="vault_add_favorites">Add to favorites</string>
-    <string name="vault_remove_favorites">Remove from favorites</string>
+    <string name="vault_bulk_actions">Actions</string>
+    <string name="vault_toggle_favorites">Toggle favorites</string>
 
     <!-- Sync Merge -->
     <string name="sync_merge_conflicts">Merge conflicts detected</string>

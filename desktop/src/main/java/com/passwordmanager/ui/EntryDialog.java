@@ -22,7 +22,6 @@ public class EntryDialog extends JDialog {
     private JTextField titleField;
     private JTextField usernameField;
     private JTextField emailField;
-    private JTextField pseudoField;
     private JPasswordField passwordField;
     private JCheckBox showPasswordCheck;
     private JTextField urlField;
@@ -79,15 +78,6 @@ public class EntryDialog extends JDialog {
         gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
         emailField = new JTextField(25);
         form.add(emailField, gbc);
-        gbc.gridwidth = 1;
-
-        // Pseudo
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        form.add(new JLabel(lang.getString("entry.pseudo")), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
-        pseudoField = new JTextField(25);
-        form.add(pseudoField, gbc);
         gbc.gridwidth = 1;
 
         // Password + show/generate
@@ -220,7 +210,6 @@ public class EntryDialog extends JDialog {
         titleField.setText(e.getTitle());
         usernameField.setText(e.getUsername());
         emailField.setText(e.getEmail() != null ? e.getEmail() : "");
-        pseudoField.setText(e.getPseudo() != null ? e.getPseudo() : "");
         char[] pwd = e.getPassword();
         if (pwd != null) {
             setPasswordFieldValue(passwordField, pwd);
@@ -263,7 +252,6 @@ public class EntryDialog extends JDialog {
                 titleField.getText().trim(),
                 usernameField.getText().trim(),
                 emailField.getText().trim(),
-                pseudoField.getText().trim(),
                 passwordField.getPassword(),
                 urlField.getText().trim(),
                 notesArea.getText(),
@@ -274,7 +262,6 @@ public class EntryDialog extends JDialog {
             entry.setTitle(titleField.getText().trim());
             entry.setUsername(usernameField.getText().trim());
             entry.setEmail(emailField.getText().trim());
-            entry.setPseudo(pseudoField.getText().trim());
             entry.setPassword(passwordField.getPassword());
             entry.setUrl(urlField.getText().trim());
             entry.setNotes(notesArea.getText());

@@ -40,6 +40,7 @@ data class VaultListUiState(
     val isSelectionMode: Boolean = false,
     val selectedEntryIds: Set<String> = emptySet(),
     val favoritesOnly: Boolean = false,
+    val selectedStrength: com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength? = null,
     val message: String? = null,
     val refreshToken: Long = 0,
     val favicons: Map<String, Bitmap> = emptyMap()
@@ -80,10 +81,23 @@ class VaultListViewModel @Inject constructor(
             sorted
         }
 
-        _uiState.update {
-            it.copy(entries = filtered, categories = vault.categories, refreshToken = it.refreshToken + 1)
+        val strengthFiltered = if (_uiState.value.selectedStrength != null) {
+            filtered.filter { entry ->
+                val pw = entry.password
+                if (pw != null) {
+                    val s = com.passwordmanager.crypto.PasswordStrengthAnalyzer.analyze(pw)
+                    com.passwordmanager.util.SecureWiper.wipe(pw)
+                    s == _uiState.value.selectedStrength
+                } else false
+            }
+        } else {
+            filtered
         }
-        loadFavicons(filtered)
+
+        _uiState.update {
+            it.copy(entries = strengthFiltered, categories = vault.categories, refreshToken = it.refreshToken + 1)
+        }
+        loadFavicons(strengthFiltered)
     }
 
     private fun loadFavicons(entries: List<VaultEntry>) {
@@ -130,6 +144,11 @@ class VaultListViewModel @Inject constructor(
 
     fun toggleFavoritesFilter() {
         _uiState.update { it.copy(favoritesOnly = !it.favoritesOnly) }
+        refreshEntries()
+    }
+
+    fun selectStrength(strength: com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength?) {
+        _uiState.update { it.copy(selectedStrength = strength) }
         refreshEntries()
     }
 
@@ -305,6 +324,17 @@ class VaultListViewModel @Inject constructor(
         val service = sessionHolder.vaultService ?: return
         val selectedIds = _uiState.value.selectedEntryIds.toList()
         service.bulkSetFavorite(selectedIds, favorite)
+        viewModelScope.launch(Dispatchers.IO) { sessionHolder.save() }
+        clearSelection()
+        refreshEntries()
+    }
+
+    fun bulkToggleFavorite() {
+        val service = sessionHolder.vaultService ?: return
+        val selectedIds = _uiState.value.selectedEntryIds
+        for (id in selectedIds) {
+            service.toggleFavorite(id)
+        }
         viewModelScope.launch(Dispatchers.IO) { sessionHolder.save() }
         clearSelection()
         refreshEntries()

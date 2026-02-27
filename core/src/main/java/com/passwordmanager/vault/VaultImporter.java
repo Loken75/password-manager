@@ -42,7 +42,7 @@ public class VaultImporter {
 
         String[] headers = parseCsvLine(headerLine, separator);
         Map<String, String> aliasMap = buildAliasMap();
-        int titleIdx = -1, usernameIdx = -1, emailIdx = -1, pseudoIdx = -1;
+        int titleIdx = -1, usernameIdx = -1, emailIdx = -1;
         int passwordIdx = -1, urlIdx = -1;
         int notesIdx = -1, categoryIdx = -1, tagsIdx = -1, favoriteIdx = -1;
         boolean headerRecognized = false;
@@ -56,7 +56,8 @@ public class VaultImporter {
                     case "title": titleIdx = i; break;
                     case "username": usernameIdx = i; break;
                     case "email": emailIdx = i; break;
-                    case "pseudo": pseudoIdx = i; break;
+                    case "pseudo": /* legacy: map to username if username not already found */
+                        if (usernameIdx == -1) usernameIdx = i; break;
                     case "password": passwordIdx = i; break;
                     case "url": urlIdx = i; break;
                     case "notes": notesIdx = i; break;
@@ -83,7 +84,6 @@ public class VaultImporter {
             entry.setTitle(sanitizeField(getField(parts, titleIdx)));
             entry.setUsername(sanitizeField(getField(parts, usernameIdx)));
             entry.setEmail(sanitizeField(getField(parts, emailIdx)));
-            entry.setPseudo(sanitizeField(getField(parts, pseudoIdx)));
             String pwd = sanitizeField(getField(parts, passwordIdx));
             if (!pwd.isEmpty()) {
                 char[] pwdChars = pwd.toCharArray();
@@ -135,9 +135,6 @@ public class VaultImporter {
                 }
                 if (entry.getEmail() != null) {
                     entry.setEmail(truncateField(sanitizeField(entry.getEmail())));
-                }
-                if (entry.getPseudo() != null) {
-                    entry.setPseudo(truncateField(sanitizeField(entry.getPseudo())));
                 }
                 if (entry.getUrl() != null) {
                     entry.setUrl(truncateField(sanitizeField(entry.getUrl())));

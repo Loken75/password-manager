@@ -120,17 +120,6 @@ fun EntryDetailScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Pseudo
-            if (!entry.pseudo.isNullOrBlank()) {
-                DetailRow(
-                    icon = Icons.Default.AccountCircle,
-                    label = stringResource(R.string.entry_pseudo),
-                    value = entry.pseudo,
-                    onCopy = { copyToClipboard(context, entry.pseudo, 30) }
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
             // URL (clickable)
             if (!entry.url.isNullOrBlank()) {
                 DetailRow(

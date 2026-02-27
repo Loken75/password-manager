@@ -37,7 +37,6 @@
     <string name="entry_title">Titre</string>
     <string name="entry_username">Identifiant</string>
     <string name="entry_email">Email</string>
-    <string name="entry_pseudo">Pseudo</string>
     <string name="entry_password">Mot de passe</string>
     <string name="entry_url">URL du site</string>
     <string name="entry_notes">Notes</string>
@@ -70,6 +69,7 @@
     <string name="strength_strong">Fort</string>
     <string name="strength_very_strong">Très fort</string>
     <string name="strength_label">Force du mot de passe</string>
+    <string name="filter_strength">Force</string>
 
     <!-- Categories -->
     <string name="category_default_email">Email</string>
@@ -104,7 +104,6 @@
     <string name="menu_sort_name">Trier par nom</string>
     <string name="menu_sort_username">Trier par identifiant</string>
     <string name="menu_sort_email">Trier par email</string>
-    <string name="menu_sort_pseudo">Trier par pseudo</string>
     <string name="menu_sort_url">Trier par site</string>
     <string name="menu_sort_date">Trier par date</string>
     <string name="menu_sort_category">Trier par catégorie</string>
@@ -232,9 +231,8 @@
     <string name="autofill_unlock_prompt">Déverrouiller le coffre pour le remplissage automatique</string>
 
     <!-- Actions en masse -->
-    <string name="vault_bulk_actions">Actions…</string>
-    <string name="vault_add_favorites">Ajouter aux favoris</string>
-    <string name="vault_remove_favorites">Retirer des favoris</string>
+    <string name="vault_bulk_actions">Actions</string>
+    <string name="vault_toggle_favorites">Basculer favoris</string>
 
     <!-- Fusion de synchronisation -->
     <string name="sync_merge_conflicts">Conflits de fusion détectés</string>

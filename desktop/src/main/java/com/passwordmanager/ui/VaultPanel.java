@@ -41,14 +41,14 @@ public class VaultPanel extends JPanel {
     private DefaultListModel<String> categoryModel;
     private JTable entryTable;
     private EntryTableModel tableModel;
-    private JLabel detailTitle, detailUser, detailEmail, detailPseudo, detailUrl, detailCategory, detailTags, detailCreated, detailUpdated;
+    private JLabel detailTitle, detailUser, detailEmail, detailUrl, detailCategory, detailTags, detailCreated, detailUpdated;
     private JPasswordField detailPassword;
     private JCheckBox showDetailPassword;
     private JTextArea detailNotes;
 
     // Star column (0), then data columns start at 1
     private static final SortField[] COLUMN_SORT_FIELDS = {
-        SortField.FAVORITE, SortField.TITLE, SortField.USERNAME, SortField.EMAIL, SortField.PSEUDO, SortField.CATEGORY, SortField.STRENGTH
+        SortField.FAVORITE, SortField.TITLE, SortField.USERNAME, SortField.EMAIL, SortField.CATEGORY, SortField.STRENGTH
     };
 
     private List<VaultEntry> displayedEntries = new ArrayList<>();
@@ -163,15 +163,14 @@ public class VaultPanel extends JPanel {
         entryTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         entryTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         entryTable.setRowHeight(28);
-        // Column widths: star(30), title, username, email, pseudo, category, strength
+        // Column widths: star(30), title, username, email, category, strength
         entryTable.getColumnModel().getColumn(0).setPreferredWidth(30);
         entryTable.getColumnModel().getColumn(0).setMaxWidth(30);
         entryTable.getColumnModel().getColumn(1).setPreferredWidth(160);
         entryTable.getColumnModel().getColumn(2).setPreferredWidth(130);
         entryTable.getColumnModel().getColumn(3).setPreferredWidth(150);
         entryTable.getColumnModel().getColumn(4).setPreferredWidth(100);
-        entryTable.getColumnModel().getColumn(5).setPreferredWidth(100);
-        entryTable.getColumnModel().getColumn(6).setPreferredWidth(80);
+        entryTable.getColumnModel().getColumn(5).setPreferredWidth(80);
 
         // Clickable header for sorting
         entryTable.getTableHeader().addMouseListener(new MouseAdapter() {
@@ -216,8 +215,8 @@ public class VaultPanel extends JPanel {
             }
         });
 
-        // Color strength column (now at index 6)
-        entryTable.getColumnModel().getColumn(6).setCellRenderer(new DefaultTableCellRenderer() {
+        // Color strength column (now at index 5)
+        entryTable.getColumnModel().getColumn(5).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
                     boolean isSelected, boolean hasFocus, int row, int col) {
@@ -298,16 +297,6 @@ public class VaultPanel extends JPanel {
         gl.gridx = 1; gl.weightx = 1;
         detailEmail = new JLabel(" ");
         tablePanel.add(createCell(createDetailValuePanel(detailEmail, this::copyEmailToClipboard), false, true), gl);
-
-        // Pseudo with inline copy
-        row++;
-        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
-        JLabel lblPseudo = new JLabel(lang.getString("entry.pseudo"));
-        lblPseudo.setFont(boldFont);
-        tablePanel.add(createCell(lblPseudo, true, true), gl);
-        gl.gridx = 1; gl.weightx = 1;
-        detailPseudo = new JLabel(" ");
-        tablePanel.add(createCell(createDetailValuePanel(detailPseudo, this::copyPseudoToClipboard), false, true), gl);
 
         // Password with inline copy + show/hide toggle
         row++;
@@ -626,7 +615,6 @@ public class VaultPanel extends JPanel {
         detailTitle.setText((e.isFavorite() ? "\u2605 " : "") + e.getTitle());
         detailUser.setText(e.getUsername() != null ? e.getUsername() : "");
         detailEmail.setText(e.getEmail() != null ? e.getEmail() : "");
-        detailPseudo.setText(e.getPseudo() != null ? e.getPseudo() : "");
         char[] pwd = e.getPassword();
         setPasswordFieldValue(detailPassword, pwd);
         SecureWiper.wipe(pwd);
@@ -642,7 +630,6 @@ public class VaultPanel extends JPanel {
         detailTitle.setText(" ");
         detailUser.setText(" ");
         detailEmail.setText(" ");
-        detailPseudo.setText(" ");
         detailPassword.setText("");
         detailUrl.setText(" ");
         detailCategory.setText(" ");
@@ -755,11 +742,6 @@ public class VaultPanel extends JPanel {
         copyEmail.addActionListener(e -> copyEmailToClipboard());
         menu.add(copyEmail);
 
-        JMenuItem copyPseudo = new JMenuItem(lang.getString("entry.copy_pseudo"));
-        copyPseudo.setEnabled(singleSelected);
-        copyPseudo.addActionListener(e -> copyPseudoToClipboard());
-        menu.add(copyPseudo);
-
         JMenuItem copyUrl = new JMenuItem(lang.getString("menu.copy.url"));
         copyUrl.setEnabled(singleSelected);
         copyUrl.addActionListener(e -> copyUrlToClipboard());
@@ -785,14 +767,6 @@ public class VaultPanel extends JPanel {
         if (e == null || e.getEmail() == null || e.getEmail().isEmpty()) return;
         Toolkit.getDefaultToolkit().getSystemClipboard()
             .setContents(new StringSelection(e.getEmail()), null);
-        scheduleClipboardClear();
-    }
-
-    private void copyPseudoToClipboard() {
-        VaultEntry e = getSelectedEntry();
-        if (e == null || e.getPseudo() == null || e.getPseudo().isEmpty()) return;
-        Toolkit.getDefaultToolkit().getSystemClipboard()
-            .setContents(new StringSelection(e.getPseudo()), null);
         scheduleClipboardClear();
     }
 
@@ -827,7 +801,6 @@ public class VaultPanel extends JPanel {
                 lang.getString("menu.duplicate.prefix") + " " + selected.getTitle(),
                 selected.getUsername(),
                 selected.getEmail(),
-                selected.getPseudo(),
                 pwdCopy,
                 selected.getUrl(),
                 selected.getNotes(),
@@ -1017,7 +990,6 @@ public class VaultPanel extends JPanel {
             lang.getString("entry.title"),
             lang.getString("entry.username"),
             lang.getString("entry.email"),
-            lang.getString("entry.pseudo"),
             lang.getString("entry.category"),
             lang.getString("strength.label")
         };
@@ -1034,9 +1006,8 @@ public class VaultPanel extends JPanel {
                 case 1: return e.getTitle();
                 case 2: return e.getUsername();
                 case 3: return e.getEmail();
-                case 4: return e.getPseudo();
-                case 5: return e.getCategory();
-                case 6:
+                case 4: return e.getCategory();
+                case 5:
                     char[] tablePwd = e.getPassword();
                     try {
                         PasswordStrengthAnalyzer.Strength st = PasswordStrengthAnalyzer.analyze(tablePwd);

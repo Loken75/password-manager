@@ -162,6 +162,22 @@ public class LoginFrame extends JFrame {
         pack();
         setMinimumSize(new Dimension(450, 450));
         setLocationRelativeTo(null);
+        setFrameIcon(this);
+    }
+
+    static void setFrameIcon(java.awt.Window frame) {
+        try {
+            java.util.List<java.awt.Image> icons = new java.util.ArrayList<>();
+            java.awt.Image img = javax.imageio.ImageIO.read(
+                frame.getClass().getResourceAsStream("/icons/icon.png"));
+            if (img != null) {
+                icons.add(img.getScaledInstance(16, 16, java.awt.Image.SCALE_SMOOTH));
+                icons.add(img.getScaledInstance(32, 32, java.awt.Image.SCALE_SMOOTH));
+                icons.add(img.getScaledInstance(48, 48, java.awt.Image.SCALE_SMOOTH));
+                icons.add(img);
+                frame.setIconImages(icons);
+            }
+        } catch (Exception ignored) {}
     }
 
     private void refreshUserList() {

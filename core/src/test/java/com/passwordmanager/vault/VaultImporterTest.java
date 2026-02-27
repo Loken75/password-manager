@@ -193,6 +193,7 @@ class VaultImporterTest {
 
     @Test
     void importCsvWithEmailAndPseudo() {
+        // Pseudo column is accepted for backward compat but ignored when username is present
         String csv = "title,username,email,pseudo,password,url,notes,category,tags\n"
                 + "Gmail,johndoe,john@gmail.com,JohnD,pass123,https://gmail.com,my mail,Email,\n";
 
@@ -203,12 +204,12 @@ class VaultImporterTest {
         assertEquals("Gmail", entry.getTitle());
         assertEquals("johndoe", entry.getUsername());
         assertEquals("john@gmail.com", entry.getEmail());
-        assertEquals("JohnD", entry.getPseudo());
         assertArrayEquals("pass123".toCharArray(), entry.getPassword());
     }
 
     @Test
     void importCsvWithEmailAliases() {
+        // "surnom" (pseudo alias) is ignored when "identifiant" (username alias) is present
         String csv = "titre,identifiant,mail,surnom,mot de passe,url,notes,categorie,tags\n"
                 + "Site,user1,user@mail.com,nick1,pass,http://site.com,,Work,\n";
 
@@ -216,12 +217,13 @@ class VaultImporterTest {
         assertEquals(1, count);
 
         VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        assertEquals("user1", entry.getUsername());
         assertEquals("user@mail.com", entry.getEmail());
-        assertEquals("nick1", entry.getPseudo());
     }
 
     @Test
-    void importFromJsonWithEmailAndPseudo() {
+    void importFromJsonWithEmailIgnoresPseudo() {
+        // JSON with pseudo field: Gson ignores unknown fields, pseudo is silently dropped
         String json = "{\"entries\":[{\"title\":\"Test\",\"username\":\"u\","
                 + "\"email\":\"test@test.com\",\"pseudo\":\"TestNick\","
                 + "\"password\":\"p\",\"url\":\"http://test.com\",\"notes\":\"\","
@@ -232,7 +234,19 @@ class VaultImporterTest {
 
         VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
         assertEquals("test@test.com", entry.getEmail());
-        assertEquals("TestNick", entry.getPseudo());
+    }
+
+    @Test
+    void importCsvPseudoMapsToUsernameWhenNoUsernameColumn() {
+        // When CSV has pseudo column but no username column, pseudo maps to username
+        String csv = "title,pseudo,password,url\n"
+                + "Discord,CoolNick,pass123,https://discord.com\n";
+
+        int count = importer.importFromCsv(vault, csv);
+        assertEquals(1, count);
+
+        VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        assertEquals("CoolNick", entry.getUsername());
     }
 
     @Test

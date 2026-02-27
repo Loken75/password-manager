@@ -69,7 +69,6 @@ public class EntryFilter {
             if (!containsIC(entry.getTitle(), q)
                     && !containsIC(entry.getUsername(), q)
                     && !containsIC(entry.getEmail(), q)
-                    && !containsIC(entry.getPseudo(), q)
                     && !containsIC(entry.getUrl(), q)
                     && !containsIC(entry.getNotes(), q)
                     && !containsIC(entry.getCategory(), q)) {

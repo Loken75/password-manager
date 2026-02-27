@@ -17,7 +17,6 @@ public class VaultEntry {
     private String title;
     private String username;
     private String email;
-    private String pseudo;
     private char[] password;
     private String url;
     private String notes;
@@ -38,17 +37,16 @@ public class VaultEntry {
 
     public VaultEntry(String title, String username, char[] password, String url,
                       String notes, String category, List<String> tags) {
-        this(title, username, null, null, password, url, notes, category, tags);
+        this(title, username, null, password, url, notes, category, tags);
     }
 
-    public VaultEntry(String title, String username, String email, String pseudo,
+    public VaultEntry(String title, String username, String email,
                       char[] password, String url, String notes, String category,
                       List<String> tags) {
         this.id = UUID.randomUUID().toString();
         this.title = title;
         this.username = username;
         this.email = email;
-        this.pseudo = pseudo;
         this.password = password != null ? password.clone() : null;
         this.url = url;
         this.notes = notes;
@@ -69,7 +67,6 @@ public class VaultEntry {
         title = null;
         username = null;
         email = null;
-        pseudo = null;
         url = null;
         notes = null;
     }
@@ -82,8 +79,6 @@ public class VaultEntry {
     public void setUsername(String username) { this.username = username; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
-    public String getPseudo() { return pseudo; }
-    public void setPseudo(String pseudo) { this.pseudo = pseudo; }
     /**
      * Returns a defensive copy of the password. Caller is responsible for
      * wiping the returned array via {@link com.passwordmanager.util.SecureWiper#wipe(char[])}.

@@ -14,13 +14,13 @@ data class EntryEditUiState(
     val title: String = "",
     val username: String = "",
     val email: String = "",
-    val pseudo: String = "",
     val password: String = "",
     val url: String = "",
     val notes: String = "",
     val category: String = "",
     val tags: String = "",
     val categories: List<String> = emptyList(),
+    val favorite: Boolean = false,
     val isNew: Boolean = true,
     val error: String? = null
 )
@@ -47,13 +47,13 @@ class EntryEditViewModel @Inject constructor(
                     title = entry.title ?: "",
                     username = entry.username ?: "",
                     email = entry.email ?: "",
-                    pseudo = entry.pseudo ?: "",
                     password = entry.password?.let { String(it) } ?: "",
                     url = entry.url ?: "",
                     notes = entry.notes ?: "",
                     category = entry.category ?: "",
                     tags = entry.tags?.joinToString(", ") ?: "",
                     categories = categories,
+                    favorite = entry.isFavorite,
                     isNew = false
                 )
                 return
@@ -61,19 +61,19 @@ class EntryEditViewModel @Inject constructor(
         }
         _uiState.value = EntryEditUiState(
             categories = categories,
-            category = categories.firstOrNull() ?: ""
+            category = categories.find { it.equals("Other", ignoreCase = true) || it.equals("Autre", ignoreCase = true) } ?: categories.lastOrNull() ?: ""
         )
     }
 
     fun updateTitle(value: String) = _uiState.update { it.copy(title = value, error = null) }
     fun updateUsername(value: String) = _uiState.update { it.copy(username = value) }
     fun updateEmail(value: String) = _uiState.update { it.copy(email = value) }
-    fun updatePseudo(value: String) = _uiState.update { it.copy(pseudo = value) }
     fun updatePassword(value: String) = _uiState.update { it.copy(password = value) }
     fun updateUrl(value: String) = _uiState.update { it.copy(url = value) }
     fun updateNotes(value: String) = _uiState.update { it.copy(notes = value) }
     fun updateCategory(value: String) = _uiState.update { it.copy(category = value) }
     fun updateTags(value: String) = _uiState.update { it.copy(tags = value) }
+    fun toggleFavorite() = _uiState.update { it.copy(favorite = !it.favorite) }
 
     fun setGeneratedPassword(password: String) {
         _uiState.update { it.copy(password = password) }
@@ -100,12 +100,12 @@ class EntryEditViewModel @Inject constructor(
             existing.title = state.title
             existing.username = state.username
             existing.email = state.email
-            existing.pseudo = state.pseudo
             existing.password = state.password.toCharArray()
             existing.url = state.url
             existing.notes = state.notes
             existing.category = state.category
             existing.tags = tags
+            existing.isFavorite = state.favorite
             service.updateEntry(existing)
         } else {
             // New entry
@@ -113,19 +113,14 @@ class EntryEditViewModel @Inject constructor(
                 state.title,
                 state.username,
                 state.email,
-                state.pseudo,
                 state.password.toCharArray(),
                 state.url,
                 state.notes,
                 state.category,
                 tags
             )
+            entry.isFavorite = state.favorite
             service.addEntry(entry)
-        }
-
-        // Persist new category if not already in vault
-        if (state.category.isNotBlank() && !state.categories.contains(state.category)) {
-            service.addCategory(state.category)
         }
 
         sessionHolder.save()

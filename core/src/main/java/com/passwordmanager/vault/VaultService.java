@@ -70,7 +70,7 @@ public class VaultService {
 
     private boolean matches(VaultEntry e, String q) {
         return containsIC(e.getTitle(), q) || containsIC(e.getUsername(), q)
-            || containsIC(e.getEmail(), q) || containsIC(e.getPseudo(), q)
+            || containsIC(e.getEmail(), q)
             || containsIC(e.getUrl(), q) || containsIC(e.getNotes(), q)
             || containsIC(e.getCategory(), q)
             || (e.getTags() != null && e.getTags().toString().toLowerCase().contains(q));
@@ -100,9 +100,6 @@ public class VaultService {
                 break;
             case EMAIL:
                 comp = (a, b) -> safe(a.getEmail()).compareToIgnoreCase(safe(b.getEmail()));
-                break;
-            case PSEUDO:
-                comp = (a, b) -> safe(a.getPseudo()).compareToIgnoreCase(safe(b.getPseudo()));
                 break;
             case URL:
                 comp = (a, b) -> safe(a.getUrl()).compareToIgnoreCase(safe(b.getUrl()));

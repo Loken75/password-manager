@@ -6,9 +6,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.imePadding
@@ -52,6 +55,13 @@ fun EntryEditScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.toggleFavorite() }) {
+                        Icon(
+                            imageVector = if (state.favorite) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = stringResource(R.string.entry_toggle_favorite),
+                            tint = if (state.favorite) Color(0xFFFFC107) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     TextButton(onClick = {
                         if (viewModel.save()) onSaved()
                     }) {
@@ -103,17 +113,6 @@ fun EntryEditScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Pseudo
-            OutlinedTextField(
-                value = state.pseudo,
-                onValueChange = { viewModel.updatePseudo(it) },
-                label = { Text(stringResource(R.string.entry_pseudo)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
             // Password + Generate button
             PasswordField(
                 value = state.password,
@@ -154,11 +153,12 @@ fun EntryEditScreen(
             ) {
                 OutlinedTextField(
                     value = state.category,
-                    onValueChange = { viewModel.updateCategory(it) },
+                    onValueChange = {},
+                    readOnly = true,
                     label = { Text(stringResource(R.string.entry_category)) },
                     modifier = Modifier.fillMaxWidth().menuAnchor(),
                     trailingIcon = {
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded)
                     },
                     singleLine = true
                 )

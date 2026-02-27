@@ -292,18 +292,6 @@ class VaultServiceTest {
     }
 
     @Test
-    void searchByPseudo() {
-        VaultEntry entry = new VaultEntry("Discord", "user123", "p".toCharArray(),
-            "", "", "Social", null);
-        entry.setPseudo("CoolNick");
-        service.addEntry(entry);
-
-        List<VaultEntry> results = service.search("coolnick");
-        assertEquals(1, results.size());
-        assertEquals("Discord", results.get(0).getTitle());
-    }
-
-    @Test
     void sortByUsername() {
         VaultEntry e1 = new VaultEntry("A", "zorro", "p".toCharArray(), "", "", "Cat", null);
         VaultEntry e2 = new VaultEntry("B", "alpha", "p".toCharArray(), "", "", "Cat", null);
@@ -327,20 +315,6 @@ class VaultServiceTest {
         List<VaultEntry> sorted = service.sorted(vault.getEntries(), SortField.EMAIL);
         assertEquals("a@test.com", sorted.get(0).getEmail());
         assertEquals("z@test.com", sorted.get(1).getEmail());
-    }
-
-    @Test
-    void sortByPseudo() {
-        VaultEntry e1 = new VaultEntry("A", "u", "p".toCharArray(), "", "", "Cat", null);
-        e1.setPseudo("Zeta");
-        VaultEntry e2 = new VaultEntry("B", "u", "p".toCharArray(), "", "", "Cat", null);
-        e2.setPseudo("Alpha");
-        service.addEntry(e1);
-        service.addEntry(e2);
-
-        List<VaultEntry> sorted = service.sorted(vault.getEntries(), SortField.PSEUDO);
-        assertEquals("Alpha", sorted.get(0).getPseudo());
-        assertEquals("Zeta", sorted.get(1).getPseudo());
     }
 
     @Test
