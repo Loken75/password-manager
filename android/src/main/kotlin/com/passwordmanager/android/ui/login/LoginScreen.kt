@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.BuildConfig
@@ -31,12 +33,22 @@ fun LoginScreen(
     viewModel: LoginViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val activity = LocalContext.current as FragmentActivity
 
     val errorMessage = state.error?.let { key ->
         when (key) {
             "error_invalid_password" -> stringResource(R.string.error_invalid_password)
             "error_empty_password" -> stringResource(R.string.error_empty_password)
             "error_too_many_attempts" -> stringResource(R.string.error_too_many_attempts)
+            else -> key
+        }
+    }
+
+    val biometricErrorMessage = state.biometricError?.let { key ->
+        when (key) {
+            "biometric_key_invalidated" -> stringResource(R.string.biometric_key_invalidated)
+            "biometric_credential_expired" -> stringResource(R.string.biometric_credential_expired)
+            "biometric_lockout" -> stringResource(R.string.biometric_lockout)
             else -> key
         }
     }
@@ -67,6 +79,13 @@ fun LoginScreen(
         if (state.createSuccess) {
             snackbarHostState.showSnackbar(userCreatedMsg)
             viewModel.clearCreateSuccess()
+        }
+    }
+
+    // Auto-trigger biometric login when enabled for user
+    LaunchedEffect(state.biometricEnabledForUser, state.selectedUser) {
+        if (state.biometricEnabledForUser && state.selectedUser != null) {
+            viewModel.loginWithBiometric(activity, onLoginSuccess)
         }
     }
 
@@ -169,6 +188,15 @@ fun LoginScreen(
                         )
                     }
 
+                    if (biometricErrorMessage != null) {
+                        Text(
+                            text = biometricErrorMessage,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Button(
@@ -185,6 +213,24 @@ fun LoginScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                         }
                         Text(stringResource(R.string.login_button))
+                    }
+
+                    // Biometric unlock button
+                    if (state.biometricEnabledForUser) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedButton(
+                            onClick = { viewModel.loginWithBiometric(activity, onLoginSuccess) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Default.Fingerprint,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.biometric_unlock))
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -251,6 +297,25 @@ fun LoginScreen(
             dismissButton = {
                 TextButton(onClick = { showUpdateDialog = false }) {
                     Text(stringResource(R.string.update_dismiss))
+                }
+            }
+        )
+    }
+
+    // Biometric enrollment dialog
+    if (state.showBiometricEnrollDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissBiometricEnrollment() },
+            title = { Text(stringResource(R.string.biometric_enroll_title)) },
+            text = { Text(stringResource(R.string.biometric_enroll_message)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.enrollBiometric(activity) }) {
+                    Text(stringResource(R.string.biometric_enable))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissBiometricEnrollment() }) {
+                    Text(stringResource(R.string.biometric_skip))
                 }
             }
         )

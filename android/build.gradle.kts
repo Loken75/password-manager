@@ -115,6 +115,9 @@ dependencies {
     // Security - EncryptedSharedPreferences (MasterKey.Builder requires 1.1.0+; alpha is widely used in production)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // Biometric
+    implementation("androidx.biometric:biometric:1.1.0")
+
     // Hilt
     implementation("com.google.dagger:hilt-android:2.54")
     ksp("com.google.dagger:hilt-android-compiler:2.54")

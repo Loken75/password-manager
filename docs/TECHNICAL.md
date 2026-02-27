@@ -200,11 +200,11 @@ MainActivity (extends AppCompatActivity, single Activity)
         |-- GeneratorScreen / @HiltViewModel GeneratorViewModel
         |     +-- PasswordGenerator.generate()
         |-- SettingsScreen / @HiltViewModel SettingsViewModel
-        |     +-- @Inject ConfigRepository
+        |     +-- @Inject ConfigRepository, BiometricHelper, SessionHolder
         |-- CategoryManagementScreen / @HiltViewModel CategoryManagementViewModel
         |     +-- @Inject SessionHolder (addCategory, removeCategory with cascade)
         |-- ChangeMasterPasswordScreen / @HiltViewModel ChangeMasterPasswordViewModel
-        |     +-- @Inject SessionHolder (onCleared efface les passwords)
+        |     +-- @Inject SessionHolder, BiometricHelper, ConfigRepository (onCleared efface les passwords)
         +-- SecurityAuditScreen / @HiltViewModel SecurityAuditViewModel
               +-- @Inject SessionHolder
 ```
@@ -730,6 +730,8 @@ Emplacement : `~/.password-manager/data/.config_key`
 | Nettoyage de session | `VaultSession.destroy()` efface DEK, sel, IV, DEK chiffree |
 | Nettoyage Swing | Insertion via `Document.insertString()` au lieu de `JPasswordField.setText(String)` pour minimiser l'interning |
 | Nettoyage ViewModel (Android) | `EntryEditViewModel.onCleared()` et `ChangeMasterPasswordViewModel.onCleared()` effacent les mots de passe de l'etat UI |
+| Biometrie AndroidKeyStore | Cle AES-256-GCM par utilisateur, `setUserAuthenticationRequired(true)`, `setInvalidatedByBiometricEnrollment(true)`. Le mot de passe maitre est chiffre par la cle biometrique et stocke dans `EncryptedSharedPreferences`. L'inscription efface le `char[]` du mot de passe apres chiffrement |
+| Invalidation biometrique | Changement de mot de passe maitre → `configRepo.clearBiometricData()` + `biometricHelper.deleteKey()`. Changement d'empreinte → `KeyPermanentlyInvalidatedException` interceptee |
 | Thread safety SessionHolder | Champs `@Volatile` (`vault`, `session`, `vaultService`, `username`) + `@Synchronized` sur `unlock()`, `lock()`, `save()` |
 | Auto-masquage | Le mot de passe affiche se re-masque automatiquement apres 30 secondes |
 
@@ -934,7 +936,7 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`), detruit la sessi
 
 | Ecran | Composable | ViewModel | Description |
 |-------|-----------|-----------|-------------|
-| Login | `LoginScreen` | `LoginViewModel` | Dropdown utilisateurs, creation, anti brute-force |
+| Login | `LoginScreen` | `LoginViewModel` | Dropdown utilisateurs, creation, anti brute-force, deverrouillage biometrique |
 | Liste | `VaultListScreen` | `VaultListViewModel` | `VaultTabHost` avec `HorizontalPager` (3 onglets : mots de passe, applications, cartes). Recherche, dropdown categories, tri, import/export unifie, selection multiple, favicons asynchrones, sync SFTP |
 | Liste apps | `AppListScreen` | `AppListViewModel` | Onglet applications : recherche, selection multiple, operations en masse |
 | Liste cartes | `CardListScreen` | `CardListViewModel` | Onglet cartes : recherche, selection multiple, operations en masse |
@@ -945,9 +947,9 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`), detruit la sessi
 | Edition app | `AppEditScreen` | `AppEditViewModel` | Formulaire CRUD application (username, pin) |
 | Edition carte | `CardEditScreen` | `CardEditViewModel` | Formulaire CRUD carte (titulaire, numero, expiration, CVV, PIN, type) |
 | Generateur | `GeneratorScreen` | `GeneratorViewModel` | Options, barre de force, copier/utiliser |
-| Parametres | `SettingsScreen` | `SettingsViewModel` | Theme, langue, auto-lock, clipboard, synchronisation SFTP, gestion des categories |
+| Parametres | `SettingsScreen` | `SettingsViewModel` | Theme, langue, auto-lock, clipboard, synchronisation SFTP, gestion des categories, activation biometrie |
 | Categories | `CategoryManagementScreen` | `CategoryManagementViewModel` | Ajout/suppression de categories avec validation et cascade |
-| Mot de passe | `ChangeMasterPasswordScreen` | `ChangeMasterPasswordViewModel` | Ancien/nouveau/confirmer |
+| Mot de passe | `ChangeMasterPasswordScreen` | `ChangeMasterPasswordViewModel` | Ancien/nouveau/confirmer, invalidation biometrique |
 | Audit | `SecurityAuditScreen` | `SecurityAuditViewModel` | Faibles, dupliques, anciens, compromis HIBP |
 | Conflits | `ConflictResolutionScreen` | — | Resolution de conflits sync (vue cote-a-cote local/distant, tous types VaultItem) |
 
@@ -1079,13 +1081,13 @@ update.enabled=true
 ### 12.1. Vue d'ensemble
 
 **Framework** : JUnit 5 (Jupiter) 5.14.2
-**Total** : **~353 tests** (unitaires + integration) repartis sur les 3 modules
+**Total** : **~390 tests** (unitaires + integration) repartis sur les 3 modules
 
 | Module Gradle | Tests | Framework |
 |---|---|---|
 | `:core` | 237 | JUnit 5 (Java) |
 | `:desktop` | 75 | JUnit 5 (Java) |
-| `:android` | 41 | JUnit 5 (Kotlin, JVM local) |
+| `:android` | 78 | JUnit 5 (Kotlin, JVM local) |
 
 ### 12.2. Matrice des tests
 
@@ -1109,7 +1111,8 @@ update.enabled=true
 | **android** | `EntryEditViewModelTest` | 8 | Formulaire CRUD nouveau/existant, sauvegarde, validation titre vide |
 | vault | `AppServiceTest` | 7 | CRUD, recherche sur username, favoris, operations en masse |
 | vault | `CardServiceTest` | 7 | CRUD, recherche sur cardholderName, cardType, favoris, operations en masse |
-| **android** | `ChangeMasterPasswordViewModelTest` | 7 | Etat initial, validation, mismatch, mot de passe faible, nettoyage onCleared |
+| **android** | `LoginViewModelTest` | 27 | Etat initial, biometrie, selection utilisateur, validation, creation, nettoyage onCleared |
+| **android** | `ChangeMasterPasswordViewModelTest` | 9 | Etat initial, validation, mismatch, mot de passe faible, nettoyage onCleared, invalidation biometrique |
 | vault | `AppEntryTest` | 6 | Constructeur, copies defensives pin, wipe, equals/hashCode |
 | vault | `EntryFilterTest` | 6 | Filtres combines (categorie, force, date, favoris, texte) |
 | i18n | `LanguageManagerTest` | 6 | Singleton, getString valide/manquant, setLanguage fr/en, getAvailableLanguages |
@@ -1118,11 +1121,11 @@ update.enabled=true
 | sync | `EntryMergerTest` | 5 | Fusion locale/distante generique, conflits, entrees identiques |
 | **android** | `SecurityAuditViewModelTest` | 5 | Audit vide, mots de passe faibles, dupliques, anciens, totalIssues |
 | **android** | `EntryDetailViewModelTest` | 5 | Chargement existant/inconnu, toggle visibilite, suppression existant/inexistant |
-| **android** | `SettingsViewModelTest` | 5 | Configuration initiale, setTheme, setLanguage, clamp autoLock, clamp clipboard |
+| **android** | `SettingsViewModelTest` | 13 | Configuration initiale, setTheme, setLanguage, clamp autoLock, clamp clipboard, biometrie (toggle, activation, desactivation, dialog) |
 | util | `DateUtilsTest` | 5 | Format ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types de caracteres, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance, auto-creation |
-| | | **~353** | |
+| | | **~390** | |
 
 ### 12.3. Infrastructure de test Android
 
@@ -1132,6 +1135,7 @@ Les tests Android s'executent sur la JVM locale (pas d'emulateur) :
 |--------|------|
 | `MainDispatcherExtension` | Extension JUnit 5 qui remplace `Dispatchers.Main` par `UnconfinedTestDispatcher` |
 | `FakeConfigRepository` | Implementation de `ConfigRepository` pour les tests (valeurs en memoire) |
+| `FakeBiometricHelper` | Test double de `BiometricHelper` (JVM, pas de KeyStore Android) |
 | `TestSessionHelper` | Cree un vault reel sur un `@TempDir` et deverrouille `SessionHolder` |
 
 Tous les tests utilisant `SessionHolder` ont un `@AfterEach` qui appelle `SessionHolder.lock()` pour garantir l'isolation entre tests.
@@ -1179,6 +1183,7 @@ Tous les tests utilisant `SessionHolder` ont un `@AfterEach` qui appelle `Sessio
 | Navigation Compose | 2.8.5 | Routage entre ecrans |
 | Lifecycle ViewModel Compose | 2.8.7 | ViewModel + collectAsStateWithLifecycle |
 | Security Crypto | 1.1.0-alpha06 | EncryptedSharedPreferences |
+| Biometric | 1.1.0 | BiometricPrompt, BiometricManager |
 | Coroutines Android | 1.9.0 | Concurrence Kotlin |
 | Desugar JDK Libs | 2.1.4 | Backport List.of() etc. |
 | JUnit 5 | 5.11.4 | Tests unitaires Android (JVM local) |
@@ -1269,7 +1274,7 @@ password-manager/
         |       |-- autofill/              # PasswordManagerAutofillService (Android Autofill API 26+)
         |       |-- data/                   # AndroidVaultRepository, AndroidConfigRepository,
         |       |                           # ConfigRepository (interface), SessionHolder (@Volatile/@Synchronized),
-        |       |                           # FaviconRepository (wrapper suspend)
+        |       |                           # FaviconRepository (wrapper suspend), BiometricHelper (AndroidKeyStore)
         |       |-- di/                     # AppModule (@Module @InstallIn @Provides @Singleton)
         |       |-- update/                # AndroidUpdateManager
         |       +-- ui/
@@ -1287,8 +1292,9 @@ password-manager/
         |           |-- sync/              # ConflictResolutionScreen (resolution bidirectionnelle, tous types VaultItem)
         |           +-- components/         # PasswordStrengthBar, PasswordField, EntryCard, AppEntryCard,
         |                                   # CardEntryCard, ConfirmDialog, ImportExportDialog
-        +-- test/kotlin/com/passwordmanager/android/  # 41 tests (6 classes)
-            |-- test/                       # MainDispatcherExtension, FakeConfigRepository, TestSessionHelper
-            +-- ui/                         # GeneratorVM, EntryDetailVM, EntryEditVM,
+        +-- test/kotlin/com/passwordmanager/android/  # 78 tests (8 classes)
+            |-- test/                       # MainDispatcherExtension, FakeConfigRepository,
+            |                               # FakeBiometricHelper, TestSessionHelper
+            +-- ui/                         # LoginVM, GeneratorVM, EntryDetailVM, EntryEditVM,
                                             # SettingsVM, ChangeMasterPasswordVM, SecurityAuditVM
 ```

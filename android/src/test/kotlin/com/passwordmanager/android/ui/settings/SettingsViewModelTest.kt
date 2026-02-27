@@ -1,23 +1,44 @@
 package com.passwordmanager.android.ui.settings
 
+import com.passwordmanager.android.data.AndroidVaultRepository
+import com.passwordmanager.android.data.SessionHolder
+import com.passwordmanager.android.test.FakeBiometricHelper
 import com.passwordmanager.android.test.FakeConfigRepository
 import com.passwordmanager.android.test.MainDispatcherExtension
+import com.passwordmanager.android.test.TestSessionHelper
 import com.passwordmanager.config.ThemeMode
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @ExtendWith(MainDispatcherExtension::class)
 class SettingsViewModelTest {
 
+    @TempDir
+    lateinit var tempDir: Path
+
     private lateinit var configRepo: FakeConfigRepository
+    private lateinit var biometricHelper: FakeBiometricHelper
     private lateinit var viewModel: SettingsViewModel
 
     @BeforeEach
     fun setUp() {
         configRepo = FakeConfigRepository()
-        viewModel = SettingsViewModel(configRepo)
+        TestSessionHelper.unlockWithEmptyVault(tempDir)
+        biometricHelper = FakeBiometricHelper()
+        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder)
+    }
+
+    @AfterEach
+    fun tearDown() {
+        SessionHolder.lock()
     }
 
     @Test
@@ -71,5 +92,71 @@ class SettingsViewModelTest {
         // Clamp to max
         viewModel.setClipboardClearSeconds(200)
         assertEquals(120, viewModel.uiState.value.clipboardClearSeconds)
+    }
+
+    // --- Biometric toggle ---
+
+    @Test
+    fun `biometric unavailable hides toggle`() {
+        biometricHelper.available = false
+        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder)
+        assertFalse(viewModel.uiState.value.biometricAvailable)
+    }
+
+    @Test
+    fun `biometric available shows toggle`() {
+        biometricHelper.available = true
+        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder)
+        assertTrue(viewModel.uiState.value.biometricAvailable)
+    }
+
+    @Test
+    fun `biometric disabled by default`() {
+        assertFalse(viewModel.uiState.value.biometricEnabled)
+    }
+
+    @Test
+    fun `biometric enabled reflects config state`() {
+        configRepo.setBiometricEnabled("testuser", true)
+        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder)
+        assertTrue(viewModel.uiState.value.biometricEnabled)
+    }
+
+    @Test
+    fun `disableBiometric clears config and deletes key`() {
+        configRepo.setBiometricEnabled("testuser", true)
+        configRepo.setBiometricEncryptedPassword("testuser", byteArrayOf(1, 2, 3))
+        configRepo.setBiometricIv("testuser", byteArrayOf(4, 5, 6))
+
+        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder)
+        viewModel.disableBiometric()
+
+        assertFalse(viewModel.uiState.value.biometricEnabled)
+        assertFalse(configRepo.isBiometricEnabled("testuser"))
+        assertNull(configRepo.getBiometricEncryptedPassword("testuser"))
+        assertNull(configRepo.getBiometricIv("testuser"))
+        assertTrue(biometricHelper.deletedKeys.contains("testuser"))
+    }
+
+    @Test
+    fun `showBiometricPasswordPrompt opens dialog`() {
+        viewModel.showBiometricPasswordPrompt()
+        assertTrue(viewModel.uiState.value.showBiometricPasswordDialog)
+        assertEquals("", viewModel.uiState.value.biometricPasswordInput)
+        assertNull(viewModel.uiState.value.biometricPasswordError)
+    }
+
+    @Test
+    fun `dismissBiometricPasswordPrompt closes dialog`() {
+        viewModel.showBiometricPasswordPrompt()
+        viewModel.dismissBiometricPasswordPrompt()
+        assertFalse(viewModel.uiState.value.showBiometricPasswordDialog)
+    }
+
+    @Test
+    fun `updateBiometricPasswordInput updates state`() {
+        viewModel.showBiometricPasswordPrompt()
+        viewModel.updateBiometricPasswordInput("mypassword")
+        assertEquals("mypassword", viewModel.uiState.value.biometricPasswordInput)
     }
 }

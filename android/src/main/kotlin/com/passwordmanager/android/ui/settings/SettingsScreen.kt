@@ -17,9 +17,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
+import com.passwordmanager.android.ui.components.PasswordField
 import com.passwordmanager.config.StorageMode
 import com.passwordmanager.config.ThemeMode
 
@@ -200,6 +202,93 @@ fun SettingsScreen(
                 valueRange = 5f..120f,
                 steps = 0
             )
+
+            // Biometric toggle
+            if (state.biometricAvailable) {
+                val activity = context as FragmentActivity
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.settings_biometric),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Switch(
+                        checked = state.biometricEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled) {
+                                viewModel.showBiometricPasswordPrompt()
+                            } else {
+                                viewModel.disableBiometric()
+                            }
+                        }
+                    )
+                }
+
+                // Password confirmation dialog for biometric enrollment
+                if (state.showBiometricPasswordDialog) {
+                    val passwordError = state.biometricPasswordError?.let { key ->
+                        when (key) {
+                            "error_invalid_password" -> stringResource(R.string.error_invalid_password)
+                            else -> key
+                        }
+                    }
+
+                    AlertDialog(
+                        onDismissRequest = { viewModel.dismissBiometricPasswordPrompt() },
+                        title = { Text(stringResource(R.string.biometric_enroll_title)) },
+                        text = {
+                            Column {
+                                Text(
+                                    stringResource(R.string.biometric_enroll_message),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                PasswordField(
+                                    value = state.biometricPasswordInput,
+                                    onValueChange = { viewModel.updateBiometricPasswordInput(it) },
+                                    label = stringResource(R.string.login_password),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    isError = passwordError != null
+                                )
+                                if (passwordError != null) {
+                                    Text(
+                                        text = passwordError,
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = { viewModel.confirmBiometricPassword(activity) },
+                                enabled = !state.biometricPasswordLoading && state.biometricPasswordInput.isNotBlank()
+                            ) {
+                                if (state.biometricPasswordLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text(stringResource(R.string.biometric_enable))
+                                }
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { viewModel.dismissBiometricPasswordPrompt() }) {
+                                Text(stringResource(R.string.common_cancel))
+                            }
+                        }
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 

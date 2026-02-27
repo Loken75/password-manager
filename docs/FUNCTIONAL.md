@@ -133,6 +133,7 @@ L'ecran de connexion propose les actions suivantes :
 |--------|-------------|
 | Selectionner un utilisateur | Liste deroulante des utilisateurs existants |
 | Saisir le mot de passe maitre | Champ masque, valider avec le bouton **Connexion** ou la touche **Entree** |
+| Deverrouiller par empreinte (Android) | Bouton empreinte affiche si la biometrie est activee pour l'utilisateur. Se declenche automatiquement a la selection de l'utilisateur |
 | Afficher / masquer le mot de passe | Case a cocher pour verifier la saisie |
 | Creer un nouvel utilisateur | Lien en bas du formulaire |
 | Changer la langue | Selecteur Francais / English en bas de l'ecran (effet immediat) |
@@ -812,6 +813,24 @@ Le changement de theme prend effet immediatement. Le changement de langue recons
 |-----------|-------------|-------|--------|
 | Verrouillage automatique | Delai d'inactivite avant verrouillage | 1 a 60 minutes | 15 min |
 | Effacement presse-papiers | Delai d'effacement apres copie d'un mot de passe | 5 a 120 secondes | 30 s |
+| Deverrouillage biometrique (Android) | Active/desactive le deverrouillage par empreinte digitale | ON / OFF | OFF |
+
+#### Deverrouillage biometrique (Android uniquement)
+
+Cette option n'apparait que si l'appareil dispose d'un capteur biometrique compatible (BIOMETRIC_STRONG). Pour l'activer :
+
+1. Activer le toggle **Deverrouillage biometrique** dans les parametres
+2. Saisir le mot de passe maitre pour confirmation
+3. Enregistrer l'empreinte digitale via la boite de dialogue systeme
+
+Une fois active, l'ecran de connexion propose un bouton **Deverrouiller par empreinte** et declenche automatiquement la verification biometrique a la selection de l'utilisateur.
+
+**Invalidation automatique** : les donnees biometriques sont effacees dans les cas suivants :
+- Changement du mot de passe maitre (invalidation proactive)
+- Modification des empreintes enregistrees sur l'appareil (cle AndroidKeyStore invalidee)
+- Desactivation manuelle du toggle dans les parametres
+
+Apres invalidation, l'utilisateur doit se reconnecter avec son mot de passe maitre et reactiver la biometrie.
 
 ### 15.3. Onglet Synchronisation
 

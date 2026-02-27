@@ -232,6 +232,23 @@
     <string name="audit_breach_error">Could not check breaches (network error)</string>
     <string name="audit_check_now">Check now</string>
 
+    <!-- Biometric -->
+    <string name="biometric_enroll_title">Enable biometric unlock</string>
+    <string name="biometric_enroll_subtitle">Register your fingerprint</string>
+    <string name="biometric_enroll_message">Would you like to unlock your vault with your fingerprint?</string>
+    <string name="biometric_login_title">Unlock vault</string>
+    <string name="biometric_login_subtitle">Use your fingerprint to unlock</string>
+    <string name="biometric_use_password">Use password</string>
+    <string name="biometric_unlock">Unlock with fingerprint</string>
+    <string name="biometric_enable">Enable</string>
+    <string name="biometric_skip">Skip</string>
+    <string name="biometric_key_invalidated">Biometric data invalidated. Please log in with your password.</string>
+    <string name="biometric_credential_expired">Master password was changed. Please log in with your new password.</string>
+    <string name="biometric_lockout">Too many failed biometric attempts. Please use your password.</string>
+    <string name="biometric_enabled">Biometric unlock enabled</string>
+    <string name="biometric_disabled">Biometric unlock disabled</string>
+    <string name="settings_biometric">Biometric unlock</string>
+
     <!-- Autofill -->
     <string name="settings_autofill">Enable autofill service</string>
     <string name="autofill_unlock_prompt">Unlock vault to autofill</string>

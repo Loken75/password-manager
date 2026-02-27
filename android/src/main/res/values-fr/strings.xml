@@ -232,6 +232,23 @@
     <string name="audit_breach_error">Impossible de vérifier les fuites (erreur réseau)</string>
     <string name="audit_check_now">Vérifier maintenant</string>
 
+    <!-- Biométrie -->
+    <string name="biometric_enroll_title">Activer le déverrouillage biométrique</string>
+    <string name="biometric_enroll_subtitle">Enregistrez votre empreinte digitale</string>
+    <string name="biometric_enroll_message">Souhaitez-vous déverrouiller votre coffre avec votre empreinte digitale ?</string>
+    <string name="biometric_login_title">Déverrouiller le coffre</string>
+    <string name="biometric_login_subtitle">Utilisez votre empreinte pour déverrouiller</string>
+    <string name="biometric_use_password">Utiliser le mot de passe</string>
+    <string name="biometric_unlock">Déverrouiller par empreinte</string>
+    <string name="biometric_enable">Activer</string>
+    <string name="biometric_skip">Ignorer</string>
+    <string name="biometric_key_invalidated">Données biométriques invalidées. Veuillez vous connecter avec votre mot de passe.</string>
+    <string name="biometric_credential_expired">Le mot de passe maître a été changé. Veuillez vous connecter avec votre nouveau mot de passe.</string>
+    <string name="biometric_lockout">Trop de tentatives biométriques échouées. Veuillez utiliser votre mot de passe.</string>
+    <string name="biometric_enabled">Déverrouillage biométrique activé</string>
+    <string name="biometric_disabled">Déverrouillage biométrique désactivé</string>
+    <string name="settings_biometric">Déverrouillage biométrique</string>
+
     <!-- Autofill -->
     <string name="settings_autofill">Activer le service de remplissage automatique</string>
     <string name="autofill_unlock_prompt">Déverrouiller le coffre pour le remplissage automatique</string>

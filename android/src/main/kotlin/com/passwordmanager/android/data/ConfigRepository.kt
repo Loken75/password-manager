@@ -28,4 +28,13 @@ interface ConfigRepository {
     fun setSftpKeyPath(path: String)
     fun getSftpRemotePath(): String
     fun setSftpRemotePath(path: String)
+
+    // Biometric unlock
+    fun isBiometricEnabled(username: String): Boolean
+    fun setBiometricEnabled(username: String, enabled: Boolean)
+    fun getBiometricEncryptedPassword(username: String): ByteArray?
+    fun setBiometricEncryptedPassword(username: String, data: ByteArray?)
+    fun getBiometricIv(username: String): ByteArray?
+    fun setBiometricIv(username: String, iv: ByteArray?)
+    fun clearBiometricData(username: String)
 }

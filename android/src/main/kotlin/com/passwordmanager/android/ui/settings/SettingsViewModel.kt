@@ -1,8 +1,12 @@
 package com.passwordmanager.android.ui.settings
 
+import androidx.biometric.BiometricPrompt
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.passwordmanager.android.data.BiometricHelper
 import com.passwordmanager.android.data.ConfigRepository
+import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.config.StorageMode
 import com.passwordmanager.config.ThemeMode
 import com.jcraft.jsch.JSch
@@ -22,6 +26,12 @@ data class SettingsUiState(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val autoLockMinutes: Int = 15,
     val clipboardClearSeconds: Int = 30,
+    val biometricAvailable: Boolean = false,
+    val biometricEnabled: Boolean = false,
+    val showBiometricPasswordDialog: Boolean = false,
+    val biometricPasswordInput: String = "",
+    val biometricPasswordError: String? = null,
+    val biometricPasswordLoading: Boolean = false,
     val storageMode: StorageMode = StorageMode.LOCAL,
     val sftpHost: String = "",
     val sftpPort: String = "22",
@@ -33,7 +43,9 @@ data class SettingsUiState(
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val configRepo: ConfigRepository
+    private val configRepo: ConfigRepository,
+    private val biometricHelper: BiometricHelper,
+    private val sessionHolder: SessionHolder
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -42,6 +54,8 @@ class SettingsViewModel @Inject constructor(
             themeMode = configRepo.getThemeMode(),
             autoLockMinutes = configRepo.getAutoLockMinutes(),
             clipboardClearSeconds = configRepo.getClipboardClearSeconds(),
+            biometricAvailable = biometricHelper.canAuthenticate(),
+            biometricEnabled = sessionHolder.username?.let { configRepo.isBiometricEnabled(it) } ?: false,
             storageMode = configRepo.getStorageMode(),
             sftpHost = configRepo.getSftpHost(),
             sftpPort = configRepo.getSftpPort().toString(),
@@ -75,6 +89,95 @@ class SettingsViewModel @Inject constructor(
         val clamped = seconds.coerceIn(5, 120)
         configRepo.setClipboardClearSeconds(clamped)
         _uiState.update { it.copy(clipboardClearSeconds = clamped) }
+    }
+
+    // --- Biometric ---
+
+    fun showBiometricPasswordPrompt() {
+        _uiState.update { it.copy(showBiometricPasswordDialog = true, biometricPasswordInput = "", biometricPasswordError = null) }
+    }
+
+    fun dismissBiometricPasswordPrompt() {
+        _uiState.update { it.copy(showBiometricPasswordDialog = false, biometricPasswordInput = "", biometricPasswordError = null) }
+    }
+
+    fun updateBiometricPasswordInput(value: String) {
+        _uiState.update { it.copy(biometricPasswordInput = value, biometricPasswordError = null) }
+    }
+
+    fun confirmBiometricPassword(activity: FragmentActivity) {
+        val username = sessionHolder.username ?: return
+        val password = _uiState.value.biometricPasswordInput
+
+        if (password.isBlank()) return
+
+        _uiState.update { it.copy(biometricPasswordLoading = true) }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val passwordChars = password.toCharArray()
+            try {
+                // Verify the password by loading the vault
+                val repo = sessionHolder.getRepository()
+                val result = repo.loadVault(username, passwordChars)
+                result.vault.wipe()
+                result.session.destroy()
+
+                // Password is correct — proceed with biometric enrollment
+                launch(Dispatchers.Main) {
+                    _uiState.update { it.copy(showBiometricPasswordDialog = false, biometricPasswordLoading = false) }
+                    enrollBiometric(activity, password.toCharArray())
+                }
+            } catch (_: com.passwordmanager.crypto.VaultDecryptionException) {
+                _uiState.update { it.copy(biometricPasswordLoading = false, biometricPasswordError = "error_invalid_password") }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(biometricPasswordLoading = false, biometricPasswordError = e.message) }
+            } finally {
+                passwordChars.fill('\u0000')
+            }
+        }
+    }
+
+    private fun enrollBiometric(activity: FragmentActivity, password: CharArray) {
+        val username = sessionHolder.username ?: run { password.fill('\u0000'); return }
+
+        biometricHelper.generateKey(username)
+        val cipher = biometricHelper.getEncryptCipher(username)
+        if (cipher == null) {
+            biometricHelper.deleteKey(username)
+            password.fill('\u0000')
+            return
+        }
+
+        biometricHelper.showBiometricPrompt(
+            activity = activity,
+            cryptoObject = BiometricPrompt.CryptoObject(cipher),
+            title = activity.getString(com.passwordmanager.android.R.string.biometric_enroll_title),
+            subtitle = activity.getString(com.passwordmanager.android.R.string.biometric_enroll_subtitle),
+            negativeText = activity.getString(com.passwordmanager.android.R.string.common_cancel),
+            onSuccess = { crypto ->
+                val authenticatedCipher = crypto?.cipher ?: run { password.fill('\u0000'); return@showBiometricPrompt }
+                try {
+                    val (encrypted, iv) = BiometricHelper.encryptPassword(authenticatedCipher, password)
+                    configRepo.setBiometricEncryptedPassword(username, encrypted)
+                    configRepo.setBiometricIv(username, iv)
+                    configRepo.setBiometricEnabled(username, true)
+                    _uiState.update { it.copy(biometricEnabled = true) }
+                } finally {
+                    password.fill('\u0000')
+                }
+            },
+            onError = { _, _ ->
+                biometricHelper.deleteKey(username)
+                password.fill('\u0000')
+            }
+        )
+    }
+
+    fun disableBiometric() {
+        val username = sessionHolder.username ?: return
+        configRepo.clearBiometricData(username)
+        biometricHelper.deleteKey(username)
+        _uiState.update { it.copy(biometricEnabled = false) }
     }
 
     // --- SFTP sync ---

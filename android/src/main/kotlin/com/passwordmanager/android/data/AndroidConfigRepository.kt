@@ -2,6 +2,7 @@ package com.passwordmanager.android.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.passwordmanager.config.StorageMode
@@ -102,6 +103,51 @@ class AndroidConfigRepository(context: Context) : ConfigRepository {
 
     override fun setSftpRemotePath(path: String) {
         prefs.edit().putString(KEY_SFTP_REMOTE_PATH, path).apply()
+    }
+
+    // --- Biometric ---
+
+    override fun isBiometricEnabled(username: String): Boolean =
+        prefs.getBoolean("biometric_enabled_$username", false)
+
+    override fun setBiometricEnabled(username: String, enabled: Boolean) {
+        prefs.edit().putBoolean("biometric_enabled_$username", enabled).apply()
+    }
+
+    override fun getBiometricEncryptedPassword(username: String): ByteArray? =
+        prefs.getString("biometric_password_$username", null)
+            ?.let { Base64.decode(it, Base64.NO_WRAP) }
+
+    override fun setBiometricEncryptedPassword(username: String, data: ByteArray?) {
+        val editor = prefs.edit()
+        if (data != null) {
+            editor.putString("biometric_password_$username", Base64.encodeToString(data, Base64.NO_WRAP))
+        } else {
+            editor.remove("biometric_password_$username")
+        }
+        editor.apply()
+    }
+
+    override fun getBiometricIv(username: String): ByteArray? =
+        prefs.getString("biometric_iv_$username", null)
+            ?.let { Base64.decode(it, Base64.NO_WRAP) }
+
+    override fun setBiometricIv(username: String, iv: ByteArray?) {
+        val editor = prefs.edit()
+        if (iv != null) {
+            editor.putString("biometric_iv_$username", Base64.encodeToString(iv, Base64.NO_WRAP))
+        } else {
+            editor.remove("biometric_iv_$username")
+        }
+        editor.apply()
+    }
+
+    override fun clearBiometricData(username: String) {
+        prefs.edit()
+            .putBoolean("biometric_enabled_$username", false)
+            .remove("biometric_password_$username")
+            .remove("biometric_iv_$username")
+            .apply()
     }
 
     companion object {

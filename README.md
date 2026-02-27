@@ -31,6 +31,7 @@ Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et prot
 - **Android** : HorizontalPager avec TabRow (3 onglets)
 - **Android** : gestion des categories (ajout, suppression avec reassignation)
 - **Android** : service d'auto-remplissage (Autofill API 26+) — s'applique aux mots de passe uniquement
+- **Android** : deverrouillage biometrique (empreinte digitale) — activable dans les parametres, desactive par defaut
 - **Android** : verrouillage automatique a l'extinction de l'ecran
 
 ---
@@ -188,6 +189,7 @@ Apres connexion, l'interface se compose de :
 | Gestion des categories (mots de passe uniquement) | Oui | Oui (ecran dedie) |
 | Verification des mises a jour | Oui (auto + manuel) | Oui (au lancement) |
 | Themes Systeme/Clair/Sombre | Oui (FlatLaf) | Oui (Material 3 / Dynamic Colors) |
+| Deverrouillage biometrique (empreinte digitale) | Non | Oui (BiometricPrompt + AndroidKeyStore) |
 | Verrouillage automatique | Oui | Oui |
 | Verrouillage ecran eteint | Non | Oui |
 | Synchronisation SFTP bidirectionnelle (tous types) | Oui | Oui |
@@ -242,9 +244,10 @@ Disponible sur **desktop** et **Android**.
 | Theme (Systeme/Clair/Sombre) | Oui | Oui |
 | Verrouillage automatique (1-60 min) | Oui | Oui |
 | Effacement presse-papiers (5-120 s) | Oui | Oui |
+| Deverrouillage biometrique | Non | Oui (toggle ON/OFF) |
 | Configuration SFTP | Oui | Oui |
 
-Changement de mot de passe maitre : seule la DEK est re-chiffree (operation quasi instantanee).
+Changement de mot de passe maitre : seule la DEK est re-chiffree (operation quasi instantanee). Les donnees biometriques sont automatiquement invalidees.
 
 ---
 
@@ -346,7 +349,7 @@ password-manager/
 |
 +-- android/                           # Interface Jetpack Compose (Kotlin)
     +-- autofill/                      # PasswordManagerAutofillService (API 26+)
-    +-- data/                          # AndroidVaultRepository, ConfigRepository, SessionHolder, FaviconRepository
+    +-- data/                          # AndroidVaultRepository, ConfigRepository, SessionHolder, BiometricHelper, FaviconRepository
     +-- di/                            # AppModule (Hilt DI)
     +-- ui/                            # Ecrans Compose (login, vault, generator, settings, audit, sync)
     +-- update/                        # AndroidUpdateManager
@@ -354,7 +357,7 @@ password-manager/
 
 ### Tests
 
-**340+ tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
+**390+ tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
 
 | Module | Classe de test | Tests | Description |
 |---|---|:---:|---|
@@ -375,7 +378,8 @@ password-manager/
 | crypto | `PasswordStrengthAnalyzerTest` | 9 | Niveaux de force, score, cas limites |
 | vault | `VaultTest` | 9 | Constructeurs, add/remove (3 types), unmodifiable, wipe, settings |
 | **android** | `EntryEditViewModelTest` | 8 | Formulaire CRUD, sauvegarde, validation |
-| **android** | `ChangeMasterPasswordViewModelTest` | 7 | Validation, mismatch, nettoyage onCleared |
+| **android** | `LoginViewModelTest` | 27 | Etat initial, biometrie, selection utilisateur, login, enrollment, config biometrique, creation utilisateur |
+| **android** | `ChangeMasterPasswordViewModelTest` | 9 | Validation, mismatch, nettoyage onCleared, invalidation biometrique |
 | vault | `EntryFilterTest` | 6 | Filtres combines (categorie, force, date, favoris, texte) |
 | i18n | `LanguageManagerTest` | 6 | Singleton, getString, setLanguage, langues disponibles |
 | util | `FaviconServiceTest` | 5 | Extraction domaine, cache disque, favicon null |
@@ -383,11 +387,11 @@ password-manager/
 | sync | `EntryMergerTest` | 7 | Fusion locale/distante generique, conflits, entrees identiques (tous types) |
 | **android** | `SecurityAuditViewModelTest` | 5 | Audit vide, faibles, dupliques, anciens, total |
 | **android** | `EntryDetailViewModelTest` | 5 | Chargement, visibilite, suppression |
-| **android** | `SettingsViewModelTest` | 5 | Configuration initiale, theme, langue, auto-lock, clipboard |
+| **android** | `SettingsViewModelTest` | 13 | Configuration initiale, theme, langue, auto-lock, clipboard, toggle biometrique |
 | util | `DateUtilsTest` | 5 | ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance |
-| | | **~340** | |
+| | | **~390** | |
 
 ---
 
