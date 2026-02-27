@@ -80,30 +80,37 @@ public class DesktopUpdateManager {
     }
 
     /**
-     * Performs a synchronous check and shows result dialog.
+     * Performs a check and shows result dialog.
      * Used for manual "Check for updates" button.
      */
     public void checkManually(Component parent) {
-        new SwingWorker<UpdateInfo, Void>() {
+        new SwingWorker<Object, Void>() {
             @Override
-            protected UpdateInfo doInBackground() {
+            protected Object doInBackground() {
                 try {
-                    return checker.checkForUpdate();
+                    UpdateInfo info = checker.checkForUpdate();
+                    return info != null ? info : Boolean.TRUE; // TRUE = up to date
                 } catch (Exception e) {
-                    return null;
+                    return e; // propagate error
                 }
             }
 
             @Override
             protected void done() {
                 try {
-                    UpdateInfo info = get();
-                    if (info != null) {
+                    Object result = get();
+                    if (result instanceof UpdateInfo) {
+                        UpdateInfo info = (UpdateInfo) result;
                         showUpdateNotification(info);
                         JOptionPane.showMessageDialog(parent,
                             lang.getString("update.available").replace("{0}", info.getVersion()),
                             lang.getString("update.check"),
                             JOptionPane.INFORMATION_MESSAGE);
+                    } else if (result instanceof Exception) {
+                        JOptionPane.showMessageDialog(parent,
+                            lang.getString("update.error"),
+                            lang.getString("common.error"),
+                            JOptionPane.WARNING_MESSAGE);
                     } else {
                         JOptionPane.showMessageDialog(parent,
                             lang.getString("update.upToDate") + "\n"
