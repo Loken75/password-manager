@@ -48,7 +48,7 @@ public class VaultPanel extends JPanel {
 
     // Star column (0), then data columns start at 1
     private static final SortField[] COLUMN_SORT_FIELDS = {
-        SortField.FAVORITE, SortField.TITLE, SortField.USERNAME, SortField.EMAIL, SortField.PSEUDO, SortField.CATEGORY, null
+        SortField.FAVORITE, SortField.TITLE, SortField.USERNAME, SortField.EMAIL, SortField.PSEUDO, SortField.CATEGORY, SortField.STRENGTH
     };
 
     private List<VaultEntry> displayedEntries = new ArrayList<>();

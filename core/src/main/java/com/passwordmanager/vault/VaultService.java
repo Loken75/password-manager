@@ -116,6 +116,13 @@ public class VaultService {
             case FAVORITE:
                 comp = (a, b) -> Boolean.compare(b.isFavorite(), a.isFavorite());
                 break;
+            case STRENGTH:
+                comp = (a, b) -> {
+                    int sa = strengthOrdinal(a);
+                    int sb = strengthOrdinal(b);
+                    return Integer.compare(sa, sb);
+                };
+                break;
             default:
                 comp = (a, b) -> safe(a.getTitle()).compareToIgnoreCase(safe(b.getTitle()));
         }
@@ -145,6 +152,16 @@ public class VaultService {
     }
 
     private String safe(String s) { return s == null ? "" : s; }
+
+    private static int strengthOrdinal(VaultEntry entry) {
+        char[] pw = entry.getPassword();
+        if (pw == null || pw.length == 0) return -1;
+        try {
+            return com.passwordmanager.crypto.PasswordStrengthAnalyzer.analyze(pw).ordinal();
+        } finally {
+            com.passwordmanager.util.SecureWiper.wipe(pw);
+        }
+    }
 
     /**
      * Finds entries that share the same password.
