@@ -1,6 +1,6 @@
 package com.passwordmanager.sync;
 
-import com.passwordmanager.vault.VaultEntry;
+import com.passwordmanager.vault.VaultItem;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -9,8 +9,9 @@ import java.util.Map;
 
 /**
  * Entry-level vault merge logic for synchronization.
- * Merges local and remote vault entries by ID, with last-write-wins
+ * Merges local and remote vault items by ID, with last-write-wins
  * semantics and conflict detection when timestamps differ.
+ * Generic over any VaultItem subtype.
  */
 public class EntryMerger {
 
@@ -30,19 +31,19 @@ public class EntryMerger {
      * @param remote the remote vault entries
      * @return the merge result containing merged entries and any conflicts
      */
-    public static MergeResult merge(List<VaultEntry> local, List<VaultEntry> remote) {
-        List<VaultEntry> mergedEntries = new ArrayList<>();
-        List<Conflict> conflicts = new ArrayList<>();
+    public static <T extends VaultItem> MergeResult<T> merge(List<T> local, List<T> remote) {
+        List<T> mergedEntries = new ArrayList<>();
+        List<Conflict<T>> conflicts = new ArrayList<>();
 
         // Index remote entries by ID
-        Map<String, VaultEntry> remoteById = new HashMap<>();
-        for (VaultEntry entry : remote) {
+        Map<String, T> remoteById = new HashMap<>();
+        for (T entry : remote) {
             remoteById.put(entry.getId(), entry);
         }
 
         // Process local entries
-        for (VaultEntry localEntry : local) {
-            VaultEntry remoteEntry = remoteById.remove(localEntry.getId());
+        for (T localEntry : local) {
+            T remoteEntry = remoteById.remove(localEntry.getId());
             if (remoteEntry == null) {
                 // Only in local: keep
                 mergedEntries.add(localEntry);
@@ -50,42 +51,54 @@ public class EntryMerger {
                 // In both: compare updatedAt
                 String localUpdated = localEntry.getUpdatedAt();
                 String remoteUpdated = remoteEntry.getUpdatedAt();
-                if (localUpdated != null && localUpdated.equals(remoteUpdated)) {
-                    // Same timestamp: keep local
+                if (nullSafeEquals(localUpdated, remoteUpdated)) {
+                    // Same timestamp (including both null): keep local
+                    mergedEntries.add(localEntry);
+                } else if (localUpdated == null) {
+                    // Local has no date, remote does: take remote (no conflict)
+                    mergedEntries.add(remoteEntry);
+                } else if (remoteUpdated == null) {
+                    // Remote has no date, local does: keep local (no conflict)
                     mergedEntries.add(localEntry);
                 } else {
-                    // Different timestamp: conflict
-                    conflicts.add(new Conflict(localEntry, remoteEntry));
+                    // Both non-null but different: conflict
+                    conflicts.add(new Conflict<>(localEntry, remoteEntry));
                 }
             }
         }
 
         // Remaining remote entries (only in remote): add
-        for (VaultEntry remoteEntry : remoteById.values()) {
+        for (T remoteEntry : remoteById.values()) {
             mergedEntries.add(remoteEntry);
         }
 
-        return new MergeResult(mergedEntries, conflicts);
+        return new MergeResult<>(mergedEntries, conflicts);
+    }
+
+    private static boolean nullSafeEquals(String a, String b) {
+        if (a == null && b == null) return true;
+        if (a == null || b == null) return false;
+        return a.equals(b);
     }
 
     /**
      * The result of a merge operation, containing the merged entry list
      * and any conflicts that require manual resolution.
      */
-    public static class MergeResult {
-        private final List<VaultEntry> mergedEntries;
-        private final List<Conflict> conflicts;
+    public static class MergeResult<T extends VaultItem> {
+        private final List<T> mergedEntries;
+        private final List<Conflict<T>> conflicts;
 
-        public MergeResult(List<VaultEntry> mergedEntries, List<Conflict> conflicts) {
+        public MergeResult(List<T> mergedEntries, List<Conflict<T>> conflicts) {
             this.mergedEntries = mergedEntries;
             this.conflicts = conflicts;
         }
 
-        public List<VaultEntry> getMergedEntries() {
+        public List<T> getMergedEntries() {
             return mergedEntries;
         }
 
-        public List<Conflict> getConflicts() {
+        public List<Conflict<T>> getConflicts() {
             return conflicts;
         }
 
@@ -98,20 +111,20 @@ public class EntryMerger {
      * Represents a merge conflict where local and remote versions
      * of the same entry have different updatedAt timestamps.
      */
-    public static class Conflict {
-        private final VaultEntry localEntry;
-        private final VaultEntry remoteEntry;
+    public static class Conflict<T extends VaultItem> {
+        private final T localEntry;
+        private final T remoteEntry;
 
-        public Conflict(VaultEntry localEntry, VaultEntry remoteEntry) {
+        public Conflict(T localEntry, T remoteEntry) {
             this.localEntry = localEntry;
             this.remoteEntry = remoteEntry;
         }
 
-        public VaultEntry getLocalEntry() {
+        public T getLocalEntry() {
             return localEntry;
         }
 
-        public VaultEntry getRemoteEntry() {
+        public T getRemoteEntry() {
             return remoteEntry;
         }
     }

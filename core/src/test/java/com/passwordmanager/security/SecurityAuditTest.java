@@ -162,7 +162,7 @@ class SecurityAuditTest {
 
     @Test
     void vaultEntryWipeClearsPassword() {
-        VaultEntry entry = new VaultEntry("Test", "user",
+        PasswordEntry entry = new PasswordEntry("Test", "user",
             "MyP@ssword!1234".toCharArray(), "url", "notes", "Cat", null);
 
         assertNotNull(entry.getPassword());
@@ -264,7 +264,7 @@ class SecurityAuditTest {
         char[] password = "TamperP@ss!12345".toCharArray();
 
         VaultLoadResult result = manager.createVault("tampertest", password);
-        result.getVault().addEntry(new VaultEntry("Secret", "user",
+        result.getVault().addEntry(new PasswordEntry("Secret", "user",
             "pass123".toCharArray(), "", "", "Cat", null));
         manager.saveVault(result.getVault(), "tampertest", result.getSession());
         result.getSession().destroy();
@@ -294,7 +294,7 @@ class SecurityAuditTest {
         int count = importer.importFromCsv(vault, csv);
         assertEquals(1, count);
 
-        VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        PasswordEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
         assertEquals("CleanTitle", entry.getTitle(), "Null byte must be stripped");
         assertEquals("username", entry.getUsername(), "BEL char must be stripped");
         assertEquals("noteshere", entry.getNotes(), "ETX char must be stripped");
@@ -314,7 +314,7 @@ class SecurityAuditTest {
         int count = importer.importFromCsv(vault, csv);
         assertEquals(1, count);
 
-        VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        PasswordEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
         assertTrue(entry.getNotes().contains("\t"), "Tabs should be preserved in notes");
     }
 
@@ -332,7 +332,7 @@ class SecurityAuditTest {
         int count = importer.importFromCsv(vault, csv);
         assertEquals(1, count);
 
-        VaultEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
+        PasswordEntry entry = vault.getEntries().get(vault.getEntries().size() - 1);
         assertEquals("=MyTitle", entry.getTitle(), "Formula chars are valid import data");
     }
 
@@ -346,7 +346,7 @@ class SecurityAuditTest {
 
         String[] formulaChars = {"=CMD", "+CMD", "-CMD", "@CMD"};
         for (String title : formulaChars) {
-            vault.addEntry(new VaultEntry(title, "user",
+            vault.addEntry(new PasswordEntry(title, "user",
                 "pass".toCharArray(), "", "", "Cat", null));
         }
 
@@ -441,12 +441,12 @@ class SecurityAuditTest {
         assertEquals(PasswordStrengthAnalyzer.Strength.VERY_STRONG, s);
     }
 
-    // === VaultEntry Password Clone Safety ===
+    // === PasswordEntry Password Clone Safety ===
 
     @Test
     void vaultEntryGetPasswordReturnsClone() {
         char[] original = "MyP@ssword!1234".toCharArray();
-        VaultEntry entry = new VaultEntry("Test", "user", original, "", "", "Cat", null);
+        PasswordEntry entry = new PasswordEntry("Test", "user", original, "", "", "Cat", null);
 
         char[] clone1 = entry.getPassword();
         char[] clone2 = entry.getPassword();

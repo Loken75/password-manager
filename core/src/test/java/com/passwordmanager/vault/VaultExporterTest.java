@@ -28,12 +28,12 @@ class VaultExporterTest {
     @Test
     void exportCsvHeader() {
         String csv = new String(exporter.exportAsCsv(vault));
-        assertTrue(csv.startsWith("title,username,email,password,url,notes,category,tags,favorite\n"));
+        assertTrue(csv.startsWith("type,title,username,email,password,url,notes,category,tags,favorite,pin,cardholderName,cardNumber,expiryDate,cvv,cardPin,cardType\n"));
     }
 
     @Test
     void exportCsvWithEntries() {
-        vault.addEntry(new VaultEntry("Gmail", "user@gmail.com",
+        vault.addEntry(new PasswordEntry("Gmail", "user@gmail.com",
                 "pass123".toCharArray(), "https://gmail.com", "notes", "Email",
                 Arrays.asList("tag1", "tag2")));
 
@@ -48,7 +48,7 @@ class VaultExporterTest {
 
     @Test
     void exportCsvEscapesCommas() {
-        vault.addEntry(new VaultEntry("My, Site", "user",
+        vault.addEntry(new PasswordEntry("My, Site", "user",
                 "pass".toCharArray(), "", "", "Cat", null));
 
         String csv = new String(exporter.exportAsCsv(vault));
@@ -57,7 +57,7 @@ class VaultExporterTest {
 
     @Test
     void exportCsvFormulaInjectionProtection() {
-        vault.addEntry(new VaultEntry("=FORMULA", "user",
+        vault.addEntry(new PasswordEntry("=FORMULA", "user",
                 "pass".toCharArray(), "", "", "Cat", null));
 
         String csv = new String(exporter.exportAsCsv(vault));
@@ -67,7 +67,7 @@ class VaultExporterTest {
 
     @Test
     void exportCsvNullPassword() {
-        vault.addEntry(new VaultEntry("NoPass", "user",
+        vault.addEntry(new PasswordEntry("NoPass", "user",
                 null, "", "", "Cat", null));
 
         String csv = new String(exporter.exportAsCsv(vault));
@@ -79,7 +79,7 @@ class VaultExporterTest {
 
     @Test
     void exportJsonValid() {
-        vault.addEntry(new VaultEntry("Test", "user",
+        vault.addEntry(new PasswordEntry("Test", "user",
                 "pass".toCharArray(), "http://test.com", "", "Cat", null));
 
         String json = new String(exporter.exportAsJson(vault));
@@ -90,7 +90,7 @@ class VaultExporterTest {
 
     @Test
     void exportCsvWithEmail() {
-        VaultEntry entry = new VaultEntry("Gmail", "johndoe",
+        PasswordEntry entry = new PasswordEntry("Gmail", "johndoe",
                 "pass123".toCharArray(), "https://gmail.com", "notes", "Email", null);
         entry.setEmail("john@gmail.com");
         vault.addEntry(entry);
@@ -112,9 +112,9 @@ class VaultExporterTest {
     void exportCsvRoundTripWithImporter() {
         VaultImporter importer = new VaultImporter(new GsonBuilder().create());
 
-        vault.addEntry(new VaultEntry("Site1", "user1",
+        vault.addEntry(new PasswordEntry("Site1", "user1",
                 "pass1".toCharArray(), "http://site1.com", "note1", "Email", null));
-        vault.addEntry(new VaultEntry("Site2", "user2",
+        vault.addEntry(new PasswordEntry("Site2", "user2",
                 "pass2".toCharArray(), "http://site2.com", "", "Work",
                 Arrays.asList("important")));
 

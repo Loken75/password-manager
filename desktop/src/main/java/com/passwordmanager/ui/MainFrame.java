@@ -21,6 +21,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -40,6 +41,9 @@ public class MainFrame extends JFrame {
     private ConfigManager configManager;
     private SyncService syncService;
     private VaultPanel vaultPanel;
+    private AppPanel appPanel;
+    private CardPanel cardPanel;
+    private JTabbedPane tabbedPane;
     private JLabel statusLabel;
     private Thread shutdownHook;
 
@@ -67,7 +71,7 @@ public class MainFrame extends JFrame {
         // Initialize controllers
         this.importExportController = new ImportExportController(
             this, vault, username, session, vaultManager,
-            this::saveVault, () -> { vaultPanel.refreshAll(); statusLabel.setText(getStatusText()); });
+            this::saveVault, () -> { refreshAllPanels(); statusLabel.setText(getStatusText()); });
         this.securityAuditController = new SecurityAuditController(this, vault, vaultService);
         this.autoLockManager = new AutoLockManager(appConfig, this::doLock);
 
@@ -109,18 +113,36 @@ public class MainFrame extends JFrame {
         add(northPanel, BorderLayout.NORTH);
         updateManager.startPeriodicCheck();
 
-        // Vault panel
+        // Tabbed pane with 3 entry types
+        tabbedPane = new JTabbedPane();
+
         vaultPanel = new VaultPanel(vaultService, appConfig.getClipboardClearSeconds());
         vaultPanel.setOnVaultChanged(() -> {
             saveVault();
             statusLabel.setText(getStatusText());
         });
-        // Wire FaviconService with cache dir in user data
         try {
             String cacheDir = System.getProperty("user.home") + "/.password-manager/data/favicons";
             vaultPanel.setFaviconService(new FaviconService(cacheDir));
         } catch (Exception ignored) {}
-        add(vaultPanel, BorderLayout.CENTER);
+
+        appPanel = new AppPanel(vaultService.getAppService(), appConfig.getClipboardClearSeconds());
+        appPanel.setOnVaultChanged(() -> {
+            saveVault();
+            statusLabel.setText(getStatusText());
+        });
+
+        cardPanel = new CardPanel(vaultService.getCardService(), appConfig.getClipboardClearSeconds());
+        cardPanel.setOnVaultChanged(() -> {
+            saveVault();
+            statusLabel.setText(getStatusText());
+        });
+
+        tabbedPane.addTab(lang.getString("tab.passwords"), vaultPanel);
+        tabbedPane.addTab(lang.getString("tab.applications"), appPanel);
+        tabbedPane.addTab(lang.getString("tab.cards"), cardPanel);
+
+        add(tabbedPane, BorderLayout.CENTER);
 
         // Status bar
         JPanel statusBar = new JPanel(new BorderLayout());
@@ -222,18 +244,18 @@ public class MainFrame extends JFrame {
         lock.addActionListener(e -> doLock());
         quit.addActionListener(e -> doQuit());
 
-        newEntry.addActionListener(e -> vaultPanel.addNewEntry());
-        editEntry.addActionListener(e -> vaultPanel.editSelectedEntry());
-        deleteEntry.addActionListener(e -> vaultPanel.deleteSelectedEntry());
+        newEntry.addActionListener(e -> addNewEntryForActiveTab());
+        editEntry.addActionListener(e -> editEntryForActiveTab());
+        deleteEntry.addActionListener(e -> deleteEntryForActiveTab());
         changeMaster.addActionListener(e -> doChangeMasterPassword());
 
-        refresh.addActionListener(e -> vaultPanel.refreshAll());
-        sortName.addActionListener(e -> vaultPanel.setSortMode(SortField.TITLE));
-        sortUsername.addActionListener(e -> vaultPanel.setSortMode(SortField.USERNAME));
-        sortEmail.addActionListener(e -> vaultPanel.setSortMode(SortField.EMAIL));
-        sortUrl.addActionListener(e -> vaultPanel.setSortMode(SortField.URL));
-        sortDate.addActionListener(e -> vaultPanel.setSortMode(SortField.DATE));
-        sortCat.addActionListener(e -> vaultPanel.setSortMode(SortField.CATEGORY));
+        refresh.addActionListener(e -> refreshAllPanels());
+        sortName.addActionListener(e -> setSortModeForActiveTab(SortField.TITLE));
+        sortUsername.addActionListener(e -> setSortModeForActiveTab(SortField.USERNAME));
+        sortEmail.addActionListener(e -> setSortModeForActiveTab(SortField.EMAIL));
+        sortUrl.addActionListener(e -> setSortModeForActiveTab(SortField.URL));
+        sortDate.addActionListener(e -> setSortModeForActiveTab(SortField.DATE));
+        sortCat.addActionListener(e -> setSortModeForActiveTab(SortField.CATEGORY));
         filterWeak.addActionListener(e -> securityAuditController.doFilterWeak());
         filterDup.addActionListener(e -> securityAuditController.doFilterDuplicate());
 
@@ -259,7 +281,7 @@ public class MainFrame extends JFrame {
         syncToolbarBtn = new JButton(lang.getString("menu.tools.sync_now"));
         syncToolbarBtn.setEnabled(appConfig.getStorageMode() == StorageMode.REMOTE);
 
-        newBtn.addActionListener(e -> vaultPanel.addNewEntry());
+        newBtn.addActionListener(e -> addNewEntryForActiveTab());
         genBtn.addActionListener(e -> new PasswordGeneratorDialog(MainFrame.this).setVisible(true));
         lockBtn.addActionListener(e -> doLock());
         syncToolbarBtn.addActionListener(e -> doSync());
@@ -306,6 +328,8 @@ public class MainFrame extends JFrame {
             syncService.refreshConfig(appConfig);
             statusLabel.setText(getStatusText());
             vaultPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
+            appPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
+            cardPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
             autoLockManager.startAutoLock();
             boolean remoteEnabled = appConfig.getStorageMode() == StorageMode.REMOTE;
             syncNowMenuItem.setEnabled(remoteEnabled);
@@ -399,6 +423,8 @@ public class MainFrame extends JFrame {
     private void cleanup() {
         autoLockManager.cleanup();
         vaultPanel.cancelClipboardTimer();
+        appPanel.cancelClipboardTimer();
+        cardPanel.cancelClipboardTimer();
         if (updateManager != null) updateManager.stop();
     }
 
@@ -461,39 +487,60 @@ public class MainFrame extends JFrame {
         // Try entry-level merge: load the remote vault and compare entry-by-entry
         try {
             Vault remoteVault = vaultManager.reloadVault(username, session);
-            EntryMerger.MergeResult mergeResult = syncService.mergeEntries(
-                vault.getEntries(), remoteVault.getEntries());
 
-            if (!mergeResult.hasConflicts()) {
+            // Merge all three entry lists
+            EntryMerger.MergeResult<PasswordEntry> passwordMerge = syncService.mergeEntries(
+                vault.getEntries(), remoteVault.getEntries());
+            EntryMerger.MergeResult<AppEntry> appMerge = syncService.mergeEntries(
+                vault.getAppEntries(), remoteVault.getAppEntries());
+            EntryMerger.MergeResult<CardEntry> cardMerge = syncService.mergeEntries(
+                vault.getCardEntries(), remoteVault.getCardEntries());
+
+            boolean hasConflicts = passwordMerge.hasConflicts()
+                || appMerge.hasConflicts() || cardMerge.hasConflicts();
+
+            String vaultFilename = "vault_" + username + ".enc";
+            if (!hasConflicts) {
                 // Auto-merge: no conflicts, apply merged entries directly
-                vault.getEntriesMutable().clear();
-                for (VaultEntry e : mergeResult.getMergedEntries()) {
-                    vault.addEntry(e);
+                applyMerge(passwordMerge, appMerge, cardMerge);
+                SyncService.SyncResult mergeResult = syncService.syncAfterMerge(
+                    vaultFilename,
+                    () -> vaultManager.saveVault(vault, username, session));
+                refreshAllPanels();
+                if (mergeResult.isSuccess()) {
+                    JOptionPane.showMessageDialog(this, lang.getString("sync.merge.auto_merged"),
+                        lang.getString("common.success"), JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    showError(mergeResult.getMessage());
                 }
-                saveVault();
-                syncService.resolveConflict("vault_" + username + ".enc",
-                    com.passwordmanager.sync.ConflictResolver.KEEP_LOCAL);
-                vaultPanel.refreshAll();
-                JOptionPane.showMessageDialog(this, lang.getString("sync.merge.auto_merged"),
-                    lang.getString("common.success"), JOptionPane.INFORMATION_MESSAGE);
             } else {
-                // Show conflict resolution dialog for entry-level conflicts
-                ConflictResolutionDialog dlg = new ConflictResolutionDialog(
-                    this, mergeResult.getConflicts());
+                // Collect all conflicts (password, app, card) into a single dialog
+                List<EntryMerger.Conflict<? extends VaultItem>> allConflicts = new ArrayList<>();
+                allConflicts.addAll(passwordMerge.getConflicts());
+                allConflicts.addAll(appMerge.getConflicts());
+                allConflicts.addAll(cardMerge.getConflicts());
+
+                ConflictResolutionDialog dlg = new ConflictResolutionDialog(this, allConflicts);
                 dlg.setVisible(true);
                 if (dlg.isConfirmed()) {
-                    List<VaultEntry> resolved = dlg.getResolvedEntries();
-                    vault.getEntriesMutable().clear();
-                    for (VaultEntry e : mergeResult.getMergedEntries()) {
-                        vault.addEntry(e);
+                    List<VaultItem> resolved = dlg.getResolvedEntries();
+                    applyMerge(passwordMerge, appMerge, cardMerge);
+                    for (VaultItem item : resolved) {
+                        if (item instanceof PasswordEntry) {
+                            vault.addEntry((PasswordEntry) item);
+                        } else if (item instanceof AppEntry) {
+                            vault.addAppEntry((AppEntry) item);
+                        } else if (item instanceof CardEntry) {
+                            vault.addCardEntry((CardEntry) item);
+                        }
                     }
-                    for (VaultEntry e : resolved) {
-                        vault.addEntry(e);
+                    SyncService.SyncResult mergeResult = syncService.syncAfterMerge(
+                        vaultFilename,
+                        () -> vaultManager.saveVault(vault, username, session));
+                    refreshAllPanels();
+                    if (!mergeResult.isSuccess()) {
+                        showError(mergeResult.getMessage());
                     }
-                    saveVault();
-                    syncService.resolveConflict("vault_" + username + ".enc",
-                        com.passwordmanager.sync.ConflictResolver.KEEP_LOCAL);
-                    vaultPanel.refreshAll();
                 }
             }
             remoteVault.wipe();
@@ -522,7 +569,7 @@ public class MainFrame extends JFrame {
                     Vault reloaded = vaultManager.reloadVault(username, session);
                     vault = reloaded;
                     vaultService.setVault(vault);
-                    vaultPanel.refreshAll();
+                    refreshAllPanels();
                 } catch (Exception reloadEx) {
                     showError(reloadEx.getMessage());
                 }
@@ -531,11 +578,106 @@ public class MainFrame extends JFrame {
         statusLabel.setText(getStatusText());
     }
 
+    private void applyMerge(EntryMerger.MergeResult<PasswordEntry> passwordMerge,
+                            EntryMerger.MergeResult<AppEntry> appMerge,
+                            EntryMerger.MergeResult<CardEntry> cardMerge) {
+        vault.getEntriesMutable().clear();
+        for (PasswordEntry e : passwordMerge.getMergedEntries()) {
+            vault.addEntry(e);
+        }
+        vault.getAppEntriesMutable().clear();
+        for (AppEntry e : appMerge.getMergedEntries()) {
+            vault.addAppEntry(e);
+        }
+        vault.getCardEntriesMutable().clear();
+        for (CardEntry e : cardMerge.getMergedEntries()) {
+            vault.addCardEntry(e);
+        }
+    }
+
+    private void addNewEntryForActiveTab() {
+        int idx = tabbedPane.getSelectedIndex();
+        switch (idx) {
+            case 1: appPanel.addNewEntry(); break;
+            case 2: cardPanel.addNewEntry(); break;
+            default: vaultPanel.addNewEntry(); break;
+        }
+    }
+
+    private void editEntryForActiveTab() {
+        int idx = tabbedPane.getSelectedIndex();
+        switch (idx) {
+            case 1: appPanel.editSelectedEntry(); break;
+            case 2: cardPanel.editSelectedEntry(); break;
+            default: vaultPanel.editSelectedEntry(); break;
+        }
+    }
+
+    private void deleteEntryForActiveTab() {
+        int idx = tabbedPane.getSelectedIndex();
+        switch (idx) {
+            case 1: appPanel.deleteSelectedEntry(); break;
+            case 2: cardPanel.deleteSelectedEntry(); break;
+            default: vaultPanel.deleteSelectedEntry(); break;
+        }
+    }
+
+    private void refreshAllPanels() {
+        vaultPanel.refreshAll();
+        appPanel.refreshEntries();
+        cardPanel.refreshEntries();
+    }
+
+    /**
+     * Dispatches a sort-field request to the panel that corresponds to the
+     * currently selected tab.  If the requested field is not valid for the
+     * active panel, TITLE is used as a safe fallback.
+     *
+     * Valid fields per panel:
+     *   Passwords  (0) - TITLE, USERNAME, EMAIL, URL, DATE, CATEGORY
+     *   Applications (1) - TITLE, USERNAME, DATE
+     *   Cards (2) - TITLE, CARDHOLDER_NAME, CARD_TYPE, DATE
+     */
+    private void setSortModeForActiveTab(SortField field) {
+        int idx = tabbedPane.getSelectedIndex();
+        switch (idx) {
+            case 1: // Applications
+                switch (field) {
+                    case TITLE:
+                    case USERNAME:
+                    case DATE:
+                        appPanel.setSortMode(field);
+                        break;
+                    default:
+                        appPanel.setSortMode(SortField.TITLE);
+                        break;
+                }
+                break;
+            case 2: // Cards
+                switch (field) {
+                    case TITLE:
+                    case CARDHOLDER_NAME:
+                    case CARD_TYPE:
+                    case DATE:
+                        cardPanel.setSortMode(field);
+                        break;
+                    default:
+                        cardPanel.setSortMode(SortField.TITLE);
+                        break;
+                }
+                break;
+            default: // Passwords (index 0)
+                vaultPanel.setSortMode(field);
+                break;
+        }
+    }
+
     private String getStatusText() {
         String mode = appConfig.getStorageMode() == StorageMode.LOCAL
             ? lang.getString("sync.status_local")
             : syncService.getSyncStatus();
-        return mode + "  |  " + username + "  |  " + vault.getEntries().size() + " " + lang.getString("vault.entries");
+        int total = vault.getEntries().size() + vault.getAppEntries().size() + vault.getCardEntries().size();
+        return mode + "  |  " + username + "  |  " + total + " " + lang.getString("vault.entries");
     }
 
     private void showError(String msg) {

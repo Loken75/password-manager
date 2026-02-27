@@ -28,12 +28,12 @@ import androidx.compose.ui.graphics.asImageBitmap
 import com.passwordmanager.android.ui.theme.*
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength
-import com.passwordmanager.vault.VaultEntry
+import com.passwordmanager.vault.PasswordEntry
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun EntryCard(
-    entry: VaultEntry,
+    entry: PasswordEntry,
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onCopyPassword: () -> Unit,

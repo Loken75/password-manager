@@ -50,6 +50,12 @@
     <string name="entry_copy_username">Copier id</string>
     <string name="entry_copy_email">Copier email</string>
     <string name="entry_copy_password">Copier mdp</string>
+    <string name="entry_pin">Code PIN</string>
+    <string name="entry_pin_copied">Code PIN copié</string>
+
+    <!-- Onglets -->
+    <string name="tab_passwords">Mots de passe</string>
+    <string name="tab_applications">Applications</string>
 
     <!-- Password Generator -->
     <string name="generator_title">Générateur de mot de passe</string>
@@ -233,6 +239,22 @@
     <!-- Actions en masse -->
     <string name="vault_bulk_actions">Actions</string>
     <string name="vault_toggle_favorites">Basculer favoris</string>
+
+    <!-- Champs carte bancaire -->
+    <string name="entry_cardholder_name">Nom du titulaire</string>
+    <string name="entry_card_number">Numéro de carte</string>
+    <string name="entry_expiry_date">Date d\'expiration</string>
+    <string name="entry_cvv">CVV</string>
+    <string name="entry_card_pin">Code PIN</string>
+    <string name="entry_card_type">Type de carte</string>
+    <string name="card_type_visa">Visa</string>
+    <string name="card_type_mastercard">Mastercard</string>
+    <string name="card_type_amex">American Express</string>
+    <string name="card_type_cb">CB</string>
+    <string name="card_type_other">Autre</string>
+
+    <!-- Onglets -->
+    <string name="tab_cards">Cartes</string>
 
     <!-- Fusion de synchronisation -->
     <string name="sync_merge_conflicts">Conflits de fusion détectés</string>

@@ -287,6 +287,79 @@ class SyncServiceTest {
     }
 
     // ---------------------------------------------------------------
+    // syncAfterMerge() - save then upload
+    // ---------------------------------------------------------------
+
+    @Test
+    void syncAfterMerge_savesBeforeUpload() {
+        String mergedContent = "{\"entries\":[{\"id\":1},{\"id\":2}]}";
+
+        SyncService.SyncResult result = service.syncAfterMerge(VAULT,
+            () -> localRepo.writeFile(VAULT, mergedContent));
+
+        assertTrue(result.isSuccess());
+        assertEquals("merged", result.getMessage());
+        assertTrue(remoteRepo.uploadCalled, "File should have been uploaded after save");
+        assertEquals(mergedContent, remoteRepo.files.get(VAULT),
+            "Remote should contain the merged content");
+        assertEquals("synced", service.getSyncStatus());
+        assertTrue(service.getLastSyncTime() > 0);
+    }
+
+    @Test
+    void syncAfterMerge_saveFails_skipsUpload() {
+        SyncService.SyncResult result = service.syncAfterMerge(VAULT,
+            () -> { throw new IOException("Disk full"); });
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("save failed"));
+        assertFalse(remoteRepo.uploadCalled, "Upload must be skipped when save fails");
+        assertEquals("error", service.getSyncStatus());
+    }
+
+    @Test
+    void syncAfterMerge_saveSucceeds_uploadFails_returnsError() throws IOException {
+        String mergedContent = "{\"entries\":[{\"merged\":true}]}";
+        remoteRepo.failOnConnect = true;
+
+        SyncService.SyncResult result = service.syncAfterMerge(VAULT,
+            () -> localRepo.writeFile(VAULT, mergedContent));
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().startsWith("error:"));
+        // The merged vault should still be saved locally even though upload failed
+        assertEquals(mergedContent, localRepo.readFile(VAULT));
+        assertEquals("error", service.getSyncStatus());
+    }
+
+    @Test
+    void syncAfterMerge_noRemote_returnsError() {
+        SyncService localOnly = new SyncService(localRepo, null, StorageMode.REMOTE);
+        SyncService.SyncResult result = localOnly.syncAfterMerge(VAULT,
+            () -> localRepo.writeFile(VAULT, "{\"entries\":[]}"));
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("no remote configured"));
+    }
+
+    @Test
+    void syncAfterMerge_uploadsCurrentContent_notStaleFile() throws IOException {
+        // Simulate stale file on disk
+        String staleContent = "{\"entries\":[{\"stale\":true}]}";
+        localRepo.writeFile(VAULT, staleContent);
+
+        // Merge produces new content
+        String mergedContent = "{\"entries\":[{\"stale\":true},{\"new\":true}]}";
+
+        SyncService.SyncResult result = service.syncAfterMerge(VAULT,
+            () -> localRepo.writeFile(VAULT, mergedContent));
+
+        assertTrue(result.isSuccess());
+        assertEquals(mergedContent, remoteRepo.files.get(VAULT),
+            "Remote must contain the merged content, not the stale pre-merge content");
+    }
+
+    // ---------------------------------------------------------------
     // testConnection()
     // ---------------------------------------------------------------
 

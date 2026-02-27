@@ -1,6 +1,6 @@
 package com.passwordmanager.sync;
 
-import com.passwordmanager.vault.VaultEntry;
+import com.passwordmanager.vault.PasswordEntry;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -12,11 +12,11 @@ class EntryMergerTest {
 
     @Test
     void entriesOnlyInLocalAreKept() {
-        VaultEntry local = new VaultEntry("Local Only", "u", "p".toCharArray(), "", "", "Cat", null);
-        List<VaultEntry> localList = new ArrayList<>(List.of(local));
-        List<VaultEntry> remoteList = new ArrayList<>();
+        PasswordEntry local = new PasswordEntry("Local Only", "u", "p".toCharArray(), "", "", "Cat", null);
+        List<PasswordEntry> localList = new ArrayList<>(List.of(local));
+        List<PasswordEntry> remoteList = new ArrayList<>();
 
-        EntryMerger.MergeResult result = EntryMerger.merge(localList, remoteList);
+        EntryMerger.MergeResult<PasswordEntry> result = EntryMerger.merge(localList, remoteList);
         assertEquals(1, result.getMergedEntries().size());
         assertEquals("Local Only", result.getMergedEntries().get(0).getTitle());
         assertFalse(result.hasConflicts());
@@ -24,11 +24,11 @@ class EntryMergerTest {
 
     @Test
     void entriesOnlyInRemoteAreAdded() {
-        VaultEntry remote = new VaultEntry("Remote Only", "u", "p".toCharArray(), "", "", "Cat", null);
-        List<VaultEntry> localList = new ArrayList<>();
-        List<VaultEntry> remoteList = new ArrayList<>(List.of(remote));
+        PasswordEntry remote = new PasswordEntry("Remote Only", "u", "p".toCharArray(), "", "", "Cat", null);
+        List<PasswordEntry> localList = new ArrayList<>();
+        List<PasswordEntry> remoteList = new ArrayList<>(List.of(remote));
 
-        EntryMerger.MergeResult result = EntryMerger.merge(localList, remoteList);
+        EntryMerger.MergeResult<PasswordEntry> result = EntryMerger.merge(localList, remoteList);
         assertEquals(1, result.getMergedEntries().size());
         assertEquals("Remote Only", result.getMergedEntries().get(0).getTitle());
         assertFalse(result.hasConflicts());
@@ -36,16 +36,16 @@ class EntryMergerTest {
 
     @Test
     void sameUpdatedAtKeepsLocal() {
-        VaultEntry local = new VaultEntry("Shared", "localUser", "p".toCharArray(), "", "", "Cat", null);
+        PasswordEntry local = new PasswordEntry("Shared", "localUser", "p".toCharArray(), "", "", "Cat", null);
         local.setUpdatedAt("2024-06-01T00:00:00Z");
-        VaultEntry remote = new VaultEntry("Shared", "remoteUser", "p".toCharArray(), "", "", "Cat", null);
+        PasswordEntry remote = new PasswordEntry("Shared", "remoteUser", "p".toCharArray(), "", "", "Cat", null);
         remote.setId(local.getId());
         remote.setUpdatedAt("2024-06-01T00:00:00Z");
 
-        List<VaultEntry> localList = new ArrayList<>(List.of(local));
-        List<VaultEntry> remoteList = new ArrayList<>(List.of(remote));
+        List<PasswordEntry> localList = new ArrayList<>(List.of(local));
+        List<PasswordEntry> remoteList = new ArrayList<>(List.of(remote));
 
-        EntryMerger.MergeResult result = EntryMerger.merge(localList, remoteList);
+        EntryMerger.MergeResult<PasswordEntry> result = EntryMerger.merge(localList, remoteList);
         assertEquals(1, result.getMergedEntries().size());
         assertEquals("localUser", result.getMergedEntries().get(0).getUsername());
         assertFalse(result.hasConflicts());
@@ -53,16 +53,16 @@ class EntryMergerTest {
 
     @Test
     void differentUpdatedAtCreatesConflict() {
-        VaultEntry local = new VaultEntry("Shared", "localUser", "p".toCharArray(), "", "", "Cat", null);
+        PasswordEntry local = new PasswordEntry("Shared", "localUser", "p".toCharArray(), "", "", "Cat", null);
         local.setUpdatedAt("2024-06-01T00:00:00Z");
-        VaultEntry remote = new VaultEntry("Shared", "remoteUser", "p".toCharArray(), "", "", "Cat", null);
+        PasswordEntry remote = new PasswordEntry("Shared", "remoteUser", "p".toCharArray(), "", "", "Cat", null);
         remote.setId(local.getId());
         remote.setUpdatedAt("2024-06-02T00:00:00Z");
 
-        List<VaultEntry> localList = new ArrayList<>(List.of(local));
-        List<VaultEntry> remoteList = new ArrayList<>(List.of(remote));
+        List<PasswordEntry> localList = new ArrayList<>(List.of(local));
+        List<PasswordEntry> remoteList = new ArrayList<>(List.of(remote));
 
-        EntryMerger.MergeResult result = EntryMerger.merge(localList, remoteList);
+        EntryMerger.MergeResult<PasswordEntry> result = EntryMerger.merge(localList, remoteList);
         assertTrue(result.hasConflicts());
         assertEquals(1, result.getConflicts().size());
         assertEquals("localUser", result.getConflicts().get(0).getLocalEntry().getUsername());
@@ -71,18 +71,18 @@ class EntryMergerTest {
 
     @Test
     void mergeMultipleEntries() {
-        VaultEntry localOnly = new VaultEntry("LocalOnly", "u1", "p".toCharArray(), "", "", "Cat", null);
-        VaultEntry shared = new VaultEntry("Shared", "u2", "p".toCharArray(), "", "", "Cat", null);
+        PasswordEntry localOnly = new PasswordEntry("LocalOnly", "u1", "p".toCharArray(), "", "", "Cat", null);
+        PasswordEntry shared = new PasswordEntry("Shared", "u2", "p".toCharArray(), "", "", "Cat", null);
         shared.setUpdatedAt("2024-06-01T00:00:00Z");
-        VaultEntry remoteOnly = new VaultEntry("RemoteOnly", "u3", "p".toCharArray(), "", "", "Cat", null);
-        VaultEntry sharedRemote = new VaultEntry("Shared", "u2remote", "p".toCharArray(), "", "", "Cat", null);
+        PasswordEntry remoteOnly = new PasswordEntry("RemoteOnly", "u3", "p".toCharArray(), "", "", "Cat", null);
+        PasswordEntry sharedRemote = new PasswordEntry("Shared", "u2remote", "p".toCharArray(), "", "", "Cat", null);
         sharedRemote.setId(shared.getId());
         sharedRemote.setUpdatedAt("2024-06-01T00:00:00Z");
 
-        List<VaultEntry> localList = new ArrayList<>(List.of(localOnly, shared));
-        List<VaultEntry> remoteList = new ArrayList<>(List.of(sharedRemote, remoteOnly));
+        List<PasswordEntry> localList = new ArrayList<>(List.of(localOnly, shared));
+        List<PasswordEntry> remoteList = new ArrayList<>(List.of(sharedRemote, remoteOnly));
 
-        EntryMerger.MergeResult result = EntryMerger.merge(localList, remoteList);
+        EntryMerger.MergeResult<PasswordEntry> result = EntryMerger.merge(localList, remoteList);
         assertEquals(3, result.getMergedEntries().size());
         assertFalse(result.hasConflicts());
     }

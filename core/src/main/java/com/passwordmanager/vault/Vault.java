@@ -19,7 +19,9 @@ public class Vault {
     private String user;
     private String createdAt;
     private String updatedAt;
-    private List<VaultEntry> entries;
+    private List<PasswordEntry> entries;
+    private List<AppEntry> appEntries;
+    private List<CardEntry> cardEntries;
     private List<String> categories;
     private Map<String, Object> settings;
 
@@ -27,6 +29,8 @@ public class Vault {
     @SuppressWarnings("unused")
     private Vault() {
         this.entries = new ArrayList<>();
+        this.appEntries = new ArrayList<>();
+        this.cardEntries = new ArrayList<>();
         this.categories = new ArrayList<>();
         this.settings = new HashMap<>();
     }
@@ -42,6 +46,8 @@ public class Vault {
         this.createdAt = now;
         this.updatedAt = now;
         this.entries = new ArrayList<>();
+        this.appEntries = new ArrayList<>();
+        this.cardEntries = new ArrayList<>();
         this.categories = new ArrayList<>(defaultCategories);
         this.settings = new HashMap<>();
         this.settings.put("auto_lock_minutes", 15);
@@ -54,10 +60,22 @@ public class Vault {
      */
     public void wipe() {
         if (entries != null) {
-            for (VaultEntry entry : entries) {
+            for (PasswordEntry entry : entries) {
                 entry.wipe();
             }
             entries.clear();
+        }
+        if (appEntries != null) {
+            for (AppEntry entry : appEntries) {
+                entry.wipe();
+            }
+            appEntries.clear();
+        }
+        if (cardEntries != null) {
+            for (CardEntry entry : cardEntries) {
+                entry.wipe();
+            }
+            cardEntries.clear();
         }
         if (categories != null) {
             categories.clear();
@@ -80,19 +98,54 @@ public class Vault {
     public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
     /**
      * Returns a read-only view of the entries list.
-     * Use {@link #addEntry(VaultEntry)} and {@link #removeEntry(VaultEntry)} for mutations.
+     * Use {@link #addEntry(PasswordEntry)} and {@link #removeEntry(PasswordEntry)} for mutations.
      */
-    public List<VaultEntry> getEntries() {
+    public List<PasswordEntry> getEntries() {
         return Collections.unmodifiableList(entries);
     }
     /**
      * Direct mutable access — callers MUST hold VaultService's synchronized lock
      * when iterating or modifying. Used by Gson deserialization and bulk operations.
      */
-    public List<VaultEntry> getEntriesMutable() { return entries; }
-    public synchronized void addEntry(VaultEntry entry) { entries.add(entry); }
-    public synchronized boolean removeEntry(VaultEntry entry) { return entries.remove(entry); }
-    public void setEntries(List<VaultEntry> entries) { this.entries = entries; }
+    public List<PasswordEntry> getEntriesMutable() { return entries; }
+    public synchronized void addEntry(PasswordEntry entry) { entries.add(entry); }
+    public synchronized boolean removeEntry(PasswordEntry entry) { return entries.remove(entry); }
+    public void setEntries(List<PasswordEntry> entries) { this.entries = entries; }
+
+    /** Returns a read-only view of the app entries list. Null-safe for vaults loaded without this field. */
+    public List<AppEntry> getAppEntries() {
+        return Collections.unmodifiableList(appEntries != null ? appEntries : Collections.emptyList());
+    }
+    public List<AppEntry> getAppEntriesMutable() {
+        if (appEntries == null) appEntries = new ArrayList<>();
+        return appEntries;
+    }
+    public synchronized void addAppEntry(AppEntry entry) {
+        if (appEntries == null) appEntries = new ArrayList<>();
+        appEntries.add(entry);
+    }
+    public synchronized boolean removeAppEntry(AppEntry entry) {
+        return appEntries != null && appEntries.remove(entry);
+    }
+    public void setAppEntries(List<AppEntry> appEntries) { this.appEntries = appEntries; }
+
+    /** Returns a read-only view of the card entries list. Null-safe for vaults loaded without this field. */
+    public List<CardEntry> getCardEntries() {
+        return Collections.unmodifiableList(cardEntries != null ? cardEntries : Collections.emptyList());
+    }
+    public List<CardEntry> getCardEntriesMutable() {
+        if (cardEntries == null) cardEntries = new ArrayList<>();
+        return cardEntries;
+    }
+    public synchronized void addCardEntry(CardEntry entry) {
+        if (cardEntries == null) cardEntries = new ArrayList<>();
+        cardEntries.add(entry);
+    }
+    public synchronized boolean removeCardEntry(CardEntry entry) {
+        return cardEntries != null && cardEntries.remove(entry);
+    }
+    public void setCardEntries(List<CardEntry> cardEntries) { this.cardEntries = cardEntries; }
+
     public List<String> getCategories() { return categories; }
     public void setCategories(List<String> categories) { this.categories = categories; }
     public Map<String, Object> getSettings() { return settings; }

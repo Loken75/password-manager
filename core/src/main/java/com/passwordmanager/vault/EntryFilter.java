@@ -29,7 +29,7 @@ public class EntryFilter {
      * Tests whether the given entry matches all configured filter criteria.
      * All non-null criteria are combined with AND logic.
      */
-    public boolean matches(VaultEntry entry) {
+    public boolean matches(PasswordEntry entry) {
         if (entry == null) return false;
 
         // Category filter

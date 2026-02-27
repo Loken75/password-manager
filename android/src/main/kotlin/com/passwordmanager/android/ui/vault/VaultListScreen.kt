@@ -25,6 +25,7 @@ import com.passwordmanager.android.ui.components.ConfirmDialog
 import com.passwordmanager.android.ui.components.EntryCard
 import com.passwordmanager.android.ui.components.ExportDialog
 import com.passwordmanager.android.ui.components.ImportDialog
+import com.passwordmanager.android.ui.sync.ConflictResolutionScreen
 import com.passwordmanager.vault.SortField
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,6 +94,7 @@ fun VaultListScreen(
     val passwordCopiedStr = stringResource(R.string.password_copied)
     val syncSuccessStr = stringResource(R.string.sync_success)
     val syncErrorStr = stringResource(R.string.sync_error)
+    val syncAutoMergedStr = stringResource(R.string.sync_merge_auto_merged)
 
     // Handle messages
     LaunchedEffect(state.message) {
@@ -108,6 +110,7 @@ fun VaultListScreen(
                 msg == "password_copied" -> passwordCopiedStr
                 msg == "sync_success" -> syncSuccessStr
                 msg == "sync_error" -> syncErrorStr
+                msg == "sync_merge_auto" -> syncAutoMergedStr
                 else -> msg
             }
             snackbarHostState.showSnackbar(text)
@@ -570,6 +573,15 @@ fun VaultListScreen(
                 viewModel.bulkChangeCategory(category)
                 showBulkCategoryDialog = false
             }
+        )
+    }
+
+    // Sync merge conflict resolution (full-screen dialog)
+    if (state.passwordConflicts.isNotEmpty()) {
+        ConflictResolutionScreen(
+            conflicts = state.passwordConflicts,
+            onResolve = { resolutions -> viewModel.resolvePasswordConflicts(resolutions) },
+            onBack = { viewModel.dismissConflicts() }
         )
     }
 }

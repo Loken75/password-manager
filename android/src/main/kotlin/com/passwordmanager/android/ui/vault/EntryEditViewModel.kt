@@ -2,7 +2,7 @@ package com.passwordmanager.android.ui.vault
 
 import androidx.lifecycle.ViewModel
 import com.passwordmanager.android.data.SessionHolder
-import com.passwordmanager.vault.VaultEntry
+import com.passwordmanager.vault.PasswordEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -109,7 +109,7 @@ class EntryEditViewModel @Inject constructor(
             service.updateEntry(existing)
         } else {
             // New entry
-            val entry = VaultEntry(
+            val entry = PasswordEntry(
                 state.title,
                 state.username,
                 state.email,

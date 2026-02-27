@@ -202,10 +202,66 @@ public class SyncService {
      * The caller must handle decryption/re-encryption externally.
      * Package-private so the UI layer (MainFrame) can call it after decrypting both vaults.
      */
-    public EntryMerger.MergeResult mergeEntries(
-            java.util.List<com.passwordmanager.vault.VaultEntry> local,
-            java.util.List<com.passwordmanager.vault.VaultEntry> remote) {
+    public <T extends com.passwordmanager.vault.VaultItem> EntryMerger.MergeResult<T> mergeEntries(
+            java.util.List<T> local,
+            java.util.List<T> remote) {
         return EntryMerger.merge(local, remote);
+    }
+
+    /**
+     * Saves the merged vault to disk and then uploads it to the remote server.
+     * <p>
+     * This method enforces the correct ordering after a merge: the vault must be
+     * persisted to disk <em>before</em> the file is uploaded. If the save action
+     * fails, the upload is skipped so that a stale pre-merge file is never pushed
+     * to the remote.
+     *
+     * @param vaultFilename the vault file name (e.g. "vault_user.enc")
+     * @param saveAction    callback that persists the merged vault to disk;
+     *                      must throw on failure so the upload is skipped
+     * @return sync result indicating success or the reason for failure
+     */
+    public SyncResult syncAfterMerge(String vaultFilename, VaultSaveAction saveAction) {
+        synchronized (lock) {
+            // 1. Save the merged vault to disk first
+            try {
+                saveAction.save();
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "Failed to save merged vault before upload", e);
+                syncStatus = "error";
+                return new SyncResult(false, "error: save failed - " + e.getMessage());
+            }
+
+            // 2. Upload the freshly-saved file to the remote server
+            if (remoteRepo == null) {
+                return new SyncResult(false, "error: no remote configured");
+            }
+            try {
+                remoteRepo.connect();
+                String localPath = localRepo.getFilePath(vaultFilename);
+                remoteRepo.uploadFile(localPath, vaultFilename);
+                lastSyncTime = System.currentTimeMillis();
+                syncStatus = "synced";
+                return new SyncResult(true, "merged");
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "Upload after merge failed", e);
+                syncStatus = "error";
+                return new SyncResult(false, "error: " + e.getMessage());
+            } finally {
+                if (remoteRepo != null) remoteRepo.disconnect();
+            }
+        }
+    }
+
+    /**
+     * Functional interface for the vault save operation passed to
+     * {@link #syncAfterMerge(String, VaultSaveAction)}.
+     * Declared as a checked-exception interface so callers can propagate
+     * {@link IOException} or encryption errors without wrapping.
+     */
+    @FunctionalInterface
+    public interface VaultSaveAction {
+        void save() throws Exception;
     }
 
     public boolean testConnection() {

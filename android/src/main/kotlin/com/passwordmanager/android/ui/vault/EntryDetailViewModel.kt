@@ -3,7 +3,7 @@ package com.passwordmanager.android.ui.vault
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.passwordmanager.android.data.SessionHolder
-import com.passwordmanager.vault.VaultEntry
+import com.passwordmanager.vault.PasswordEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class EntryDetailUiState(
-    val entry: VaultEntry? = null,
+    val entry: PasswordEntry? = null,
     val passwordVisible: Boolean = false
 )
 

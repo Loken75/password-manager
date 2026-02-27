@@ -1,30 +1,36 @@
 # Password Manager
 
-Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et protege vos identifiants dans un coffre-fort chiffre AES-256-GCM avec chiffrement par enveloppe DEK/KEK. Disponible sur **desktop** (Windows, Linux, macOS) et **Android**. Interface bilingue francais/anglais.
+Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et protege vos identifiants, codes PIN d'applications et cartes bancaires dans un coffre-fort chiffre AES-256-GCM avec chiffrement par enveloppe DEK/KEK. Disponible sur **desktop** (Windows, Linux, macOS) et **Android**. Interface a onglets bilingue francais/anglais.
 
 ## Fonctionnalites
 
+- **3 types d'entrees** dans des onglets dedies :
+  - **Mots de passe** : identifiant, email, pseudo, mot de passe, URL, categorie, tags
+  - **Applications** : nom d'utilisateur et code PIN
+  - **Cartes bancaires** : titulaire, numero, date d'expiration, CVV, code PIN, type (Visa/Mastercard/Amex/CB/Autre)
 - Coffre-fort chiffre par utilisateur (AES-256-GCM avec AAD, PBKDF2 600 000 iterations)
 - Chiffrement par enveloppe DEK/KEK (changement de mot de passe instantane)
 - Generateur de mots de passe cryptographiquement sur (SecureRandom)
-- Analyse de securite (mots de passe faibles, reutilises, anciens, **compromis HIBP**)
-- Systeme de **favoris** avec tri prioritaire et operations en masse
-- **Filtres avances** combinables (categorie, force, date, favoris, recherche textuelle)
+- Analyse de securite (mots de passe faibles, reutilises, anciens, **compromis HIBP**) — s'applique aux mots de passe uniquement
+- Systeme de **favoris** avec tri prioritaire et operations en masse (tous types d'entrees)
+- **Filtres avances** combinables (categorie, force, date, favoris, recherche textuelle) — categories et tags exclusifs aux mots de passe
 - **Favicons** des sites web (Google Favicon API + cache disque)
-- Import/export unifie (CSV, JSON, coffre chiffre) avec popup parametrable et import par fusion
-- Synchronisation SFTP **bidirectionnelle** avec fusion par entree et resolution de conflits
-- Interface bilingue francais / anglais
+- Import/export unifie (CSV, JSON, coffre chiffre) avec popup parametrable et import par fusion — CSV avec colonne `type` (retrocompatible), JSON gere les 3 listes automatiquement, CSV conforme RFC 4180
+- Synchronisation SFTP **bidirectionnelle** avec fusion par entree et resolution de conflits (tous types d'entrees)
+- Interface a onglets bilingue francais / anglais
 - Themes Systeme, Clair et Sombre
 - Verrouillage automatique apres inactivite
 - Effacement securise du presse-papiers (`SecureClipboard` avec `char[]`, efface a la perte de propriete)
 - Protection anti brute-force sur l'ecran de connexion
 - Verification semi-automatique des mises a jour via l'API GitHub Releases
+- **Desktop** : JTabbedPane avec 3 onglets (Mots de passe, Applications, Cartes)
 - **Desktop** : distribution autonome avec JRE embarque (aucune installation Java requise)
 - **Desktop** : selection multiple, menu "Actions..." (suppression, categorie, favoris en masse) et menu contextuel (clic droit)
 - **Desktop** : boutons de copie en ligne dans le panneau de details (identifiant, email, pseudo, mot de passe, URL)
 - **Android** : application native Jetpack Compose / Material 3 avec injection de dependances Hilt (APK)
+- **Android** : HorizontalPager avec TabRow (3 onglets)
 - **Android** : gestion des categories (ajout, suppression avec reassignation)
-- **Android** : service d'auto-remplissage (Autofill API 26+)
+- **Android** : service d'auto-remplissage (Autofill API 26+) — s'applique aux mots de passe uniquement
 - **Android** : verrouillage automatique a l'extinction de l'ecran
 
 ---
@@ -142,9 +148,9 @@ Apres connexion, l'interface se compose de :
 
 - **Barre de menus** : Fichier, Edition, Affichage, Outils, Aide
 - **Barre d'outils** : Nouvelle entree, Generateur, Synchroniser, Verrouiller
-- **Panneau gauche** (180 px) : liste des categories avec filtrage au clic
-- **Panneau central** : barre de recherche en temps reel + filtres avances (le filtre favoris s'applique meme quand le panneau de filtres est replie) + tableau des entrees (Favori ★, Titre avec favicon, Identifiant, Email, Pseudo, Categorie, Force) avec tri par clic sur tous les en-tetes de colonnes (y compris Favori et Force) + menu "Actions..." en masse (visible quand >1 entree selectionnee)
-- **Panneau droit** (300 px) : details de l'entree selectionnee avec boutons copier en ligne (identifiant, email, pseudo, mot de passe, URL)
+- **Panneau gauche** (180 px) : liste des categories avec filtrage au clic (mots de passe uniquement)
+- **Panneau central** : JTabbedPane avec 3 onglets (**Mots de passe**, **Applications**, **Cartes bancaires**) + barre de recherche en temps reel + filtres avances (le filtre favoris s'applique meme quand le panneau de filtres est replie) + tableau des entrees avec tri par clic sur les en-tetes de colonnes + menu "Actions..." en masse (visible quand >1 entree selectionnee)
+- **Panneau droit** (300 px) : details de l'entree selectionnee avec boutons copier en ligne (champs adaptes au type d'entree)
 - **Menu contextuel** (clic droit) : modifier, supprimer, copier mot de passe/identifiant/email/URL, ouvrir l'URL, dupliquer
 - **Barre de notification** : mise a jour disponible (barre jaune en haut, masquable)
 - **Barre de statut** : statut de synchronisation, utilisateur connecte, nombre d'entrees (mis a jour dynamiquement)
@@ -154,41 +160,46 @@ Apres connexion, l'interface se compose de :
 Apres connexion, l'interface se compose de :
 
 - **TopAppBar** : titre, recherche, tri (9 criteres), menu (import/export, sync, audit, parametres, verrouiller)
-- **Dropdown categories** pour le filtrage par categorie
-- **Liste scrollable** des entrees avec favicon (ou avatar lettre), URL en sous-titre, etoile favori, indicateur de force et selection multiple (appui long) avec menu "Actions..." (suppression, categorie, favoris en masse)
-- **FAB** pour nouvelle entree
+- **TabRow + HorizontalPager** : 3 onglets (**Mots de passe**, **Applications**, **Cartes bancaires**)
+- **Dropdown categories** pour le filtrage par categorie (onglet mots de passe uniquement)
+- **Liste scrollable** des entrees avec favicon (ou avatar lettre), etoile favori, indicateur de force (mots de passe) et selection multiple (appui long) avec menu "Actions..." (suppression, categorie, favoris en masse)
+- **FAB** pour nouvelle entree (adapte au type de l'onglet actif)
 - **Notification** de mise a jour disponible au lancement (dialog avec lien vers la release GitHub)
-- **Navigation** : ecrans detail (URL cliquable), edition (identifiant, email, pseudo), generateur, parametres (SFTP, gestion des categories), audit
+- **Navigation** : ecrans detail (champs adaptes au type), edition, generateur, parametres (SFTP, gestion des categories), audit (mots de passe uniquement)
 
 ### Fonctionnalites communes
 
 | Fonctionnalite | Desktop | Android |
 |---|---|---|
-| CRUD entrees | Oui | Oui |
-| Favoris (etoile, tri prioritaire) | Oui | Oui |
+| Interface a onglets (3 types d'entrees) | Oui (JTabbedPane) | Oui (TabRow + HorizontalPager) |
+| Mots de passe (identifiant, email, URL, categorie, tags) | Oui | Oui |
+| Applications (nom d'utilisateur, code PIN) | Oui | Oui |
+| Cartes bancaires (titulaire, numero, expiration, CVV, PIN, type) | Oui | Oui |
+| CRUD entrees (tous types) | Oui | Oui |
+| Favoris (etoile, tri prioritaire, tous types) | Oui | Oui |
 | Filtres avances (categorie, force, date, favoris) | Oui | Oui |
 | Favicons des sites web | Oui | Oui |
 | Generateur de mots de passe | Oui | Oui |
-| Analyse de securite + HIBP | Oui | Oui |
+| Analyse de securite + HIBP (mots de passe uniquement) | Oui | Oui |
 | Import/export unifie (CSV/JSON/chiffre) | Oui | Oui (via SAF) |
-| Recherche et tri (9 criteres) | Oui | Oui |
-| Selection multiple + actions en masse | Oui (menu "Actions...") | Oui |
+| Recherche et tri (9 criteres, tous types) | Oui | Oui |
+| Selection multiple + actions en masse (tous types) | Oui (menu "Actions...") | Oui |
 | Menu contextuel (clic droit) | Oui | Non |
-| Gestion des categories | Oui | Oui (ecran dedie) |
+| Gestion des categories (mots de passe uniquement) | Oui | Oui (ecran dedie) |
 | Verification des mises a jour | Oui (auto + manuel) | Oui (au lancement) |
 | Themes Systeme/Clair/Sombre | Oui (FlatLaf) | Oui (Material 3 / Dynamic Colors) |
 | Verrouillage automatique | Oui | Oui |
 | Verrouillage ecran eteint | Non | Oui |
-| Synchronisation SFTP bidirectionnelle | Oui | Oui |
-| Resolution de conflits (fusion par entree) | Oui | Oui |
-| Service d'auto-remplissage (Autofill) | Non | Oui (API 26+) |
+| Synchronisation SFTP bidirectionnelle (tous types) | Oui | Oui |
+| Resolution de conflits (fusion par entree, tous types) | Oui | Oui |
+| Service d'auto-remplissage (mots de passe uniquement) | Non | Oui (API 26+) |
 | URL cliquable dans le detail | Oui | Oui |
 
 ### Generateur de mots de passe
 
 Options : longueur (8-128), majuscules, minuscules, chiffres, caracteres speciaux, exclusion des caracteres ambigus (0/O, 1/l/I). Garantit au moins un caractere de chaque type active.
 
-### Analyse de securite
+### Analyse de securite (mots de passe uniquement)
 
 Genere un rapport sur :
 
@@ -203,7 +214,7 @@ Indicateur de force : Faible (rouge), Moyen (orange), Fort (vert), Tres fort (bl
 
 ## Import / Export
 
-Import et export unifies via une popup parametrable proposant 3 formats : **CSV**, **JSON** et **coffre chiffre (.enc)**. Detection automatique du separateur (`,` ou `;`) et des colonnes via alias multilingues (incluant email et pseudo). Limite : 10 000 entrees par import. Pour CSV et JSON, les donnees exportees ne sont **pas chiffrees** (avertissement affiche). Protection anti-injection de formules pour les tableurs. L'import d'un coffre chiffre demande le mot de passe maitre du coffre source (avec option afficher/masquer). L'import fonctionne par **fusion** : les entrees importees sont ajoutees au coffre existant sans ecraser les donnees en place.
+Import et export unifies via une popup parametrable proposant 3 formats : **CSV**, **JSON** et **coffre chiffre (.enc)**. Les 3 types d'entrees sont geres : le CSV inclut une colonne `type` pour distinguer mots de passe, applications et cartes (retrocompatible : un CSV sans colonne `type` est importe comme mots de passe) ; le JSON gere automatiquement les 3 listes. Parseur CSV conforme **RFC 4180** (supporte les retours a la ligne entre guillemets). Types de cartes stockes en cles internes (independants de la langue). Detection automatique du separateur (`,` ou `;`) et des colonnes via alias multilingues (incluant email et pseudo). Limite : 10 000 entrees par import. Pour CSV et JSON, les donnees exportees ne sont **pas chiffrees** (avertissement affiche). Protection anti-injection de formules pour les tableurs. L'import d'un coffre chiffre demande le mot de passe maitre du coffre source (avec option afficher/masquer). L'import fonctionne par **fusion** : les entrees importees sont ajoutees au coffre existant sans ecraser les donnees en place.
 
 Sur Android, l'import/export utilise le Storage Access Framework (SAF) — selecteur de fichiers systeme.
 
@@ -213,10 +224,10 @@ Sur Android, l'import/export utilise le Storage Access Framework (SAF) — selec
 
 Disponible sur **desktop** et **Android**.
 
-- Synchronisation **bidirectionnelle** avec fusion par entree (`EntryMerger`)
+- Synchronisation **bidirectionnelle** avec fusion par entree (`EntryMerger` generique, tous types)
 - Comparaison par empreinte SHA-256 (local vs distant)
 - Mode hors-ligne : modifications mises en attente automatiquement (fichier `.pending`, desktop)
-- Resolution de conflits interactive : vue cote-a-cote local/distant par entree (`ConflictResolutionDialog`)
+- Resolution de conflits interactive : vue cote-a-cote local/distant par entree avec champs adaptes au type (`ConflictResolutionDialog`)
 - Fusion automatique si aucun conflit (entrees uniquement locales + uniquement distantes)
 - Authentification par cle SSH uniquement
 - `StrictHostKeyChecking` active (`yes` avec known_hosts, ou `accept-new` pour la premiere connexion)
@@ -273,7 +284,7 @@ DEK (Data Encryption Key) -- AES-256, 32 octets aleatoires
 | Mots de passe en `char[]` | Jamais de `String`, effacement explicite via `SecureWiper` |
 | Barriere anti-optimisation | Lecture volatile par accumulateur sur tout le tableau apres `Arrays.fill()` (empeche le JIT dead-store elimination) |
 | GCM AAD | Le chiffrement AES-256-GCM des donnees du coffre lie la version (`"2.0"`) en tant qu'Additional Authenticated Data, empechant la substitution de parametres |
-| Copies defensives | `VaultEntry.getPassword()` et `VaultSession.getSalt/getKekIv/getEncryptedDek()` retournent des clones |
+| Copies defensives | `PasswordEntry.getPassword()` et `VaultSession.getSalt/getKekIv/getEncryptedDek()` retournent des clones |
 | Nettoyage de session | `VaultSession` implemente `Destroyable` et `AutoCloseable` |
 | Presse-papiers securise | `SecureClipboard` (desktop) : stocke en `char[]` via `Transferable` personnalise, efface sur `lostOwnership()` |
 | Presse-papiers sensible | Flag `EXTRA_IS_SENSITIVE` (Android 13+) pour masquer le contenu copie |
@@ -318,9 +329,11 @@ Par conception, aucun mecanisme de recuperation du mot de passe maitre n'existe.
 password-manager/
 |-- core/                              # Logique metier partagee (Java 17)
 |   +-- crypto/                        # CryptoService, KeyDerivation, VaultSession, PasswordGenerator
-|   +-- vault/                         # Vault, VaultEntry, VaultManager, VaultService, EntryFilter
+|   +-- vault/                         # VaultItem (abstract), PasswordEntry, AppEntry, CardEntry, CardType
+|   |                                  # Vault, BaseVaultService, PasswordService, AppService, CardService
+|   |                                  # VaultManager, EntryFilter, VaultImporter, VaultExporter
 |   +-- security/                      # HibpChecker (detection de mots de passe compromis)
-|   +-- sync/                          # EntryMerger (fusion bidirectionnelle par entree)
+|   +-- sync/                          # EntryMerger (fusion bidirectionnelle generique, tous types)
 |   +-- config/                        # AppConfig, ConfigManager, ConfigEncryptor
 |   +-- update/                        # UpdateChecker, UpdateInfo, VersionComparator
 |   +-- util/                          # SecureWiper, FileSecurityUtils, PasswordValidator, FaviconService
@@ -341,38 +354,40 @@ password-manager/
 
 ### Tests
 
-**300 tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
+**340+ tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
 
 | Module | Classe de test | Tests | Description |
 |---|---|:---:|---|
-| vault | `VaultServiceTest` | 35 | CRUD, recherche, tri, favoris, filtre, doublons, categories, timestamps, mots de passe anciens |
+| vault | `PasswordServiceTest` | 35 | CRUD mots de passe, recherche, tri, favoris, filtre, doublons, categories, timestamps |
 | security | `SecurityAuditTest` | 31 | IV, KDF, memoire, permissions, format, import/export, generateur |
-| sync | `SyncServiceTest` | 23 | Synchronisation, hash, conflits, mode hors-ligne |
-| vault | `VaultImporterTest` | 20 | CSV (separateurs, alias, BOM, sanitisation, favoris), JSON, limites |
+| sync | `SyncServiceTest` | 23 | Synchronisation, hash, conflits, mode hors-ligne (tous types) |
+| vault | `VaultImporterTest` | 22 | CSV (separateurs, alias, BOM, sanitisation, favoris, colonne type, RFC 4180), JSON multi-types, limites |
 | sync | `LocalRepositoryTest` | 17 | Path traversal, CRUD, pending, backups |
 | vault | `VaultManagerIntegrationTest` | 16 | Cycle complet avec vraie crypto, validation username |
 | util | `PasswordValidatorTest` | 15 | Politique mot de passe maitre, rejet des mots de passe courants |
 | crypto | `CryptoServiceTest` | 14 | Enveloppe DEK/KEK, chiffrement, AAD, changement mdp, tampering, legacy |
+| vault | `AppServiceTest` | 12 | CRUD applications, recherche, tri, favoris |
+| vault | `CardServiceTest` | 12 | CRUD cartes bancaires, recherche, tri, favoris, types de cartes |
 | config | `ConfigEncryptorTest` | 11 | Round-trip, caracteres speciaux, corruption, unicite IV |
 | **android** | `GeneratorViewModelTest` | 11 | Etat initial, generation, longueur, toggles, force, nettoyage |
 | sync | `SFTPRepositoryTest` | 10 | Validation filename sur 4 methodes publiques |
+| vault | `VaultExporterTest` | 11 | CSV multi-types, JSON multi-types, injection, favoris, round-trip |
 | crypto | `PasswordStrengthAnalyzerTest` | 9 | Niveaux de force, score, cas limites |
-| vault | `VaultTest` | 9 | Constructeurs, add/remove, unmodifiable, wipe, settings |
-| vault | `VaultExporterTest` | 9 | CSV, JSON, injection, favoris, round-trip |
+| vault | `VaultTest` | 9 | Constructeurs, add/remove (3 types), unmodifiable, wipe, settings |
 | **android** | `EntryEditViewModelTest` | 8 | Formulaire CRUD, sauvegarde, validation |
 | **android** | `ChangeMasterPasswordViewModelTest` | 7 | Validation, mismatch, nettoyage onCleared |
 | vault | `EntryFilterTest` | 6 | Filtres combines (categorie, force, date, favoris, texte) |
 | i18n | `LanguageManagerTest` | 6 | Singleton, getString, setLanguage, langues disponibles |
 | util | `FaviconServiceTest` | 5 | Extraction domaine, cache disque, favicon null |
 | security | `HibpCheckerTest` | 5 | Null, vide, entree valide, caracteres speciaux, unicode |
-| sync | `EntryMergerTest` | 5 | Fusion locale/distante, conflits, entrees identiques |
+| sync | `EntryMergerTest` | 7 | Fusion locale/distante generique, conflits, entrees identiques (tous types) |
 | **android** | `SecurityAuditViewModelTest` | 5 | Audit vide, faibles, dupliques, anciens, total |
 | **android** | `EntryDetailViewModelTest` | 5 | Chargement, visibilite, suppression |
 | **android** | `SettingsViewModelTest` | 5 | Configuration initiale, theme, langue, auto-lock, clipboard |
 | util | `DateUtilsTest` | 5 | ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance |
-| | | **300** | |
+| | | **~340** | |
 
 ---
 

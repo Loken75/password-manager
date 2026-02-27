@@ -30,12 +30,13 @@ Password Manager est une application multiplateforme (desktop + Android) permett
 - Protection memoire des donnees sensibles (`char[]` + effacement securise)
 - Ecriture atomique des fichiers avec permissions POSIX/ACL restrictives
 - Multi-utilisateurs avec coffres isoles
+- 3 types d'entrees (mots de passe, applications, cartes bancaires)
 - Import/export CSV et JSON avec protection contre l'injection de formules
 - Synchronisation SFTP avec gestion des conflits et mode hors-ligne (desktop + Android)
 - Interface bilingue francais/anglais
 - Themes systeme, clair et sombre
 - Injection de dependances Hilt sur le module Android
-- 300 tests unitaires et d'integration (core, desktop et Android)
+- ~353 tests unitaires et d'integration (core, desktop et Android)
 
 ---
 
@@ -100,24 +101,30 @@ Des scripts de lancement sont fournis dans `scripts/` :
 ```
 :core (Java 17, aucune dependance UI)
   |-- crypto/     CryptoService, KeyDerivation, VaultSession, PasswordGenerator, PasswordStrengthAnalyzer
-  |-- vault/      Vault, VaultEntry, VaultManager, VaultService, VaultImporter, VaultExporter, EntryFilter
+  |-- vault/      Vault, VaultItem (abstract), PasswordEntry, AppEntry, CardEntry, CardType,
+  |               VaultManager, VaultService (facade), BaseVaultService<T>, PasswordService,
+  |               AppService, CardService, VaultImporter, VaultExporter, EntryFilter, SortField
   |-- security/   HibpChecker (k-Anonymity API)
-  |-- sync/       EntryMerger (fusion bidirectionnelle par entree)
+  |-- sync/       EntryMerger (fusion bidirectionnelle generique <T extends VaultItem>)
   |-- config/     AppConfig, ConfigManager, ConfigEncryptor
   |-- update/     UpdateChecker, UpdateInfo, VersionComparator
   |-- util/       SecureWiper, FileSecurityUtils, PasswordValidator, FaviconService
   +-- i18n/       LanguageManager (FR/EN)
 
 :desktop (Java 17, depends on :core)
-  |-- ui/         LoginFrame, MainFrame, VaultPanel, SecureClipboard, ConflictResolutionDialog, ...
-  |-- sync/       SyncService, LocalRepository, SFTPRepository
+  |-- ui/         LoginFrame, MainFrame (JTabbedPane), VaultPanel, AppPanel, CardPanel,
+  |               EntryDialog, AppEntryDialog, CardEntryDialog, SecureClipboard,
+  |               ConflictResolutionDialog (generique VaultItem), ...
+  |-- sync/       SyncService (syncAfterMerge), LocalRepository, SFTPRepository
   +-- update/     DesktopUpdateManager
 
 :android (Kotlin 2.1, depends on :core, Hilt DI)
   |-- autofill/   PasswordManagerAutofillService (API 26+)
   |-- data/       AndroidVaultRepository, AndroidConfigRepository, ConfigRepository, SessionHolder, FaviconRepository
   |-- di/         AppModule (Hilt @Provides @Singleton)
-  |-- ui/         Compose screens + @HiltViewModel (login, vault, generator, settings, audit, sync)
+  |-- ui/         Compose screens + @HiltViewModel (login, vault, app, card, generator, settings, audit, sync)
+  |               VaultTabHost (HorizontalPager 3 onglets), AppListVM, AppEditVM, AppDetailVM,
+  |               CardListVM, CardEditVM, CardDetailVM
   +-- update/     AndroidUpdateManager
 ```
 
@@ -132,17 +139,26 @@ Main
         |     |-- VaultImporter          |-- VaultSession
         |     +-- VaultExporter          +-- EncryptedPayload
         +-- [login] ---> MainFrame (ui)
-              |-- VaultService (vault) ---- Vault ---- VaultEntry[]
-              |-- SyncService (sync)
+              |-- VaultService (facade) ---- Vault ---- PasswordEntry[], AppEntry[], CardEntry[]
+              |     |-- PasswordService
+              |     |-- AppService
+              |     +-- CardService
+              |-- SyncService (sync, syncAfterMerge)
               |     |-- LocalRepository
               |     +-- SFTPRepository
               |-- DesktopUpdateManager (update)
               |     +-- UpdateChecker (core/update)
-              +-- VaultPanel (ui)
-                    |-- EntryDialog
-                    |     +-- PasswordGeneratorDialog
+              +-- JTabbedPane
+                    |-- VaultPanel (onglet mots de passe)
+                    |     |-- EntryDialog
+                    |     |     +-- PasswordGeneratorDialog
+                    |     +-- StrengthBarHelper ---- PasswordStrengthAnalyzer (crypto)
+                    |-- AppPanel (onglet applications)
+                    |     +-- AppEntryDialog
+                    |-- CardPanel (onglet cartes bancaires)
+                    |     +-- CardEntryDialog
                     |-- SettingsDialog
-                    +-- StrengthBarHelper ---- PasswordStrengthAnalyzer (crypto)
+                    +-- ConflictResolutionDialog (generique VaultItem)
 ```
 
 ### 3.3. Diagramme Android
@@ -163,12 +179,24 @@ MainActivity (extends AppCompatActivity, single Activity)
   +-- AppNavigation (NavHost)
         |-- LoginScreen / @HiltViewModel LoginViewModel
         |     +-- @Inject AndroidVaultRepository, SessionHolder
-        |-- VaultListScreen / @HiltViewModel VaultListViewModel
-        |     +-- @Inject SessionHolder, @ApplicationContext
+        |-- VaultListScreen (VaultTabHost + HorizontalPager, 3 onglets)
+        |     |-- VaultListViewModel (@Inject SessionHolder, @ApplicationContext)
+        |     |-- AppListScreen / @HiltViewModel AppListViewModel
+        |     |     +-- @Inject SessionHolder
+        |     +-- CardListScreen / @HiltViewModel CardListViewModel
+        |           +-- @Inject SessionHolder
         |-- EntryDetailScreen / @HiltViewModel EntryDetailViewModel
         |     +-- @Inject SessionHolder
         |-- EntryEditScreen / @HiltViewModel EntryEditViewModel
         |     +-- @Inject SessionHolder (onCleared efface le password)
+        |-- AppDetailScreen / @HiltViewModel AppDetailViewModel
+        |     +-- @Inject SessionHolder
+        |-- AppEditScreen / @HiltViewModel AppEditViewModel
+        |     +-- @Inject SessionHolder (onCleared efface le pin)
+        |-- CardDetailScreen / @HiltViewModel CardDetailViewModel
+        |     +-- @Inject SessionHolder
+        |-- CardEditScreen / @HiltViewModel CardEditViewModel
+        |     +-- @Inject SessionHolder (onCleared efface les donnees sensibles)
         |-- GeneratorScreen / @HiltViewModel GeneratorViewModel
         |     +-- PasswordGenerator.generate()
         |-- SettingsScreen / @HiltViewModel SettingsViewModel
@@ -358,14 +386,23 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 
 | Classe | Role |
 |--------|------|
-| `Vault` | Modele de donnees du coffre (version, utilisateur, entrees, categories, parametres). Constructeur prive no-arg pour la deserialisation Gson (les JRE jlink n'incluent pas `jdk.unsupported` / `sun.misc.Unsafe`) |
-| `VaultEntry` | Entree individuelle (titre, identifiant, email, pseudo, mot de passe `char[]`, URL, notes, categorie, tags, dates) |
-| `VaultManager` | Persistance : creation, chargement, sauvegarde, migration v1->v2, backup, import/export |
-| `VaultService` | Operations metier : CRUD, recherche, tri, filtrage, detection de doublons/anciens mots de passe, operations en masse, gestion des categories. Methodes de mutation `synchronized` |
-| `VaultExporter` | Export CSV/JSON en `char[]` avec protection anti-injection de formules |
-| `VaultImporter` | Import CSV/JSON avec detection automatique du separateur et alias multilingues |
+| `VaultItem` | Classe abstraite de base pour toutes les entrees (id, title, notes, favorite, createdAt, updatedAt, `wipe()`, `equals`/`hashCode` par id) |
+| `PasswordEntry extends VaultItem` | Entree mot de passe (username, email, password `char[]`, url, category, tags) |
+| `AppEntry extends VaultItem` | Entree application (username, pin `char[]`) |
+| `CardEntry extends VaultItem` | Entree carte bancaire (cardholderName, cardNumber `char[]`, expiryDate, cvv `char[]`, cardPin `char[]`, cardType) |
+| `CardType` | Constantes : `VISA`, `MASTERCARD`, `AMEX`, `CB`, `OTHER` + `normalize()` pour la compatibilite legacy |
+| `Vault` | Modele de donnees du coffre (version, utilisateur, 3 listes : `entries` (passwords), `appEntries`, `cardEntries`, categories, parametres). Constructeur prive no-arg pour la deserialisation Gson (les JRE jlink n'incluent pas `jdk.unsupported` / `sun.misc.Unsafe`) |
+| `VaultManager` | Persistance : creation, chargement, sauvegarde, migration v1->v2, backup, import/export. `decryptVaultFile()` pour le dechiffrement d'un coffre externe |
+| `VaultService` | Facade delegant aux 3 sous-services (`PasswordService`, `AppService`, `CardService`). Expose `getPasswordService()`, `getAppService()`, `getCardService()` |
+| `BaseVaultService<T extends VaultItem>` | Service generique : CRUD, recherche, favoris, operations en masse |
+| `PasswordService extends BaseVaultService<PasswordEntry>` | Operations specifiques mots de passe : categories, filtres, doublons, anciens mots de passe |
+| `AppService extends BaseVaultService<AppEntry>` | Operations specifiques applications : recherche sur username |
+| `CardService extends BaseVaultService<CardEntry>` | Operations specifiques cartes : recherche sur cardholderName, cardType |
+| `VaultExporter` | Export CSV/JSON en `char[]` avec protection anti-injection de formules. Export multi-type avec colonne `type` |
+| `VaultImporter` | Import CSV/JSON avec parseur RFC 4180 et support multi-type. Detection automatique du separateur et alias multilingues |
 | `VaultLoadResult` | Objet de valeur : `Vault` + `VaultSession` |
-| `SortField` | Enum : `TITLE`, `USERNAME`, `EMAIL`, `PSEUDO`, `URL`, `DATE`, `CATEGORY`, `FAVORITE`, `STRENGTH` |
+| `SortField` | Enum : `TITLE`, `USERNAME`, `EMAIL`, `PSEUDO`, `URL`, `DATE`, `CATEGORY`, `FAVORITE`, `STRENGTH`, `CARDHOLDER_NAME`, `CARD_TYPE` |
+| `EntryFilter` | Filtres combines explicitement types pour `PasswordEntry` (categorie, force, date, favoris, texte) |
 
 **VaultManager — details :**
 - Format de fichier v2.0 : enveloppe JSON contenant `version`, `kdf`, `kdf_iterations`, `salt`, `kek_iv`, `encrypted_dek`, `data_iv`, `encrypted_data`
@@ -374,34 +411,69 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 - Backup roulant (3 fichiers `.bak` max par utilisateur)
 - `loadVault()` verifie la taille du fichier avant lecture (limite 50 Mo) et valide la presence de tous les champs JSON obligatoires (via `requireJsonField()`) avant decodage
 - `reloadVault()` et `importEncryptedVault()` appliquent la meme validation des champs JSON
+- `decryptVaultFile(String encFilePath, VaultSession session)` : dechiffre un coffre externe avec la session courante et retourne le `Vault`
 - `importEncryptedVault(char[] sourcePassword, String encFilePath)` : dechiffre un coffre externe et retourne les entrees sans ecraser le coffre courant
 - `deleteVault()` supprime aussi tous les fichiers `.bak` de l'utilisateur
 - Validation du nom d'utilisateur : regex `[a-zA-Z0-9_]+`
 - `CharArrayAdapter` interne : `TypeAdapter<char[]>` Gson pour serialiser les mots de passe comme chaines JSON
 - Gson configure avec `setPrettyPrinting()`
-- **Compatibilite jlink** : `Vault` et `VaultEntry` disposent de constructeurs no-arg pour que Gson puisse les instancier sans `sun.misc.Unsafe` (absent du module `jdk.unsupported`, non inclus dans le JRE jlink)
+- **Compatibilite jlink** : `Vault`, `PasswordEntry`, `AppEntry` et `CardEntry` disposent de constructeurs no-arg pour que Gson puisse les instancier sans `sun.misc.Unsafe` (absent du module `jdk.unsupported`, non inclus dans le JRE jlink)
 
-**VaultEntry — details :**
-- Champs : `title`, `username` (identifiant), `email`, `pseudo`, `password` (char[]), `url`, `notes`, `category`, `tags` (List\<String\>), `favorite` (boolean), `createdAt`, `updatedAt`
+**VaultItem (classe abstraite) — details :**
+- Champs communs : `id` (UUID), `title`, `notes`, `favorite` (boolean), `createdAt`, `updatedAt`
+- `wipe()` : methode abstraite implementee par chaque sous-type
+- `equals()`/`hashCode()` bases sur l'`id` uniquement
+
+**PasswordEntry (extends VaultItem, ex VaultEntry) — details :**
+- Champs specifiques : `username` (identifiant), `email`, `password` (char[]), `url`, `category`, `tags` (List\<String\>)
 - `getPassword()` retourne un clone (copie defensive)
 - `setPassword()` efface l'ancien mot de passe via `SecureWiper.wipe()` avant d'affecter le nouveau clone
 - `getTags()` retourne une vue non-modifiable (`Collections.unmodifiableList`)
-- `wipe()` efface le mot de passe, email, pseudo et nullifie les champs sensibles
+- `wipe()` efface le mot de passe, email et nullifie les champs sensibles
 
-**VaultService — details :**
-- Recherche insensible a la casse sur titre, identifiant, email, pseudo, URL, notes, categorie et tags
+**AppEntry (extends VaultItem) — details :**
+- Champs specifiques : `username`, `pin` (char[])
+- `getPin()` retourne un clone (copie defensive)
+- `setPin()` efface l'ancien pin via `SecureWiper.wipe()` avant d'affecter le nouveau clone
+- `wipe()` efface le pin et nullifie les champs sensibles
+
+**CardEntry (extends VaultItem) — details :**
+- Champs specifiques : `cardholderName`, `cardNumber` (char[]), `expiryDate`, `cvv` (char[]), `cardPin` (char[]), `cardType` (CardType)
+- Copies defensives sur tous les champs `char[]` (getters et setters)
+- `wipe()` efface cardNumber, cvv, cardPin et nullifie les champs sensibles
+
+**VaultService (facade) — details :**
+- Delegue aux 3 sous-services : `PasswordService`, `AppService`, `CardService`
+- Expose `getPasswordService()`, `getAppService()`, `getCardService()`
+- Les methodes historiques (CRUD, recherche, tri) sont conservees pour compatibilite et deleguent a `PasswordService`
+
+**BaseVaultService\<T extends VaultItem\> — details :**
+- CRUD generique : `addEntry(T)`, `updateEntry(T)`, `deleteEntry(String)`, `getEntry(String)`
+- Recherche insensible a la casse sur titre et notes
+- `toggleFavorite(String entryId)` / `bulkSetFavorite(List<String>, boolean)` : bascule et operations en masse sur les favoris
+- `bulkDelete(List<String> entryIds)` : suppression en masse avec effacement securise de chaque entree
+- **Thread safety** : toutes les methodes publiques sont `synchronized`
+
+**PasswordService (extends BaseVaultService\<PasswordEntry\>) — details :**
+- Recherche etendue sur identifiant, email, URL, categorie et tags
 - Tri : `TITLE`, `USERNAME`, `EMAIL`, `PSEUDO`, `URL` (alphabetique croissant, insensible a la casse), `DATE` (plus recent en premier), `CATEGORY` (alphabetique croissant, insensible a la casse), `FAVORITE` (favoris en premier, titre en secondaire), `STRENGTH` (par force du mot de passe via `PasswordStrengthAnalyzer.ordinal()`, effacement securise du clone dans `finally`)
 - `findDuplicatePasswords()` : utilise des hashes SHA-256 des mots de passe comme cles (evite de stocker le clair comme cle de Map). Chaque clone `getPassword()` est efface dans un bloc `finally`
 - `findOldPasswords(int days)` : compare les timestamps `updatedAt` au seuil configure
-- `bulkDelete(List<String> entryIds)` : suppression en masse avec effacement securise de chaque entree
 - `bulkChangeCategory(List<String> entryIds, String newCategory)` : reassignation de categorie en masse
 - `addCategory(String)` / `removeCategory(String)` : gestion des categories du coffre
-- `toggleFavorite(String entryId)` / `bulkSetFavorite(List<String>, boolean)` : bascule et operations en masse sur les favoris
-- `filter(List<VaultEntry>, EntryFilter)` : filtrage combine via `EntryFilter` (categorie, force, date, favoris, texte)
+- `filter(List<PasswordEntry>, EntryFilter)` : filtrage combine via `EntryFilter` (categorie, force, date, favoris, texte)
 - `sorted()` : tri avec favoris en priorite (primaire : `Boolean.compare(b.isFavorite(), a.isFavorite())`)
-- **Thread safety** : toutes les methodes publiques sont `synchronized` (mutation ET lecture) pour prevenir les `ConcurrentModificationException`
+
+**AppService (extends BaseVaultService\<AppEntry\>) — details :**
+- Recherche etendue sur username
+
+**CardService (extends BaseVaultService\<CardEntry\>) — details :**
+- Recherche etendue sur cardholderName et cardType
+- Tri supplementaire : `CARDHOLDER_NAME`, `CARD_TYPE`
 
 **VaultImporter — details :**
+- Parseur CSV conforme RFC 4180 (guillemets doubles, retours a la ligne dans les champs)
+- Support multi-type : colonne `type` (password/app/card) pour l'import de tous les types d'entrees
 - Detection du separateur : frequence `,` vs `;` dans la premiere ligne
 - Alias de colonnes FR/EN (insensible a la casse et aux accents) :
   - `title` <- titre, organisme, name, nom
@@ -418,6 +490,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 - Tags separes par des points-virgules
 
 **VaultExporter — details :**
+- Export multi-type CSV avec colonne `type` (password/app/card)
 - Protection anti-injection de formules CSV : prefixe `'` devant les champs commencant par `=`, `+`, `-`, `@`, `\t`, `\r`
 - Export en `char[]` pour permettre l'effacement securise par l'appelant
 - Effacement du StringBuilder intermediaire apres extraction en `char[]`
@@ -460,10 +533,11 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 
 | Classe | Role |
 |--------|------|
-| `SyncService` | Orchestration de la synchronisation (hash SHA-256, detection de conflit, mode hors-ligne). `hashFile()` propage les `IOException` (jamais de retour silencieux `""`) |
+| `SyncService` | Orchestration de la synchronisation (hash SHA-256, detection de conflit, mode hors-ligne). `hashFile()` propage les `IOException` (jamais de retour silencieux `""`). `syncAfterMerge()` pour la synchronisation post-fusion |
 | `LocalRepository` | Gestion des fichiers locaux (ecritures atomiques, prevention du path traversal, backups) |
 | `SFTPRepository` | Client SFTP via JSch (authentification par cle, `StrictHostKeyChecking=yes`, limite 50 Mo, validation des noms de fichiers distants contre le path traversal) |
 | `ConflictResolver` | Enum : `KEEP_LOCAL`, `KEEP_REMOTE`, `KEEP_BOTH` |
+| `EntryMerger` | Fusion bidirectionnelle generique : `merge<T extends VaultItem>(List<T> local, List<T> remote)`. Appliquee aux 3 types d'entrees |
 
 **Flux de synchronisation :**
 
@@ -546,13 +620,18 @@ public static void wipe(char[] data) {
 | Classe | Role |
 |--------|------|
 | `LoginFrame` | Ecran de connexion, creation d'utilisateur, toggle visibilite mot de passe, changement de langue |
-| `MainFrame` | Fenetre principale avec menus, barre d'outils, auto-lock, shutdown hook (retire au verrouillage) |
-| `VaultPanel` | Panneau 3 colonnes : categories, table d'entrees, details avec boutons copier. Selection multiple (`MULTIPLE_INTERVAL_SELECTION`), barre d'actions en masse (menu "Actions..." dropdown), menu contextuel (clic droit). Chargement asynchrone des favicons (`SwingWorker` + `ConcurrentHashMap`). Timers `javax.swing.Timer` (pas `java.util.Timer`) |
+| `MainFrame` | Fenetre principale avec `JTabbedPane` (3 onglets : mots de passe, applications, cartes), menus, barre d'outils, auto-lock, shutdown hook (retire au verrouillage) |
+| `VaultPanel` | Onglet mots de passe. Panneau 3 colonnes : categories, table d'entrees, details avec boutons copier. Selection multiple (`MULTIPLE_INTERVAL_SELECTION`), barre d'actions en masse (menu "Actions..." dropdown), menu contextuel (clic droit). Chargement asynchrone des favicons (`SwingWorker` + `ConcurrentHashMap`). Timers `javax.swing.Timer` (pas `java.util.Timer`) |
+| `AppPanel` | Onglet applications. Table d'entrees `AppEntry` avec recherche, selection multiple, operations en masse |
+| `CardPanel` | Onglet cartes bancaires. Table d'entrees `CardEntry` avec recherche, selection multiple, operations en masse |
 | `SecurityAuditController` | Audit de securite visuel (`JPanel` avec `BoxLayout`). Sections colorees (`TitledBorder`) : faibles (rouge), reutilises (orange), anciens (jaune), compromis HIBP (rouge). Verification HIBP asynchrone via `SwingWorker<List<String>, Integer>` avec `JProgressBar`. Bouton "Verifier maintenant" desactive pendant la verification |
-| `EntryDialog` | Formulaire modal de creation/edition d'entree |
+| `EntryDialog` | Formulaire modal de creation/edition d'entree mot de passe |
+| `AppEntryDialog` | Formulaire modal de creation/edition d'entree application |
+| `CardEntryDialog` | Formulaire modal de creation/edition d'entree carte bancaire |
 | `PasswordGeneratorDialog` | Dialogue du generateur de mots de passe. Timer clipboard `javax.swing.Timer` annule a la fermeture |
 | `ImportExportController` | Popup unifiee d'import/export (CSV, JSON, coffre chiffre .enc) avec champ mot de passe pour l'import chiffre |
 | `SettingsDialog` | Dialogue des parametres (3 onglets : General, Securite, Synchronisation). Test SFTP sur `SwingWorker` (hors EDT) |
+| `ConflictResolutionDialog` | Dialogue generique de resolution de conflits pour tous les sous-types `VaultItem` |
 | `StrengthBarHelper` | Utilitaire d'affichage de la barre de force (couleurs : rouge/orange/vert/bleu) |
 
 ---
@@ -584,6 +663,8 @@ Le coffre JSON dechiffre contient :
   "createdAt": "2025-01-15T10:30:00Z",
   "updatedAt": "2025-06-20T14:22:00Z",
   "entries": [ ... ],
+  "appEntries": [ ... ],
+  "cardEntries": [ ... ],
   "categories": ["Email", "Bancaire", "Reseaux sociaux", "Travail", "Autre"],
   "settings": {
     "auto_lock_minutes": 15,
@@ -640,11 +721,11 @@ Emplacement : `~/.password-manager/data/.config_key`
 
 | Mesure | Implementation |
 |--------|----------------|
-| Mots de passe en `char[]` | `VaultEntry.password`, `PasswordGenerator.generate()`, `VaultExporter` retournent `char[]` |
+| Donnees sensibles en `char[]` | `PasswordEntry.password`, `AppEntry.pin`, `CardEntry.cardNumber/cvv/cardPin`, `PasswordGenerator.generate()`, `VaultExporter` retournent `char[]` |
 | Effacement securise | `SecureWiper.wipe()` avec accumulateur volatile sur tout le tableau (empeche le JIT d'eliminer le `Arrays.fill`) |
 | GCM AAD | Le chiffrement des donnees du coffre lie la version (`"2.0"`) en AAD, empechant la substitution de parametres de chiffrement. Migration transparente : essai avec AAD, fallback sans AAD pour les coffres pre-AAD |
 | Presse-papiers securise (Desktop) | `SecureClipboard` : `Transferable` personnalise stockant `char[]`, efface sur `lostOwnership()` + `clear()` en shutdown hook. Aucun `new String(password)` dans le presse-papiers |
-| Copie defensive | `VaultEntry.getPassword()` retourne un clone, `setPassword()` efface l'ancien avant clone |
+| Copie defensive | `PasswordEntry.getPassword()`, `AppEntry.getPin()`, `CardEntry.getCardNumber/getCvv/getCardPin()` retournent des clones. Les setters effacent l'ancienne valeur avant clone |
 | Copie defensive session | `VaultSession.getSalt/getKekIv/getEncryptedDek()` retournent des clones |
 | Nettoyage de session | `VaultSession.destroy()` efface DEK, sel, IV, DEK chiffree |
 | Nettoyage Swing | Insertion via `Document.insertString()` au lieu de `JPasswordField.setText(String)` pour minimiser l'interning |
@@ -720,10 +801,11 @@ VaultListViewModel
     +-- syncNow() (coroutine Dispatchers.IO)
             |-- JSch (authentification par cle)
             |-- Comparaison SHA-256 local vs distant
-            +-- Upload si difference (local = source de verite)
+            |-- EntryMerger (fusion bidirectionnelle pour les 3 types)
+            +-- Resolution de conflits interactive (ConflictResolutionScreen)
 ```
 
-La synchronisation Android est integree directement dans `VaultListViewModel` car les classes `SyncService`/`SFTPRepository`/`LocalRepository` sont dans le module `:desktop`, non accessible depuis `:android`. Le mode Android est simplifie (pas de gestion hors-ligne ni de resolution de conflit interactive).
+La synchronisation Android est integree directement dans `VaultListViewModel` car les classes `SyncService`/`SFTPRepository`/`LocalRepository` sont dans le module `:desktop`, non accessible depuis `:android`. Le mode Android utilise `EntryMerger` pour fusionner les 3 types d'entrees (mots de passe, applications, cartes) et propose une resolution de conflit interactive.
 
 ### 8.2. Algorithme de synchronisation
 
@@ -801,12 +883,14 @@ Le changement de langue est possible depuis l'ecran de connexion (effet immediat
 | Fenetre | Type | Taille | Description |
 |---------|------|--------|-------------|
 | `LoginFrame` | `JFrame` | 450x450 (non-redimensionnable) | Connexion, creation utilisateur, toggle mot de passe, selection de langue |
-| `MainFrame` | `JFrame` | 1100x700 (min 900x600) | Menus, barre d'outils, panneau central, barre de statut |
-| `EntryDialog` | `JDialog` (modal) | min 550x480 | Creation/edition d'entree avec barre de force |
+| `MainFrame` | `JFrame` | 1100x700 (min 900x600) | `JTabbedPane` avec 3 onglets (Mots de passe, Applications, Cartes bancaires), menus, barre d'outils, barre de statut |
+| `EntryDialog` | `JDialog` (modal) | min 550x480 | Creation/edition d'entree mot de passe avec barre de force |
+| `AppEntryDialog` | `JDialog` (modal) | — | Creation/edition d'entree application |
+| `CardEntryDialog` | `JDialog` (modal) | — | Creation/edition d'entree carte bancaire |
 | `PasswordGeneratorDialog` | `JDialog` (modal) | min 450x420 | Generateur avec options et barre de force |
 | `SettingsDialog` | `JDialog` (modal) | min 500x450 | Parametres en 3 onglets |
 
-#### Panneau 3 colonnes (VaultPanel)
+#### Onglet Mots de passe (VaultPanel)
 
 | Colonne | Largeur | Contenu |
 |---------|---------|---------|
@@ -815,6 +899,14 @@ Le changement de langue est possible depuis l'ecran de connexion (effet immediat
 | Droite | 300 px | Details : titre, grille de champs avec boutons copier en ligne (identifiant, email, pseudo, mot de passe, URL), case a cocher afficher. Favicon affiche a cote du titre |
 
 La colonne Force du tableau est coloree selon le niveau : rouge (Faible), orange (Moyen), vert (Fort), bleu (Tres fort).
+
+#### Onglet Applications (AppPanel)
+
+Table d'entrees `AppEntry` avec recherche sur titre et username. Selection multiple, menu contextuel, operations en masse (suppression, favoris). Formulaire via `AppEntryDialog`.
+
+#### Onglet Cartes bancaires (CardPanel)
+
+Table d'entrees `CardEntry` avec recherche sur titre, titulaire et type de carte. Selection multiple, menu contextuel, operations en masse (suppression, favoris). Formulaire via `CardEntryDialog`. Donnees sensibles (numero, CVV, PIN) masquees par defaut avec toggle de visibilite.
 
 #### Auto-lock (desktop)
 
@@ -843,15 +935,21 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`), detruit la sessi
 | Ecran | Composable | ViewModel | Description |
 |-------|-----------|-----------|-------------|
 | Login | `LoginScreen` | `LoginViewModel` | Dropdown utilisateurs, creation, anti brute-force |
-| Liste | `VaultListScreen` | `VaultListViewModel` | Recherche, dropdown categories, tri (9 criteres), import/export unifie (fusion), selection multiple avec menu "Actions..." (suppression, categorie, favoris en masse), favicons asynchrones, sync SFTP |
+| Liste | `VaultListScreen` | `VaultListViewModel` | `VaultTabHost` avec `HorizontalPager` (3 onglets : mots de passe, applications, cartes). Recherche, dropdown categories, tri, import/export unifie, selection multiple, favicons asynchrones, sync SFTP |
+| Liste apps | `AppListScreen` | `AppListViewModel` | Onglet applications : recherche, selection multiple, operations en masse |
+| Liste cartes | `CardListScreen` | `CardListViewModel` | Onglet cartes : recherche, selection multiple, operations en masse |
 | Detail | `EntryDetailScreen` | `EntryDetailViewModel` | Lecture seule avec email/pseudo, URL cliquable, copier, supprimer |
+| Detail app | `AppDetailScreen` | `AppDetailViewModel` | Lecture seule application, copier username/pin, supprimer |
+| Detail carte | `CardDetailScreen` | `CardDetailViewModel` | Lecture seule carte, donnees masquees avec toggle, copier, supprimer |
 | Edition | `EntryEditScreen` | `EntryEditViewModel` | Formulaire CRUD (identifiant, email, pseudo), lien generateur |
+| Edition app | `AppEditScreen` | `AppEditViewModel` | Formulaire CRUD application (username, pin) |
+| Edition carte | `CardEditScreen` | `CardEditViewModel` | Formulaire CRUD carte (titulaire, numero, expiration, CVV, PIN, type) |
 | Generateur | `GeneratorScreen` | `GeneratorViewModel` | Options, barre de force, copier/utiliser |
 | Parametres | `SettingsScreen` | `SettingsViewModel` | Theme, langue, auto-lock, clipboard, synchronisation SFTP, gestion des categories |
 | Categories | `CategoryManagementScreen` | `CategoryManagementViewModel` | Ajout/suppression de categories avec validation et cascade |
 | Mot de passe | `ChangeMasterPasswordScreen` | `ChangeMasterPasswordViewModel` | Ancien/nouveau/confirmer |
 | Audit | `SecurityAuditScreen` | `SecurityAuditViewModel` | Faibles, dupliques, anciens, compromis HIBP |
-| Conflits | `ConflictResolutionScreen` | — | Resolution de conflits sync (vue cote-a-cote local/distant) |
+| Conflits | `ConflictResolutionScreen` | — | Resolution de conflits sync (vue cote-a-cote local/distant, tous types VaultItem) |
 
 #### Composants reutilisables (`ui/components/`)
 
@@ -859,13 +957,19 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`), detruit la sessi
 |-----------|------|
 | `PasswordStrengthBar` | Barre animee de force (rouge/orange/vert/bleu) |
 | `PasswordField` | OutlinedTextField avec toggle visibilite |
-| `EntryCard` | Carte pour la liste (favicon ou avatar lettre, titre, URL ou username en sous-titre, categorie, etoile favori, barre de force). Support selection multiple (checkbox, long press). Swipe gauche = supprimer, swipe droit = copier mot de passe |
+| `EntryCard` | Carte mot de passe pour la liste (favicon ou avatar lettre, titre, URL ou username en sous-titre, categorie, etoile favori, barre de force). Support selection multiple (checkbox, long press). Swipe gauche = supprimer, swipe droit = copier mot de passe |
+| `AppEntryCard` | Carte application pour la liste (avatar lettre, titre, username en sous-titre, etoile favori). Support selection multiple. Swipe gauche = supprimer, swipe droit = copier pin |
+| `CardEntryCard` | Carte bancaire pour la liste (icone type de carte, titre, titulaire en sous-titre, type de carte, etoile favori). Support selection multiple. Swipe gauche = supprimer, swipe droit = copier numero |
 | `ConfirmDialog` | AlertDialog de confirmation reutilisable |
 | `ImportExportDialog` | Popups import/export unifiees (CSV/JSON/chiffre) avec champ mot de passe masquable (toggle Afficher) |
 
 #### Navigation
 
-9 routes definies dans `AppNavigation.kt` : `Login`, `VaultList`, `EntryDetail(entryId)`, `EntryEdit(entryId?)`, `Generator(returnPassword)`, `Settings`, `CategoryManagement`, `ChangeMasterPassword`, `SecurityAudit`.
+Navigation a deux niveaux definie dans `AppNavigation.kt` :
+
+**Onglets (BottomNavBar)** : `TAB_VAULT` (avec `VaultTabHost` / `HorizontalPager` 3 onglets), `TAB_GENERATOR`, `TAB_AUDIT`, `TAB_SETTINGS`.
+
+**Routes modales** : `ENTRY_DETAIL(entryId)`, `ENTRY_EDIT(entryId?)`, `APP_DETAIL(entryId)`, `APP_EDIT(entryId?)`, `CARD_DETAIL(entryId)`, `CARD_EDIT(entryId?)`, `GENERATOR(returnPassword)`, `CHANGE_MASTER_PASSWORD`, `CATEGORY_MANAGEMENT`.
 
 Le mot de passe genere est passe de `GeneratorScreen` a `EntryEditScreen` via `savedStateHandle`.
 
@@ -893,7 +997,7 @@ L'interface `ConfigRepository` abstrait les operations de configuration (theme, 
 | `AndroidVaultRepository` | Encapsule `VaultManager(context.filesDir + "/vaults")` |
 | `ConfigRepository` | Interface de configuration (theme, langue, auto-lock, clipboard, SFTP) |
 | `AndroidConfigRepository` | Implementation via `EncryptedSharedPreferences` (MasterKey AES256-GCM). Inclut les parametres SFTP (host, port, user, key path, remote path, storage mode) |
-| `SessionHolder` | Singleton thread-safe : tient `Vault`, `VaultSession`, `VaultService`, `username` en memoire. Champs `@Volatile`, methodes `@Synchronized`. `isUnlockedFlow: StateFlow<Boolean>` |
+| `SessionHolder` | Singleton thread-safe : tient `Vault`, `VaultSession`, `VaultService` (facade), `username` en memoire. Expose `vaultService` (facade avec acces a `passwordService`, `appService`, `cardService`). Champs `@Volatile`, methodes `@Synchronized`. `isUnlockedFlow: StateFlow<Boolean>` |
 
 #### Localisation Android
 
@@ -975,46 +1079,50 @@ update.enabled=true
 ### 12.1. Vue d'ensemble
 
 **Framework** : JUnit 5 (Jupiter) 5.14.2
-**Total** : **300 tests** (unitaires + integration) repartis sur les 3 modules
+**Total** : **~353 tests** (unitaires + integration) repartis sur les 3 modules
 
 | Module Gradle | Tests | Framework |
 |---|---|---|
-| `:core` | 188 | JUnit 5 (Java) |
-| `:desktop` | 71 | JUnit 5 (Java) |
+| `:core` | 237 | JUnit 5 (Java) |
+| `:desktop` | 75 | JUnit 5 (Java) |
 | `:android` | 41 | JUnit 5 (Kotlin, JVM local) |
 
 ### 12.2. Matrice des tests
 
 | Module | Classe de test | Nombre | Description |
 |--------|---------------|--------|-------------|
-| vault | `VaultServiceTest` | 35 | CRUD, recherche, tri, favoris, filtre, doublons, categories, timestamps, mots de passe anciens |
+| vault | `VaultServiceTest` | 33 | CRUD, recherche, tri, favoris, filtre, doublons, categories, timestamps, mots de passe anciens |
+| vault | `VaultImporterTest` | 33 | CSV (separateurs, alias, BOM, sanitisation, favoris, RFC 4180, round-trip multi-type), JSON (malformed, null), limites |
 | security | `SecurityAuditTest` | 31 | IV, KDF, memoire, permissions, format, import/export, generateur |
-| sync | `SyncServiceTest` | 23 | Synchronisation, hash, conflits, mode hors-ligne, mode local |
-| vault | `VaultImporterTest` | 20 | CSV (separateurs, alias, BOM, sanitisation, favoris), JSON (malformed, null), limites |
+| sync | `SyncServiceTest` | 28 | Synchronisation, hash, conflits, mode hors-ligne, mode local, syncAfterMerge |
 | sync | `LocalRepositoryTest` | 17 | Path traversal, lecture/ecriture/suppression, pending, backups |
 | vault | `VaultManagerIntegrationTest` | 16 | Cycle complet avec vraie crypto, validation username, suppression backups |
+| vault | `VaultTest` | 16 | Constructeurs, add/remove entries (3 types), unmodifiable list, wipe, settings |
 | util | `PasswordValidatorTest` | 15 | Politique mot de passe maitre, rejet des 44 mots de passe courants |
 | crypto | `CryptoServiceTest` | 14 | Enveloppe DEK/KEK, chiffrement, AAD, changement mdp, tampering (ciphertext/IV), legacy, destroy/close |
 | config | `ConfigEncryptorTest` | 11 | Round-trip, caracteres speciaux, null/vide, corruption, unicite IV, reutilisation cle |
 | **android** | `GeneratorViewModelTest` | 11 | Etat initial, generation, clamp longueur, toggles, force, nettoyage onCleared |
+| vault | `CardEntryTest` | 10 | Constructeur, copies defensives, wipe, equals/hashCode, cardType |
 | sync | `SFTPRepositoryTest` | 10 | Validation filename sur upload/download/exists/getRemoteLastModified |
+| vault | `VaultExporterTest` | 9 | CSV, JSON, injection formules, favoris, round-trip, multi-type |
 | crypto | `PasswordStrengthAnalyzerTest` | 9 | Niveaux de force, score, cas limites |
-| vault | `VaultTest` | 9 | Constructeurs, add/remove entries, unmodifiable list, wipe, settings |
-| vault | `VaultExporterTest` | 9 | CSV, JSON, injection formules, favoris, round-trip |
 | **android** | `EntryEditViewModelTest` | 8 | Formulaire CRUD nouveau/existant, sauvegarde, validation titre vide |
+| vault | `AppServiceTest` | 7 | CRUD, recherche sur username, favoris, operations en masse |
+| vault | `CardServiceTest` | 7 | CRUD, recherche sur cardholderName, cardType, favoris, operations en masse |
 | **android** | `ChangeMasterPasswordViewModelTest` | 7 | Etat initial, validation, mismatch, mot de passe faible, nettoyage onCleared |
+| vault | `AppEntryTest` | 6 | Constructeur, copies defensives pin, wipe, equals/hashCode |
 | vault | `EntryFilterTest` | 6 | Filtres combines (categorie, force, date, favoris, texte) |
 | i18n | `LanguageManagerTest` | 6 | Singleton, getString valide/manquant, setLanguage fr/en, getAvailableLanguages |
 | util | `FaviconServiceTest` | 5 | Extraction domaine, cache disque, favicon null |
 | security | `HibpCheckerTest` | 5 | Null, vide, entree valide, caracteres speciaux, unicode |
-| sync | `EntryMergerTest` | 5 | Fusion locale/distante, conflits, entrees identiques |
+| sync | `EntryMergerTest` | 5 | Fusion locale/distante generique, conflits, entrees identiques |
 | **android** | `SecurityAuditViewModelTest` | 5 | Audit vide, mots de passe faibles, dupliques, anciens, totalIssues |
 | **android** | `EntryDetailViewModelTest` | 5 | Chargement existant/inconnu, toggle visibilite, suppression existant/inexistant |
 | **android** | `SettingsViewModelTest` | 5 | Configuration initiale, setTheme, setLanguage, clamp autoLock, clamp clipboard |
 | util | `DateUtilsTest` | 5 | Format ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types de caracteres, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance, auto-creation |
-| | | **300** | |
+| | | **~353** | |
 
 ### 12.3. Infrastructure de test Android
 
@@ -1116,28 +1224,33 @@ password-manager/
 |       |   |                               # PasswordGenerator, PasswordStrengthAnalyzer, EncryptedPayload
 |       |   |-- i18n/                       # LanguageManager
 |       |   |-- security/                   # HibpChecker (k-Anonymity HIBP breach detection)
-|       |   |-- sync/                       # SyncService, LocalRepository, SFTPRepository, ConflictResolver,
-|       |   |                               # EntryMerger (bidirectional merge)
+|       |   |-- sync/                       # EntryMerger (bidirectional merge, generic <T extends VaultItem>)
 |       |   |-- update/                     # UpdateChecker, UpdateInfo, VersionComparator
 |       |   |-- util/                       # SecureWiper, FileSecurityUtils, PasswordValidator, DateUtils,
 |       |   |                               # FaviconService (favicons Google API + cache disque)
-|       |   +-- vault/                      # Vault, VaultEntry, VaultManager, VaultService,
+|       |   +-- vault/                      # Vault, VaultItem (abstract), PasswordEntry, AppEntry, CardEntry,
+|       |                                   # CardType, VaultManager, VaultService (facade),
+|       |                                   # BaseVaultService<T>, PasswordService, AppService, CardService,
 |       |                                   # VaultImporter, VaultExporter, VaultLoadResult, SortField,
 |       |                                   # EntryFilter (filtres combines builder pattern)
 |       |-- main/resources/i18n/            # messages_en.properties, messages_fr.properties
 |       |-- main/resources/update.properties # Configuration du systeme de mise a jour
-|       +-- test/java/com/passwordmanager/  # 188 tests (20 classes)
+|       +-- test/java/com/passwordmanager/  # 237 tests (19 classes)
 |
 |-- desktop/                                # :desktop — interface Swing (Java 17)
 |   |-- build.gradle.kts
 |   +-- src/
 |       |-- main/java/com/passwordmanager/
 |       |   |-- Main.java                   # Point d'entree, detection app.home
-|       |   |-- ui/                         # LoginFrame, MainFrame, VaultPanel, EntryDialog,
+|       |   |-- sync/                       # SyncService (syncAfterMerge), LocalRepository, SFTPRepository,
+|       |   |                               # ConflictResolver
+|       |   |-- ui/                         # LoginFrame, MainFrame (JTabbedPane), VaultPanel, AppPanel,
+|       |   |                               # CardPanel, EntryDialog, AppEntryDialog, CardEntryDialog,
 |       |   |                               # PasswordGeneratorDialog, SettingsDialog, StrengthBarHelper,
-|       |   |                               # SecurityAuditController, ConflictResolutionDialog, SecureClipboard
+|       |   |                               # SecurityAuditController, ConflictResolutionDialog (generique),
+|       |   |                               # SecureClipboard, AutoLockManager, ImportExportController
 |       |   +-- update/                     # DesktopUpdateManager
-|       +-- test/java/com/passwordmanager/  # 71 tests (4 classes)
+|       +-- test/java/com/passwordmanager/  # 75 tests (6 classes)
 |
 +-- android/                                # :android — interface Compose (Kotlin 2.1)
     |-- build.gradle.kts                    # AGP 8.7.3, Compose BOM 2024.12, Hilt 2.54, minSdk 26
@@ -1161,15 +1274,19 @@ password-manager/
         |       |-- update/                # AndroidUpdateManager
         |       +-- ui/
         |           |-- theme/              # Theme.kt, Color.kt, Type.kt
-        |           |-- navigation/         # AppNavigation.kt (9 routes)
+        |           |-- navigation/         # AppNavigation.kt (VaultTabHost, BottomNavTab, Routes)
         |           |-- login/              # LoginScreen, @HiltViewModel LoginViewModel
-        |           |-- vault/              # VaultListScreen/VM (multi-select, SFTP sync, filtres), EntryDetailScreen/VM, EntryEditScreen/VM
+        |           |-- vault/              # VaultListScreen/VM (VaultTabHost, HorizontalPager, multi-select,
+        |           |                       # SFTP sync, filtres), EntryDetailScreen/VM, EntryEditScreen/VM,
+        |           |                       # AppListScreen/VM, AppDetailScreen/VM, AppEditScreen/VM,
+        |           |                       # CardListScreen/VM, CardDetailScreen/VM, CardEditScreen/VM
         |           |-- generator/          # GeneratorScreen, @HiltViewModel GeneratorViewModel
         |           |-- settings/           # SettingsScreen/VM, ChangeMasterPasswordScreen/VM,
         |           |                       # CategoryManagementScreen/VM
         |           |-- audit/              # SecurityAuditScreen, @HiltViewModel SecurityAuditViewModel (HIBP)
-        |           |-- sync/              # ConflictResolutionScreen (resolution bidirectionnelle)
-        |           +-- components/         # PasswordStrengthBar, PasswordField, EntryCard, ConfirmDialog, ImportExportDialog
+        |           |-- sync/              # ConflictResolutionScreen (resolution bidirectionnelle, tous types VaultItem)
+        |           +-- components/         # PasswordStrengthBar, PasswordField, EntryCard, AppEntryCard,
+        |                                   # CardEntryCard, ConfirmDialog, ImportExportDialog
         +-- test/kotlin/com/passwordmanager/android/  # 41 tests (6 classes)
             |-- test/                       # MainDispatcherExtension, FakeConfigRepository, TestSessionHelper
             +-- ui/                         # GeneratorVM, EntryDetailVM, EntryEditVM,

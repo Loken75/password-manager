@@ -13,11 +13,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.passwordmanager.android.R
 import com.passwordmanager.sync.EntryMerger
+import com.passwordmanager.vault.PasswordEntry
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConflictResolutionScreen(
-    conflicts: List<EntryMerger.Conflict>,
+    conflicts: List<EntryMerger.Conflict<PasswordEntry>>,
     onResolve: (Map<String, Boolean>) -> Unit,
     onBack: () -> Unit
 ) {
@@ -73,7 +74,7 @@ fun ConflictResolutionScreen(
 
 @Composable
 private fun ConflictCard(
-    conflict: EntryMerger.Conflict,
+    conflict: EntryMerger.Conflict<PasswordEntry>,
     keepLocal: Boolean,
     onChooseLocal: () -> Unit,
     onChooseRemote: () -> Unit

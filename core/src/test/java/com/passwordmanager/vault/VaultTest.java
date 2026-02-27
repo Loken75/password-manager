@@ -32,7 +32,7 @@ class VaultTest {
     @Test
     void addEntry() {
         Vault vault = new Vault("user");
-        VaultEntry entry = new VaultEntry("Title", "user", "pass".toCharArray(), "", "", "Cat", null);
+        PasswordEntry entry = new PasswordEntry("Title", "user", "pass".toCharArray(), "", "", "Cat", null);
         vault.addEntry(entry);
         assertEquals(1, vault.getEntries().size());
     }
@@ -40,7 +40,7 @@ class VaultTest {
     @Test
     void removeEntry() {
         Vault vault = new Vault("user");
-        VaultEntry entry = new VaultEntry("Title", "user", "pass".toCharArray(), "", "", "Cat", null);
+        PasswordEntry entry = new PasswordEntry("Title", "user", "pass".toCharArray(), "", "", "Cat", null);
         vault.addEntry(entry);
         assertTrue(vault.removeEntry(entry));
         assertEquals(0, vault.getEntries().size());
@@ -49,29 +49,29 @@ class VaultTest {
     @Test
     void removeEntryNotPresent() {
         Vault vault = new Vault("user");
-        VaultEntry entry = new VaultEntry("Title", "user", "pass".toCharArray(), "", "", "Cat", null);
+        PasswordEntry entry = new PasswordEntry("Title", "user", "pass".toCharArray(), "", "", "Cat", null);
         assertFalse(vault.removeEntry(entry));
     }
 
     @Test
     void getEntriesIsUnmodifiable() {
         Vault vault = new Vault("user");
-        vault.addEntry(new VaultEntry("T", "u", "p".toCharArray(), "", "", "C", null));
-        List<VaultEntry> entries = vault.getEntries();
-        assertThrows(UnsupportedOperationException.class, () -> entries.add(new VaultEntry()));
+        vault.addEntry(new PasswordEntry("T", "u", "p".toCharArray(), "", "", "C", null));
+        List<PasswordEntry> entries = vault.getEntries();
+        assertThrows(UnsupportedOperationException.class, () -> entries.add(new PasswordEntry()));
     }
 
     @Test
     void getEntriesMutableIsMutable() {
         Vault vault = new Vault("user");
-        vault.getEntriesMutable().add(new VaultEntry("T", "u", "p".toCharArray(), "", "", "C", null));
+        vault.getEntriesMutable().add(new PasswordEntry("T", "u", "p".toCharArray(), "", "", "C", null));
         assertEquals(1, vault.getEntries().size());
     }
 
     @Test
     void wipeClearsAllData() {
         Vault vault = new Vault("user");
-        vault.addEntry(new VaultEntry("T", "u", "pass".toCharArray(), "", "", "C", null));
+        vault.addEntry(new PasswordEntry("T", "u", "pass".toCharArray(), "", "", "C", null));
         vault.wipe();
         assertNull(vault.getUser());
         assertNull(vault.getCreatedAt());
@@ -79,6 +79,72 @@ class VaultTest {
         assertEquals(0, vault.getEntries().size());
         assertEquals(0, vault.getCategories().size());
         assertEquals(0, vault.getSettings().size());
+    }
+
+    @Test
+    void addAppEntry() {
+        Vault vault = new Vault("user");
+        AppEntry entry = new AppEntry("MyApp", "user1", "1234".toCharArray(), "notes");
+        vault.addAppEntry(entry);
+        assertEquals(1, vault.getAppEntries().size());
+        assertEquals("MyApp", vault.getAppEntries().get(0).getTitle());
+    }
+
+    @Test
+    void removeAppEntry() {
+        Vault vault = new Vault("user");
+        AppEntry entry = new AppEntry("MyApp", "user1", "1234".toCharArray(), null);
+        vault.addAppEntry(entry);
+        assertTrue(vault.removeAppEntry(entry));
+        assertEquals(0, vault.getAppEntries().size());
+    }
+
+    @Test
+    void addCardEntry() {
+        Vault vault = new Vault("user");
+        CardEntry entry = new CardEntry("Card", "Holder", "4111222233334444".toCharArray(),
+            "01/26", "123".toCharArray(), "0000".toCharArray(), "Visa", null);
+        vault.addCardEntry(entry);
+        assertEquals(1, vault.getCardEntries().size());
+    }
+
+    @Test
+    void removeCardEntry() {
+        Vault vault = new Vault("user");
+        CardEntry entry = new CardEntry("Card", "Holder", "4111222233334444".toCharArray(),
+            "01/26", null, null, "Visa", null);
+        vault.addCardEntry(entry);
+        assertTrue(vault.removeCardEntry(entry));
+        assertEquals(0, vault.getCardEntries().size());
+    }
+
+    @Test
+    void wipeAlsoWipesAppAndCardEntries() {
+        Vault vault = new Vault("user");
+        vault.addEntry(new PasswordEntry("T", "u", "p".toCharArray(), "", "", "C", null));
+        vault.addAppEntry(new AppEntry("App", "u", "1234".toCharArray(), null));
+        vault.addCardEntry(new CardEntry("Card", "H", "4111".toCharArray(), "01/26", null, null, "Visa", null));
+        vault.wipe();
+        assertEquals(0, vault.getEntries().size());
+        assertEquals(0, vault.getAppEntries().size());
+        assertEquals(0, vault.getCardEntries().size());
+    }
+
+    @Test
+    void getAppEntriesNullSafe() {
+        // Simulate Gson deserialization where appEntries field was null (old vault)
+        Vault vault = new Vault("user");
+        vault.setAppEntries(null);
+        assertNotNull(vault.getAppEntries());
+        assertEquals(0, vault.getAppEntries().size());
+    }
+
+    @Test
+    void getCardEntriesNullSafe() {
+        Vault vault = new Vault("user");
+        vault.setCardEntries(null);
+        assertNotNull(vault.getCardEntries());
+        assertEquals(0, vault.getCardEntries().size());
     }
 
     @Test

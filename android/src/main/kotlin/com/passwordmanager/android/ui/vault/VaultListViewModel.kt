@@ -13,9 +13,11 @@ import com.passwordmanager.android.data.ConfigRepository
 import com.passwordmanager.android.data.FaviconRepository
 import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.config.StorageMode
+import com.passwordmanager.sync.EntryMerger
 import com.passwordmanager.util.SecureWiper
 import com.passwordmanager.vault.SortField
-import com.passwordmanager.vault.VaultEntry
+import com.passwordmanager.vault.PasswordEntry
+import com.passwordmanager.vault.VaultItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +33,7 @@ import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
 data class VaultListUiState(
-    val entries: List<VaultEntry> = emptyList(),
+    val entries: List<PasswordEntry> = emptyList(),
     val categories: List<String> = emptyList(),
     val selectedCategory: String? = null,
     val searchQuery: String = "",
@@ -43,7 +45,9 @@ data class VaultListUiState(
     val selectedStrength: com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength? = null,
     val message: String? = null,
     val refreshToken: Long = 0,
-    val favicons: Map<String, Bitmap> = emptyMap()
+    val favicons: Map<String, Bitmap> = emptyMap(),
+    /** Non-empty when sync found password conflicts that need manual resolution. */
+    val passwordConflicts: List<EntryMerger.Conflict<PasswordEntry>> = emptyList()
 )
 
 @HiltViewModel
@@ -100,7 +104,7 @@ class VaultListViewModel @Inject constructor(
         loadFavicons(strengthFiltered)
     }
 
-    private fun loadFavicons(entries: List<VaultEntry>) {
+    private fun loadFavicons(entries: List<PasswordEntry>) {
         for (entry in entries) {
             val url = entry.url ?: continue
             if (url.isBlank()) continue
@@ -359,7 +363,7 @@ class VaultListViewModel @Inject constructor(
             return
         }
         val username = sessionHolder.username ?: return
-        val vaultFilename = "${username}.enc"
+        val vaultFilename = "vault_${username}.enc"
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -377,7 +381,8 @@ class VaultListViewModel @Inject constructor(
                 // Save current vault first
                 sessionHolder.save()
 
-                val localPath = sessionHolder.getRepository().manager.getVaultPath(username)
+                val vaultManager = sessionHolder.getRepository().manager
+                val localPath = vaultManager.getVaultPath(username)
                 val localFile = java.io.File(localPath)
                 if (!localFile.exists()) {
                     _uiState.update { it.copy(message = "sync_error") }
@@ -386,20 +391,20 @@ class VaultListViewModel @Inject constructor(
 
                 val jsch = JSch()
                 jsch.addIdentity(keyPath)
-                val session = jsch.getSession(user, host, port)
+                val sftpSession = jsch.getSession(user, host, port)
                 val knownHostsFile = java.io.File(
                     android.os.Environment.getExternalStorageDirectory(), ".ssh/known_hosts"
                 )
                 if (knownHostsFile.exists()) {
                     jsch.setKnownHosts(knownHostsFile.absolutePath)
-                    session.setConfig("StrictHostKeyChecking", "yes")
+                    sftpSession.setConfig("StrictHostKeyChecking", "yes")
                 } else {
-                    session.setConfig("StrictHostKeyChecking", "accept-new")
+                    sftpSession.setConfig("StrictHostKeyChecking", "accept-new")
                 }
-                session.connect(15_000)
+                sftpSession.connect(15_000)
 
                 try {
-                    val channel = session.openChannel("sftp") as ChannelSftp
+                    val channel = sftpSession.openChannel("sftp") as ChannelSftp
                     channel.connect(10_000)
 
                     try {
@@ -414,11 +419,11 @@ class VaultListViewModel @Inject constructor(
                         }
 
                         if (!remoteExists) {
-                            // No remote file — upload local
+                            // No remote file -- upload local
                             channel.put(localPath, remoteFile, ChannelSftp.OVERWRITE)
                             _uiState.update { it.copy(message = "sync_success") }
                         } else {
-                            // Compare hashes
+                            // Compare hashes to detect changes
                             val localHash = hashFile(localFile.readBytes())
                             val tempFile = java.io.File.createTempFile("sync_remote", ".enc", context.cacheDir)
                             try {
@@ -426,11 +431,64 @@ class VaultListViewModel @Inject constructor(
                                 val remoteHash = hashFile(tempFile.readBytes())
 
                                 if (localHash == remoteHash) {
+                                    // Identical -- nothing to do
                                     _uiState.update { it.copy(message = "sync_success") }
                                 } else {
-                                    // Local is source of truth — upload
-                                    channel.put(localPath, remoteFile, ChannelSftp.OVERWRITE)
-                                    _uiState.update { it.copy(message = "sync_success") }
+                                    // Vaults differ -- decrypt remote and merge
+                                    val vaultSession = sessionHolder.session
+                                        ?: throw IllegalStateException("No active vault session")
+                                    val remoteVault = vaultManager.decryptVaultFile(
+                                        tempFile.absolutePath, vaultSession
+                                    )
+
+                                    try {
+                                        val localVault = sessionHolder.vault
+                                            ?: throw IllegalStateException("No local vault")
+
+                                        // Merge all 3 entry types
+                                        val pwResult = EntryMerger.merge(
+                                            localVault.entries, remoteVault.entries
+                                        )
+                                        val appResult = EntryMerger.merge(
+                                            localVault.appEntries, remoteVault.appEntries
+                                        )
+                                        val cardResult = EntryMerger.merge(
+                                            localVault.cardEntries, remoteVault.cardEntries
+                                        )
+
+                                        // Auto-resolve app/card conflicts: keep the most recent version
+                                        val mergedApps = autoResolveConflicts(appResult)
+                                        val mergedCards = autoResolveConflicts(cardResult)
+
+                                        // Apply non-conflicting merges immediately
+                                        localVault.setAppEntries(java.util.ArrayList(mergedApps))
+                                        localVault.setCardEntries(java.util.ArrayList(mergedCards))
+
+                                        if (pwResult.hasConflicts()) {
+                                            // Apply non-conflicting password entries now;
+                                            // conflicts will be resolved by the user
+                                            localVault.setEntries(java.util.ArrayList(pwResult.mergedEntries))
+                                            sessionHolder.save()
+
+                                            // Store pending conflicts for the UI
+                                            pendingPasswordConflicts = pwResult.conflicts
+                                            _uiState.update {
+                                                it.copy(passwordConflicts = pwResult.conflicts)
+                                            }
+                                            // Don't upload yet -- wait for conflict resolution
+                                        } else {
+                                            // No password conflicts -- apply merged passwords, save & upload
+                                            localVault.setEntries(java.util.ArrayList(pwResult.mergedEntries))
+                                            sessionHolder.save()
+                                            refreshEntries()
+
+                                            // Re-read the saved (merged) file and upload
+                                            channel.put(localPath, remoteFile, ChannelSftp.OVERWRITE)
+                                            _uiState.update { it.copy(message = "sync_merge_auto") }
+                                        }
+                                    } finally {
+                                        remoteVault.wipe()
+                                    }
                                 }
                             } finally {
                                 tempFile.delete()
@@ -440,7 +498,7 @@ class VaultListViewModel @Inject constructor(
                         channel.disconnect()
                     }
                 } finally {
-                    session.disconnect()
+                    sftpSession.disconnect()
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -448,6 +506,120 @@ class VaultListViewModel @Inject constructor(
                 Log.e(TAG, "SFTP sync failed", e)
                 _uiState.update { it.copy(message = "sync_error") }
             }
+        }
+    }
+
+    // Pending password conflicts awaiting user resolution
+    private var pendingPasswordConflicts: List<EntryMerger.Conflict<PasswordEntry>> = emptyList()
+
+    /**
+     * Called by the ConflictResolutionScreen when the user has chosen
+     * local or remote for each conflicting password entry.
+     *
+     * @param resolutions map of entryId -> keepLocal (true = local, false = remote)
+     */
+    fun resolvePasswordConflicts(resolutions: Map<String, Boolean>) {
+        val conflicts = pendingPasswordConflicts
+        if (conflicts.isEmpty()) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val localVault = sessionHolder.vault ?: return@launch
+                val username = sessionHolder.username ?: return@launch
+                val vaultFilename = "vault_${username}.enc"
+
+                // Build the resolved entries and add them to the existing merged list
+                val currentEntries = java.util.ArrayList(localVault.entries)
+                for (conflict in conflicts) {
+                    val keepLocal = resolutions[conflict.localEntry.id] ?: true
+                    val chosen = if (keepLocal) conflict.localEntry else conflict.remoteEntry
+                    currentEntries.add(chosen)
+                }
+                localVault.setEntries(currentEntries)
+                pendingPasswordConflicts = emptyList()
+
+                // Save locally
+                sessionHolder.save()
+                refreshEntries()
+
+                // Clear the conflicts from UI
+                _uiState.update { it.copy(passwordConflicts = emptyList()) }
+
+                // Upload the merged vault to the server
+                uploadToSftp(vaultFilename)
+
+                _uiState.update { it.copy(message = "sync_success") }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Conflict resolution failed", e)
+                _uiState.update { it.copy(message = "sync_error") }
+            }
+        }
+    }
+
+    /** Dismiss conflict resolution without resolving (keeps local state as-is). */
+    fun dismissConflicts() {
+        pendingPasswordConflicts = emptyList()
+        _uiState.update { it.copy(passwordConflicts = emptyList()) }
+    }
+
+    /**
+     * Auto-resolves merge conflicts for non-password entry types by keeping
+     * the version with the most recent updatedAt timestamp.
+     */
+    private fun <T : VaultItem> autoResolveConflicts(
+        result: EntryMerger.MergeResult<T>
+    ): List<T> {
+        val merged = java.util.ArrayList(result.mergedEntries)
+        for (conflict in result.conflicts) {
+            val localTime = conflict.localEntry.updatedAt ?: ""
+            val remoteTime = conflict.remoteEntry.updatedAt ?: ""
+            // ISO-8601 timestamps are lexicographically comparable
+            val winner = if (remoteTime > localTime) conflict.remoteEntry else conflict.localEntry
+            merged.add(winner)
+        }
+        return merged
+    }
+
+    /**
+     * Opens an SFTP connection and uploads the current local vault file to the server.
+     * Used after merge/conflict resolution to push the merged result.
+     */
+    private fun uploadToSftp(vaultFilename: String) {
+        val username = sessionHolder.username ?: return
+        val host = configRepo.getSftpHost()
+        val port = configRepo.getSftpPort()
+        val user = configRepo.getSftpUser()
+        val keyPath = configRepo.getSftpKeyPath()
+        val remotePath = configRepo.getSftpRemotePath()
+
+        val localPath = sessionHolder.getRepository().manager.getVaultPath(username)
+
+        val jsch = JSch()
+        jsch.addIdentity(keyPath)
+        val sftpSession = jsch.getSession(user, host, port)
+        val knownHostsFile = java.io.File(
+            android.os.Environment.getExternalStorageDirectory(), ".ssh/known_hosts"
+        )
+        if (knownHostsFile.exists()) {
+            jsch.setKnownHosts(knownHostsFile.absolutePath)
+            sftpSession.setConfig("StrictHostKeyChecking", "yes")
+        } else {
+            sftpSession.setConfig("StrictHostKeyChecking", "accept-new")
+        }
+        sftpSession.connect(15_000)
+        try {
+            val channel = sftpSession.openChannel("sftp") as ChannelSftp
+            channel.connect(10_000)
+            try {
+                val remoteFile = "$remotePath/$vaultFilename"
+                channel.put(localPath, remoteFile, ChannelSftp.OVERWRITE)
+            } finally {
+                channel.disconnect()
+            }
+        } finally {
+            sftpSession.disconnect()
         }
     }
 
@@ -467,14 +639,22 @@ class VaultListViewModel @Inject constructor(
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     tempFile.outputStream().use { output -> input.copyTo(output) }
                 }
-                val entries = sessionHolder.getRepository().manager.importEncryptedVault(password, tempFile.absolutePath)
+                val sourceVault = sessionHolder.getRepository().manager.importEncryptedVault(password, tempFile.absolutePath)
                 tempFile.delete()
                 java.util.Arrays.fill(password, '\u0000')
 
-                val service = sessionHolder.vaultService ?: return@launch
+                val vault = sessionHolder.vault ?: return@launch
                 var count = 0
-                for (entry in entries) {
-                    service.addEntry(entry)
+                for (entry in sourceVault.entries) {
+                    vault.addEntry(entry)
+                    count++
+                }
+                for (entry in sourceVault.appEntries) {
+                    vault.addAppEntry(entry)
+                    count++
+                }
+                for (entry in sourceVault.cardEntries) {
+                    vault.addCardEntry(entry)
                     count++
                 }
                 sessionHolder.save()

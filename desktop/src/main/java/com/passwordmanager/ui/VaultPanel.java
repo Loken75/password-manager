@@ -3,7 +3,7 @@ package com.passwordmanager.ui;
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.vault.SortField;
-import com.passwordmanager.vault.VaultEntry;
+import com.passwordmanager.vault.PasswordEntry;
 import com.passwordmanager.vault.EntryFilter;
 import com.passwordmanager.util.FaviconService;
 import com.passwordmanager.util.SecureWiper;
@@ -51,7 +51,7 @@ public class VaultPanel extends JPanel {
         SortField.FAVORITE, SortField.TITLE, SortField.USERNAME, SortField.EMAIL, SortField.CATEGORY, SortField.STRENGTH
     };
 
-    private List<VaultEntry> displayedEntries = new ArrayList<>();
+    private List<PasswordEntry> displayedEntries = new ArrayList<>();
     private String currentCategory = null;
     private SortField currentSort = SortField.TITLE;
     private boolean sortAscending = true;
@@ -202,7 +202,7 @@ public class VaultPanel extends JPanel {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col);
                 if (c instanceof JLabel && row >= 0 && row < displayedEntries.size()) {
                     JLabel label = (JLabel) c;
-                    VaultEntry entry = displayedEntries.get(row);
+                    PasswordEntry entry = displayedEntries.get(row);
                     ImageIcon icon = getFaviconForEntry(entry);
                     if (icon != null && icon != FAVICON_LOADING) {
                         label.setIcon(icon);
@@ -550,13 +550,13 @@ public class VaultPanel extends JPanel {
 
     public void refreshEntries() {
         String query = searchField.getText().trim();
-        List<VaultEntry> entries;
+        List<PasswordEntry> entries;
 
         if (!query.isEmpty()) {
             entries = vaultService.search(query);
             if (currentCategory != null) {
-                List<VaultEntry> filtered = new ArrayList<>();
-                for (VaultEntry e : entries) {
+                List<PasswordEntry> filtered = new ArrayList<>();
+                for (PasswordEntry e : entries) {
                     if (currentCategory.equals(e.getCategory())) {
                         filtered.add(e);
                     }
@@ -611,7 +611,7 @@ public class VaultPanel extends JPanel {
             clearDetails();
             return;
         }
-        VaultEntry e = displayedEntries.get(row);
+        PasswordEntry e = displayedEntries.get(row);
         detailTitle.setText((e.isFavorite() ? "\u2605 " : "") + e.getTitle());
         detailUser.setText(e.getUsername() != null ? e.getUsername() : "");
         detailEmail.setText(e.getEmail() != null ? e.getEmail() : "");
@@ -686,7 +686,7 @@ public class VaultPanel extends JPanel {
         if (ids.isEmpty()) return;
         // Check if any selected entry is not a favorite
         boolean anyNotFav = false;
-        for (VaultEntry e : displayedEntries) {
+        for (PasswordEntry e : displayedEntries) {
             if (ids.contains(e.getId()) && !e.isFavorite()) {
                 anyNotFav = true;
                 break;
@@ -716,7 +716,7 @@ public class VaultPanel extends JPanel {
         JMenuItem toggleFav = new JMenuItem(lang.getString("entry.toggle_favorite"));
         toggleFav.setEnabled(singleSelected);
         toggleFav.addActionListener(e -> {
-            VaultEntry se = getSelectedEntry();
+            PasswordEntry se = getSelectedEntry();
             if (se != null) {
                 vaultService.toggleFavorite(se.getId());
                 refreshEntries();
@@ -763,7 +763,7 @@ public class VaultPanel extends JPanel {
     }
 
     private void copyEmailToClipboard() {
-        VaultEntry e = getSelectedEntry();
+        PasswordEntry e = getSelectedEntry();
         if (e == null || e.getEmail() == null || e.getEmail().isEmpty()) return;
         Toolkit.getDefaultToolkit().getSystemClipboard()
             .setContents(new StringSelection(e.getEmail()), null);
@@ -771,7 +771,7 @@ public class VaultPanel extends JPanel {
     }
 
     private void copyUrlToClipboard() {
-        VaultEntry e = getSelectedEntry();
+        PasswordEntry e = getSelectedEntry();
         if (e == null || e.getUrl() == null || e.getUrl().isEmpty()) return;
         Toolkit.getDefaultToolkit().getSystemClipboard()
             .setContents(new StringSelection(e.getUrl()), null);
@@ -779,7 +779,7 @@ public class VaultPanel extends JPanel {
     }
 
     private void openUrlInBrowser() {
-        VaultEntry e = getSelectedEntry();
+        PasswordEntry e = getSelectedEntry();
         if (e == null || e.getUrl() == null || e.getUrl().isBlank()) return;
         String url = e.getUrl();
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
@@ -793,11 +793,11 @@ public class VaultPanel extends JPanel {
     }
 
     private void duplicateEntry() {
-        VaultEntry selected = getSelectedEntry();
+        PasswordEntry selected = getSelectedEntry();
         if (selected == null) return;
         char[] pwdCopy = selected.getPassword();
         try {
-            VaultEntry dup = new VaultEntry(
+            PasswordEntry dup = new PasswordEntry(
                 lang.getString("menu.duplicate.prefix") + " " + selected.getTitle(),
                 selected.getUsername(),
                 selected.getEmail(),
@@ -818,7 +818,7 @@ public class VaultPanel extends JPanel {
     private void copyUsernameToClipboard() {
         int row = entryTable.getSelectedRow();
         if (row < 0 || row >= displayedEntries.size()) return;
-        VaultEntry e = displayedEntries.get(row);
+        PasswordEntry e = displayedEntries.get(row);
         String username = e.getUsername();
         if (username == null || username.isEmpty()) return;
 
@@ -831,7 +831,7 @@ public class VaultPanel extends JPanel {
     private void copyPasswordToClipboard() {
         int row = entryTable.getSelectedRow();
         if (row < 0 || row >= displayedEntries.size()) return;
-        VaultEntry e = displayedEntries.get(row);
+        PasswordEntry e = displayedEntries.get(row);
         char[] clipPwd = e.getPassword();
         if (clipPwd == null) return;
 
@@ -866,7 +866,7 @@ public class VaultPanel extends JPanel {
         }
     }
 
-    public VaultEntry getSelectedEntry() {
+    public PasswordEntry getSelectedEntry() {
         int row = entryTable.getSelectedRow();
         if (row < 0 || row >= displayedEntries.size()) return null;
         return displayedEntries.get(row);
@@ -874,7 +874,7 @@ public class VaultPanel extends JPanel {
 
     public void editSelectedEntry() {
         if (entryTable.getSelectedRowCount() != 1) return;
-        VaultEntry selected = getSelectedEntry();
+        PasswordEntry selected = getSelectedEntry();
         if (selected == null) return;
         EntryDialog dlg = new EntryDialog(
             (Frame) SwingUtilities.getWindowAncestor(this),
@@ -934,7 +934,7 @@ public class VaultPanel extends JPanel {
         refreshEntries();
     }
 
-    private ImageIcon getFaviconForEntry(VaultEntry entry) {
+    private ImageIcon getFaviconForEntry(PasswordEntry entry) {
         if (faviconService == null) return null;
         String url = entry.getUrl();
         if (url == null || url.isBlank()) return null;
@@ -1000,7 +1000,7 @@ public class VaultPanel extends JPanel {
 
         @Override
         public Object getValueAt(int row, int col) {
-            VaultEntry e = displayedEntries.get(row);
+            PasswordEntry e = displayedEntries.get(row);
             switch (col) {
                 case 0: return e.isFavorite() ? "\u2605" : "\u2606";
                 case 1: return e.getTitle();

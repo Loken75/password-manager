@@ -6,7 +6,7 @@ import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength
 import com.passwordmanager.security.HibpChecker
-import com.passwordmanager.vault.VaultEntry
+import com.passwordmanager.vault.PasswordEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,11 +17,11 @@ import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
 data class SecurityAuditUiState(
-    val weakEntries: List<VaultEntry> = emptyList(),
-    val duplicateEntries: List<VaultEntry> = emptyList(),
-    val oldEntries: List<VaultEntry> = emptyList(),
+    val weakEntries: List<PasswordEntry> = emptyList(),
+    val duplicateEntries: List<PasswordEntry> = emptyList(),
+    val oldEntries: List<PasswordEntry> = emptyList(),
     val passwordExpiryDays: Int = 180,
-    val breachedEntries: List<VaultEntry> = emptyList(),
+    val breachedEntries: List<PasswordEntry> = emptyList(),
     val isCheckingBreaches: Boolean = false,
     val breachError: Boolean = false,
     val totalIssues: Int = 0
@@ -81,7 +81,7 @@ class SecurityAuditViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val allEntries = service.search("")
-                val breached = mutableListOf<VaultEntry>()
+                val breached = mutableListOf<PasswordEntry>()
 
                 for (entry in allEntries) {
                     val password = entry.password ?: continue

@@ -301,6 +301,47 @@ public class VaultManager {
     }
 
     /**
+     * Decrypts a vault from an arbitrary file path using an existing session's DEK.
+     * Used by Android sync to decrypt a downloaded remote vault without overwriting the local file.
+     *
+     * @param encFilePath absolute path to the encrypted vault file
+     * @param session     active session whose DEK can decrypt the data
+     * @return the decrypted Vault
+     */
+    public Vault decryptVaultFile(String encFilePath, VaultSession session)
+            throws VaultDecryptionException, IOException {
+        Path filePath = Paths.get(encFilePath);
+        long fileSize = Files.size(filePath);
+        if (fileSize > MAX_VAULT_FILE_SIZE) {
+            throw new IOException("Vault file exceeds maximum size (" + MAX_VAULT_FILE_SIZE / (1024 * 1024) + " MB)");
+        }
+        byte[] fileBytes = Files.readAllBytes(filePath);
+        String fileContent;
+        try {
+            fileContent = new String(fileBytes, StandardCharsets.UTF_8);
+        } finally {
+            SecureWiper.wipe(fileBytes);
+        }
+        JsonObject json = JsonParser.parseString(fileContent).getAsJsonObject();
+
+        requireJsonField(json, "data_iv", "encrypted_data");
+        byte[] dataIv = Base64.getDecoder().decode(json.get("data_iv").getAsString());
+        byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
+
+        byte[] vaultJsonBytes;
+        try {
+            vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey(), VAULT_AAD);
+        } catch (VaultDecryptionException e) {
+            vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
+        }
+        try {
+            return gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
+        } finally {
+            SecureWiper.wipe(vaultJsonBytes);
+        }
+    }
+
+    /**
      * Exports an encrypted backup. Verifies the vault can be loaded first.
      */
     public void exportBackup(String username, VaultSession session, String exportPath) throws IOException {
@@ -329,13 +370,14 @@ public class VaultManager {
 
     /**
      * Imports entries from an encrypted vault file (.enc) into the target vault.
-     * Decrypts the source file using sourcePassword and returns the imported entries.
+     * Decrypts the source file using sourcePassword and returns the source vault
+     * containing all entry types (passwords, apps, cards).
      *
      * @param sourcePassword the master password for the encrypted source file
      * @param encFilePath path to the .enc vault file
-     * @return list of VaultEntry from the source vault
+     * @return the decrypted source vault
      */
-    public List<VaultEntry> importEncryptedVault(char[] sourcePassword, String encFilePath)
+    public Vault importEncryptedVault(char[] sourcePassword, String encFilePath)
             throws VaultDecryptionException, IOException {
         Path filePath = Paths.get(encFilePath);
         long fileSize = Files.size(filePath);
@@ -385,10 +427,10 @@ public class VaultManager {
             SecureWiper.wipe(vaultJsonBytes);
         }
 
-        if (sourceVault == null || sourceVault.getEntries() == null) {
-            return new ArrayList<>();
+        if (sourceVault == null) {
+            return new Vault("import");
         }
-        return new ArrayList<>(sourceVault.getEntries());
+        return sourceVault;
     }
 
     /**

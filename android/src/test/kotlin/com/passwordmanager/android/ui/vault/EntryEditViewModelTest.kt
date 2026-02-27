@@ -4,7 +4,7 @@ import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.android.test.MainDispatcherExtension
 import com.passwordmanager.android.test.TestSessionHelper
 import com.passwordmanager.vault.Vault
-import com.passwordmanager.vault.VaultEntry
+import com.passwordmanager.vault.PasswordEntry
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -45,7 +45,7 @@ class EntryEditViewModelTest {
 
     @Test
     fun `loadEntry existing entry populates form`() {
-        val entry = VaultEntry("Gmail", "user", "pass123".toCharArray(), "https://gmail.com", "notes", "Email", listOf("tag1"))
+        val entry = PasswordEntry("Gmail", "user", "pass123".toCharArray(), "https://gmail.com", "notes", "Email", listOf("tag1"))
         SessionHolder.vaultService!!.addEntry(entry)
 
         viewModel.loadEntry(entry.id)
@@ -99,7 +99,7 @@ class EntryEditViewModelTest {
 
     @Test
     fun `save existing entry returns true`() {
-        val entry = VaultEntry("Original", "u", "p".toCharArray(), "", "", "Email", null)
+        val entry = PasswordEntry("Original", "u", "p".toCharArray(), "", "", "Email", null)
         SessionHolder.vaultService!!.addEntry(entry)
         viewModel.loadEntry(entry.id)
         viewModel.updateTitle("Updated Title")

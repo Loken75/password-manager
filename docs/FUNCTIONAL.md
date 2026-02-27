@@ -7,22 +7,26 @@
 3. [Premier demarrage](#3-premier-demarrage)
 4. [Connexion](#4-connexion)
 5. [Interface principale](#5-interface-principale)
-6. [Gestion des entrees](#6-gestion-des-entrees)
-7. [Recherche, tri et filtres](#7-recherche-tri-et-filtres)
-8. [Categories](#8-categories)
-9. [Favoris](#9-favoris)
-10. [Generateur de mots de passe](#10-generateur-de-mots-de-passe)
-11. [Analyse de securite](#11-analyse-de-securite)
-12. [Import et export](#12-import-et-export)
-13. [Synchronisation distante](#13-synchronisation-distante)
-14. [Parametres](#14-parametres)
-15. [Changement du mot de passe maitre](#15-changement-du-mot-de-passe-maitre)
-16. [Securite](#16-securite)
-17. [Raccourcis clavier](#17-raccourcis-clavier)
-18. [Verification des mises a jour](#18-verification-des-mises-a-jour)
-19. [Service d'auto-remplissage (Android)](#19-service-dauto-remplissage-android)
-20. [Structure des donnees utilisateur](#20-structure-des-donnees-utilisateur)
-21. [Differences entre plateformes](#21-differences-entre-plateformes)
+6. [Types d'entrees](#6-types-dentrees)
+   - 6.1. [Entrees mot de passe (Mots de passe)](#61-entrees-mot-de-passe-mots-de-passe)
+   - 6.2. [Entrees application (Applications)](#62-entrees-application-applications)
+   - 6.3. [Entrees carte bancaire (Cartes)](#63-entrees-carte-bancaire-cartes)
+7. [Gestion des entrees](#7-gestion-des-entrees)
+8. [Recherche, tri et filtres](#8-recherche-tri-et-filtres)
+9. [Categories](#9-categories)
+10. [Favoris](#10-favoris)
+11. [Generateur de mots de passe](#11-generateur-de-mots-de-passe)
+12. [Analyse de securite](#12-analyse-de-securite)
+13. [Import et export](#13-import-et-export)
+14. [Synchronisation distante](#14-synchronisation-distante)
+15. [Parametres](#15-parametres)
+16. [Changement du mot de passe maitre](#16-changement-du-mot-de-passe-maitre)
+17. [Securite](#17-securite)
+18. [Raccourcis clavier](#18-raccourcis-clavier)
+19. [Verification des mises a jour](#19-verification-des-mises-a-jour)
+20. [Service d'auto-remplissage (Android)](#20-service-dauto-remplissage-android)
+21. [Structure des donnees utilisateur](#21-structure-des-donnees-utilisateur)
+22. [Differences entre plateformes](#22-differences-entre-plateformes)
 
 ---
 
@@ -33,6 +37,7 @@ Password Manager est une application multiplateforme permettant de stocker, orga
 ### Fonctionnalites principales
 
 - Coffre-fort chiffre par utilisateur (AES-256-GCM)
+- **Trois types d'entrees** : mots de passe, applications (codes PIN) et cartes bancaires
 - Creation, modification, suppression et recherche d'entrees
 - Generateur de mots de passe cryptographiquement sur
 - Analyse de securite (mots de passe faibles, reutilises, anciens)
@@ -166,13 +171,25 @@ Acces rapide aux fonctions courantes :
 | Synchroniser maintenant | Lancer la synchronisation (mode distant) |
 | Verrouiller | Verrouiller le coffre |
 
-### 5.3. Zone centrale (3 colonnes)
+### 5.3. Zone centrale (onglets + 3 colonnes)
+
+La zone centrale est organisee en un **JTabbedPane** avec trois onglets correspondant aux types d'entrees :
+
+| Onglet | Contenu |
+|--------|---------|
+| **Mots de passe** | Panneau principal avec categories (gauche), tableau des entrees mot de passe (centre) et panneau de details (droite) |
+| **Applications** | Tableau des entrees application (centre) et panneau de details (droite). Pas de panneau de categories. |
+| **Cartes** | Tableau des entrees carte bancaire (centre) et panneau de details (droite). Pas de panneau de categories. |
+
+Pour l'onglet **Mots de passe**, la disposition en 3 colonnes reste inchangee :
 
 | Colonne | Contenu |
 |---------|---------|
-| **Gauche** (180 px) | Liste des categories avec bouton d'ajout |
-| **Centre** | Barre de recherche + filtres avances + tableau des entrees (Favori ★, Titre avec favicon, Identifiant, Email, Pseudo, Categorie, Force) — tous les en-tetes cliquables pour trier (y compris Favori et Force). Menu "Actions..." en masse en bas (visible quand >1 entree selectionnee) |
+| **Gauche** (180 px) | Liste des categories avec bouton d'ajout (visible uniquement sur l'onglet Mots de passe) |
+| **Centre** | Barre de recherche + filtres avances + tableau des entrees (Favori, Titre avec favicon, Identifiant, Email, Pseudo, Categorie, Force) — tous les en-tetes cliquables pour trier (y compris Favori et Force). Menu "Actions..." en masse en bas (visible quand >1 entree selectionnee) |
 | **Droite** (300 px) | Details de l'entree selectionnee |
+
+Les onglets **Applications** et **Cartes** suivent une disposition similaire mais sans le panneau de categories a gauche, et avec des colonnes adaptees a chaque type d'entree.
 
 ### 5.4. Barre de statut
 
@@ -186,23 +203,24 @@ Affiche en bas de la fenetre :
 Apres connexion, l'interface Android se compose de :
 
 - **TopAppBar** avec titre, icone de recherche et menu overflow (importer..., exporter..., synchroniser, audit de securite, parametres, verrouiller)
-- **Dropdown categorie** pour le filtrage (remplace les FilterChips) : liste deroulante "Toutes les categories" + categories existantes
-- **Liste scrollable** (LazyColumn) des entrees avec favicon (ou avatar lettre), titre, URL du site (ou identifiant en repli), etoile favori, indicateur de force et categorie
-- **Selection multiple** : appui long sur une entree pour activer le mode selection, checkbox sur chaque entree, menu "Actions..." (changement de categorie, ajout/retrait des favoris, suppression en masse avec confirmation)
-- **FAB** (bouton flottant) pour creer une nouvelle entree
+- **TabRow + HorizontalPager** avec trois onglets : **Mots de passe**, **Applications**, **Cartes**. L'utilisateur peut naviguer entre les onglets par swipe ou en appuyant sur les titres d'onglets.
+- **Dropdown categorie** pour le filtrage (visible uniquement sur l'onglet Mots de passe) : liste deroulante "Toutes les categories" + categories existantes
+- **Liste scrollable** (LazyColumn) des entrees adaptee a l'onglet actif, avec favicon (ou avatar lettre), titre, et champs specifiques au type d'entree
+- **Selection multiple** : appui long sur une entree pour activer le mode selection, checkbox sur chaque entree, menu "Actions..." (changement de categorie pour les mots de passe, ajout/retrait des favoris, suppression en masse avec confirmation)
+- **FAB** (bouton flottant) pour creer une nouvelle entree du type correspondant a l'onglet actif
 - **Navigation** par ecrans : detail, edition, generateur, parametres, changement de mot de passe maitre, audit
 
 La navigation suit le pattern Android standard : appui sur le bouton retour pour revenir a l'ecran precedent.
 
 ---
 
-## 6. Gestion des entrees
+## 6. Types d'entrees
 
-### 6.1. Creer une entree
+Le coffre-fort gere trois types d'entrees, chacun adapte a un usage specifique. Les entrees sont reparties dans des onglets dedies (desktop : JTabbedPane, Android : TabRow + HorizontalPager).
 
-**Acces** : Edition > Nouvelle entree | `Ctrl+N` | Barre d'outils
+### 6.1. Entrees mot de passe (Mots de passe)
 
-Le formulaire contient les champs suivants :
+Type principal pour stocker les identifiants de connexion aux sites et services en ligne.
 
 | Champ | Obligatoire | Description |
 |-------|:-----------:|-------------|
@@ -216,64 +234,116 @@ Le formulaire contient les champs suivants :
 | Categorie | Non | Categorie de classement (liste deroulante) |
 | Tags | Non | Etiquettes separees par des virgules |
 
-Le formulaire affiche en temps reel un **indicateur de force** du mot de passe (barre coloree + texte).
+Le formulaire affiche en temps reel un **indicateur de force** du mot de passe (barre coloree + texte). Une case a cocher **Afficher** permet de reveler le mot de passe saisi. Un bouton **Generer** permet d'ouvrir le generateur integre et d'inserer directement le mot de passe genere dans le champ.
 
-Une case a cocher **Afficher** permet de reveler le mot de passe saisi.
+Les entrees mot de passe sont les seules a supporter les **categories** et les **tags**.
 
-Un bouton **Generer** permet d'ouvrir le generateur integre et d'inserer directement le mot de passe genere dans le champ.
+### 6.2. Entrees application (Applications)
 
-### 6.2. Modifier une entree
+Type dedie au stockage des codes PIN et identifiants d'applications (banque, digicode, etc.).
+
+| Champ | Obligatoire | Description |
+|-------|:-----------:|-------------|
+| Titre | Oui | Nom de l'application ou du service |
+| Identifiant | Non | Nom d'utilisateur |
+| Code PIN | Oui | Code PIN de l'application (masque par defaut) |
+| Notes | Non | Informations complementaires |
+
+Le champ **Code PIN** est masque par defaut avec un bouton **Afficher/Masquer**. Un bouton **Generer** permet de generer un code numerique (chiffres uniquement).
+
+Les entrees application ne supportent ni les categories, ni les tags.
+
+### 6.3. Entrees carte bancaire (Cartes)
+
+Type dedie au stockage securise des informations de cartes bancaires.
+
+| Champ | Obligatoire | Description |
+|-------|:-----------:|-------------|
+| Titre | Oui | Nom descriptif de la carte (ex: "Visa principale") |
+| Nom du titulaire | Non | Nom tel qu'imprime sur la carte |
+| Numero de carte | Non | Numero de la carte (masque par defaut) |
+| Date d'expiration | Non | Format MM/AA |
+| CVV | Non | Code de securite a 3 ou 4 chiffres (masque par defaut) |
+| Code PIN | Non | Code PIN de la carte (masque par defaut) |
+| Type de carte | Non | Liste deroulante : Visa, Mastercard, Amex, CB, Autre |
+| Notes | Non | Informations complementaires |
+
+Les champs **Numero de carte**, **CVV** et **Code PIN** sont masques par defaut avec un bouton **Afficher/Masquer** pour chacun.
+
+Les entrees carte bancaire ne supportent ni les categories, ni les tags.
+
+---
+
+## 7. Gestion des entrees
+
+Les operations de creation, modification et suppression s'appliquent a tous les types d'entrees. Le formulaire affiche est adapte automatiquement au type de l'onglet actif.
+
+### 7.1. Creer une entree
+
+**Acces** : Edition > Nouvelle entree | `Ctrl+N` | Barre d'outils | FAB (Android)
+
+Le raccourci `Ctrl+N` cree une entree du type correspondant a l'onglet actuellement actif :
+- Sur l'onglet **Mots de passe** : cree une entree mot de passe
+- Sur l'onglet **Applications** : cree une entree application
+- Sur l'onglet **Cartes** : cree une entree carte bancaire
+
+Le formulaire affiche les champs specifiques au type d'entree (voir [section 6](#6-types-dentrees)).
+
+### 7.2. Modifier une entree
 
 - **Double-clic** sur l'entree dans le tableau
 - Ou selectionner l'entree puis Edition > Modifier l'entree
 - Ou **clic droit** > Modifier (menu contextuel)
 
-Le formulaire de modification est identique a celui de creation, pre-rempli avec les valeurs existantes.
+Le formulaire de modification est identique a celui de creation, pre-rempli avec les valeurs existantes. Le type d'entree ne peut pas etre change apres creation.
 
-### 6.3. Supprimer une entree
+### 7.3. Supprimer une entree
 
 **Acces** : Edition > Supprimer l'entree | Touche `Suppr` | Clic droit > Supprimer
 
-Une boite de confirmation est affichee avant la suppression. L'action est irreversible. Si plusieurs entrees sont selectionnees, la confirmation indique le nombre d'entrees concernees.
+Une boite de confirmation est affichee avant la suppression. L'action est irreversible. Si plusieurs entrees sont selectionnees, la confirmation indique le nombre d'entrees concernees. La suppression fonctionne sur tous les types d'entrees.
 
-### 6.4. Selection multiple et operations en masse (Desktop)
+### 7.4. Selection multiple et operations en masse (Desktop)
 
 Le tableau des entrees supporte la selection multiple (Ctrl+clic, Shift+clic). Lorsque plus d'une entree est selectionnee, une barre d'actions en masse apparait sous le tableau :
 
 Le menu **"Actions..."** propose les operations suivantes :
 
-| Action | Description |
-|--------|-------------|
-| **Supprimer la selection** | Supprime les entrees selectionnees apres confirmation |
-| **Changer la categorie** | Reassigne toutes les entrees selectionnees a la categorie choisie |
-| **Ajouter aux favoris** | Marque toutes les entrees selectionnees comme favorites |
-| **Retirer des favoris** | Retire le statut favori des entrees selectionnees |
+| Action | Description | Types concernes |
+|--------|-------------|-----------------|
+| **Supprimer la selection** | Supprime les entrees selectionnees apres confirmation | Tous |
+| **Changer la categorie** | Reassigne toutes les entrees selectionnees a la categorie choisie | Mots de passe uniquement |
+| **Ajouter aux favoris** | Marque toutes les entrees selectionnees comme favorites | Tous |
+| **Retirer des favoris** | Retire le statut favori des entrees selectionnees | Tous |
 
-### 6.5. Menu contextuel (Desktop - clic droit)
+### 7.5. Menu contextuel (Desktop - clic droit)
 
-Un clic droit sur le tableau affiche un menu contextuel avec les actions suivantes :
+Un clic droit sur le tableau affiche un menu contextuel avec les actions disponibles. Les options affichees s'adaptent au type d'entree :
 
 | Action | Disponibilite | Description |
 |--------|:------------:|-------------|
 | Modifier | 1 entree | Ouvre le formulaire d'edition |
 | Supprimer | 1+ entrees | Supprime avec confirmation |
-| Copier le mot de passe | 1 entree | Copie dans le presse-papiers |
-| Copier l'identifiant | 1 entree | Copie dans le presse-papiers |
-| Copier l'email | 1 entree | Copie dans le presse-papiers |
-| Copier l'URL | 1 entree | Copie dans le presse-papiers |
-| Ouvrir l'URL | 1 entree | Ouvre l'URL dans le navigateur par defaut |
+| Copier le mot de passe | 1 entree (mot de passe) | Copie dans le presse-papiers |
+| Copier l'identifiant | 1 entree (mot de passe, application) | Copie dans le presse-papiers |
+| Copier l'email | 1 entree (mot de passe) | Copie dans le presse-papiers |
+| Copier l'URL | 1 entree (mot de passe) | Copie dans le presse-papiers |
+| Ouvrir l'URL | 1 entree (mot de passe) | Ouvre l'URL dans le navigateur par defaut |
+| Copier le PIN | 1 entree (application, carte) | Copie dans le presse-papiers |
+| Copier le numero de carte | 1 entree (carte) | Copie dans le presse-papiers |
 | Dupliquer | 1 entree | Cree une copie de l'entree avec le prefixe "Copie de" |
 
-### 6.6. Dupliquer une entree (Desktop)
+### 7.6. Dupliquer une entree (Desktop)
 
 **Acces** : Clic droit > Dupliquer
 
-Cree une nouvelle entree identique a l'entree selectionnee avec le titre prefixe par "Copie de". Tous les champs sont copies (identifiant, email, pseudo, mot de passe, URL, notes, categorie, tags).
+Cree une nouvelle entree identique a l'entree selectionnee avec le titre prefixe par "Copie de". Tous les champs specifiques au type sont copies.
 
-### 6.7. Consulter les details
+### 7.7. Consulter les details
 
-Cliquer sur une entree dans le tableau affiche ses details dans le panneau droit :
+Cliquer sur une entree dans le tableau affiche ses details dans le panneau droit. Les champs affiches dependent du type d'entree :
 
+**Entree mot de passe** :
 - Titre (en gras, centre)
 - Grille de details : identifiant, email, pseudo, mot de passe, URL (cliquable — ouvre le navigateur), categorie, notes, dates de creation et modification
 - **Mot de passe masque** par defaut (case a cocher **Afficher le mot de passe** pour le reveler)
@@ -281,17 +351,39 @@ Cliquer sur une entree dans le tableau affiche ses details dans le panneau droit
 - Bouton **Copier l'identifiant** pour copier le nom d'utilisateur dans le presse-papiers
 - Bouton **Copier le mot de passe** pour copier le mot de passe dans le presse-papiers
 
+**Entree application** :
+- Titre (en gras, centre)
+- Grille de details : identifiant, code PIN (masque), notes, dates de creation et modification
+- **Code PIN masque** par defaut avec bouton d'affichage (re-masquage automatique apres 30 secondes)
+- Bouton **Copier le PIN** pour copier le code PIN dans le presse-papiers
+
+**Entree carte bancaire** :
+- Titre (en gras, centre)
+- Grille de details : nom du titulaire, numero de carte (masque), date d'expiration, CVV (masque), code PIN (masque), type de carte, notes, dates de creation et modification
+- Les champs sensibles (numero, CVV, PIN) sont masques par defaut avec bouton d'affichage (re-masquage automatique apres 30 secondes)
+- Bouton **Copier le numero** pour copier le numero de carte dans le presse-papiers
+
 ---
 
-## 7. Recherche, tri et filtres
+## 8. Recherche, tri et filtres
 
-### 7.1. Recherche en temps reel
+### 8.1. Recherche en temps reel
 
-La barre de recherche en haut du tableau filtre les entrees au fur et a mesure de la saisie. La recherche porte sur : titre, identifiant, email, pseudo, URL, notes, categorie et tags. Elle est insensible a la casse.
+La barre de recherche en haut du tableau filtre les entrees au fur et a mesure de la saisie. Elle est insensible a la casse. Le perimetre de recherche depend du type d'entree (onglet actif) :
 
-### 7.2. Tri
+| Type d'entree | Champs recherches |
+|---------------|-------------------|
+| **Mots de passe** | Titre, identifiant, email, pseudo, URL, notes, categorie, tags |
+| **Applications** | Titre, identifiant, notes |
+| **Cartes bancaires** | Titre, nom du titulaire, type de carte, notes |
+
+### 8.2. Tri
 
 **Menu** : Affichage > Trier par...
+
+Les options de tri disponibles dependent du type d'entree :
+
+**Entrees mot de passe** (9 criteres) :
 
 | Option | Comportement |
 |--------|-------------|
@@ -303,11 +395,28 @@ La barre de recherche en haut du tableau filtre les entrees au fur et a mesure d
 | Trier par date | Plus recemment modifie en premier |
 | Trier par categorie | Regroupement alphabetique par categorie |
 | Trier par favori | Favoris en premier, puis tri alphabetique par titre |
-| Trier par force | Tri par force du mot de passe (Faible → Moyen → Fort → Tres fort) |
+| Trier par force | Tri par force du mot de passe (Faible, Moyen, Fort, Tres fort) |
 
-Sur le desktop, cliquer sur un en-tete de colonne du tableau applique directement le tri correspondant (les 7 colonnes sont toutes triables, y compris Favori et Force).
+**Entrees application** :
 
-### 7.3. Filtres de securite
+| Option | Comportement |
+|--------|-------------|
+| Trier par nom | Ordre alphabetique sur le titre |
+| Trier par identifiant | Ordre alphabetique sur l'identifiant |
+| Trier par date | Plus recemment modifie en premier |
+
+**Entrees carte bancaire** :
+
+| Option | Comportement |
+|--------|-------------|
+| Trier par nom | Ordre alphabetique sur le titre |
+| Trier par titulaire | Ordre alphabetique sur le nom du titulaire |
+| Trier par type de carte | Regroupement par type de carte |
+| Trier par date | Plus recemment modifie en premier |
+
+Sur le desktop, cliquer sur un en-tete de colonne du tableau applique directement le tri correspondant.
+
+### 8.3. Filtres de securite
 
 **Menu** : Affichage
 
@@ -316,7 +425,13 @@ Sur le desktop, cliquer sur un en-tete de colonne du tableau applique directemen
 | Mots de passe faibles | Affiche les entrees dont le mot de passe est evalue comme **Faible** |
 | Mots de passe reutilises | Affiche les entrees partageant le meme mot de passe |
 
-### 7.4. Actualiser
+Ces filtres s'appliquent uniquement aux entrees mot de passe.
+
+### 8.4. Filtrage par categorie
+
+Le filtre par categorie (panneau lateral desktop, dropdown Android) s'applique uniquement aux entrees mot de passe. Il n'est pas affiche sur les onglets Applications et Cartes.
+
+### 8.5. Actualiser
 
 **Menu** : Affichage > Actualiser | `F5`
 
@@ -324,7 +439,9 @@ Recharge l'affichage du coffre depuis les donnees en memoire.
 
 ---
 
-## 8. Categories
+## 9. Categories
+
+Les categories s'appliquent exclusivement aux **entrees mot de passe**. Les entrees application et carte bancaire ne supportent pas les categories.
 
 ### Categories par defaut
 
@@ -363,7 +480,9 @@ Les categories creees dans le formulaire d'edition d'entree (en saisissant un no
 
 ---
 
-## 9. Favoris
+## 10. Favoris
+
+Les favoris fonctionnent pour les trois types d'entrees (mots de passe, applications, cartes bancaires).
 
 ### Marquer une entree comme favorite
 
@@ -390,7 +509,7 @@ Le statut favori est sauvegarde dans le coffre et exporte/importe via les format
 
 ---
 
-## 10. Generateur de mots de passe
+## 11. Generateur de mots de passe
 
 **Acces** : Outils > Generateur de mots de passe | Barre d'outils | Bouton **Generer** dans le formulaire d'entree
 
@@ -419,11 +538,13 @@ Un indicateur de force du mot de passe est affiche en temps reel.
 
 ---
 
-## 11. Analyse de securite
+## 12. Analyse de securite
 
 **Acces** : Outils > Analyse de securite
 
-L'analyse examine l'ensemble du coffre et genere un rapport visuel comprenant quatre sections colorees :
+L'analyse de securite s'applique exclusivement aux **entrees mot de passe**. Les entrees application et carte bancaire ne sont pas evaluees par l'audit.
+
+L'analyse examine les entrees mot de passe du coffre et genere un rapport visuel comprenant quatre sections colorees :
 
 ### 12.1. Mots de passe faibles
 
@@ -463,73 +584,126 @@ Le resultat affiche le nombre total de problemes detectes, ou confirme qu'aucun 
 
 ---
 
-## 12. Import et export
+## 13. Import et export
 
-L'import et l'export se font via une **popup unifiee** (desktop et Android) qui propose le choix du format : CSV, JSON ou sauvegarde chiffree (.enc).
+L'import et l'export se font via une **popup unifiee** (desktop et Android) qui propose le choix du format : CSV, JSON ou sauvegarde chiffree (.enc). Les trois types d'entrees (mots de passe, applications, cartes) sont pris en charge.
 
 **Acces** : Fichier > Importer... / Exporter... (desktop) | Menu overflow > Importer... / Exporter... (Android)
 
-### 12.1. Import CSV
+### 13.1. Import CSV
 
 Selectionnez un fichier CSV (taille max : 10 Mo). L'import detecte automatiquement :
 
 - **Le separateur** : virgule (`,`) ou point-virgule (`;`)
 - **Les colonnes** : reconnaissance multilingue des en-tetes
+- **Le type d'entree** : via la colonne `type`
+
+#### Colonne type
+
+La colonne `type` determine le type d'entree a creer :
+
+| Valeur | Type d'entree |
+|--------|---------------|
+| `PASSWORD` (ou absent) | Entree mot de passe |
+| `APP` | Entree application |
+| `CARD` | Entree carte bancaire |
+
+**Retrocompatibilite** : si la colonne `type` est absente, toutes les entrees sont importees comme des entrees mot de passe (comportement identique aux versions precedentes).
 
 #### Noms de colonnes reconnus
+
+**Champs communs et entrees mot de passe** :
 
 | Champ | Alias acceptes |
 |-------|---------------|
 | Titre | `title`, `organisme`, `name`, `nom`, `titre` |
+| Type | `type`, `entry_type` |
 | Identifiant | `username`, `identifiant`, `login`, `adresse mail / identifiant` |
 | Email | `email`, `mail`, `adresse mail`, `e-mail`, `courriel` |
 | Pseudo | `pseudo`, `nickname`, `alias`, `surnom`, `display name` |
 | Mot de passe | `password`, `mdp`, `mot de passe`, `pass` |
 | URL | `url`, `site`, `website`, `lien` |
 | Notes | `notes`, `description`, `commentaire` |
-| Categorie | `category`, `categorie`, `type` |
+| Categorie | `category`, `categorie` |
 | Tags | `tags`, `etiquettes` |
 | Favori | `favorite`, `favori`, `starred` |
 
+**Champs entrees application** :
+
+| Champ | Alias acceptes |
+|-------|---------------|
+| Code PIN | `pin`, `code pin`, `app_pin` |
+
+**Champs entrees carte bancaire** :
+
+| Champ | Alias acceptes |
+|-------|---------------|
+| Nom du titulaire | `cardholder`, `cardholder_name`, `card_holder`, `titulaire`, `nom du titulaire` |
+| Numero de carte | `card_number`, `numero de carte`, `card number` |
+| Date d'expiration | `expiry`, `expiry_date`, `expiration`, `date expiration` |
+| CVV | `cvv`, `cvc`, `security_code`, `code securite` |
+| Code PIN carte | `card_pin`, `pin carte`, `card pin` |
+| Type de carte | `card_type`, `type de carte`, `card type` |
+
 La detection est insensible a la casse et aux accents.
+
+#### Valeurs du type de carte
+
+Le type de carte est stocke en cle interne dans le CSV et le JSON :
+
+| Cle interne | Affichage |
+|-------------|-----------|
+| `VISA` | Visa |
+| `MASTERCARD` | Mastercard |
+| `AMEX` | Amex |
+| `CB` | CB |
+| `OTHER` | Autre |
 
 #### Repli positionnel
 
-Si aucun en-tete n'est reconnu, les colonnes sont interpretees dans l'ordre : titre, identifiant, email, pseudo, mot de passe, URL, notes, categorie, tags.
+Si aucun en-tete n'est reconnu, les colonnes sont interpretees dans l'ordre : titre, identifiant, email, pseudo, mot de passe, URL, notes, categorie, tags (compatibilite avec les fichiers existants, import en tant qu'entrees mot de passe).
 
 #### Limites
 
 - Maximum **10 000 entrees** par import
 - Maximum **10 000 caracteres** par champ
 - Les caracteres de controle (sauf tabulation et retour a la ligne) sont automatiquement supprimes
-- Categorie par defaut si vide : "Autre"
+- Categorie par defaut si vide : "Autre" (entrees mot de passe uniquement)
 - Tags separes par des points-virgules dans le CSV
 
 #### Exemples de formats supportes
 
-Format standard avec virgule :
+Format standard avec virgule (entrees mot de passe) :
 ```csv
-title,username,email,pseudo,password,url,notes,category,tags
-Gmail,john_doe,john@example.com,JohnD,MyP@ssw0rd,https://gmail.com,Compte principal,Email,google;mail
+type,title,username,email,pseudo,password,url,notes,category,tags
+PASSWORD,Gmail,john_doe,john@example.com,JohnD,MyP@ssw0rd,https://gmail.com,Compte principal,Email,google;mail
 ```
 
-Format francais avec point-virgule :
+Format avec entrees mixtes :
+```csv
+type,title,username,pin,cardholder_name,card_number,expiry_date,cvv,card_pin,card_type,password,email,url,notes,category,tags
+PASSWORD,Gmail,john_doe,,,,,,,,MyP@ssw0rd,john@example.com,https://gmail.com,Compte principal,Email,google;mail
+APP,Banque Mobile,user123,1234,,,,,,,,,,,,
+CARD,Visa principale,,,,Jean Dupont,4111111111111111,12/26,123,0000,VISA,,,,,,
+```
+
+Format francais avec point-virgule (retrocompatible, pas de colonne type) :
 ```csv
 Organisme;URL;Adresse mail / Identifiant;Mdp;Description
 Gmail;https://gmail.com;user@example.com;MyP@ssw0rd;Compte principal
 ```
 
-### 12.2. Import JSON
+### 13.2. Import JSON
 
-Importe un fichier JSON au format d'export de l'application. Chaque entree recoit un nouvel identifiant unique. Les champs sont assainis et tronques a 10 000 caracteres.
+Importe un fichier JSON au format d'export de l'application. Le format JSON supporte automatiquement les trois types d'entrees via des listes separees (`passwords`, `apps`, `cards`). Chaque entree recoit un nouvel identifiant unique. Les champs sont assainis et tronques a 10 000 caracteres.
 
-### 12.3. Import sauvegarde chiffree
+### 13.3. Import sauvegarde chiffree
 
-Importe les entrees depuis un fichier coffre chiffre (`.enc`) provenant d'un autre utilisateur ou d'une sauvegarde. Un champ de mot de passe (masque par defaut, avec case a cocher **Afficher**) permet de saisir le mot de passe maitre du vault source. Les entrees dechiffrees sont **ajoutees par fusion** au coffre courant (les entrees existantes ne sont pas ecrasees).
+Importe les entrees depuis un fichier coffre chiffre (`.enc`) provenant d'un autre utilisateur ou d'une sauvegarde. Un champ de mot de passe (masque par defaut, avec case a cocher **Afficher**) permet de saisir le mot de passe maitre du vault source. Les entrees dechiffrees (tous types confondus) sont **ajoutees par fusion** au coffre courant (les entrees existantes ne sont pas ecrasees).
 
-### 12.4. Export CSV
+### 13.4. Export CSV
 
-Exporte toutes les entrees avec les colonnes : `title`, `username`, `email`, `pseudo`, `password`, `url`, `notes`, `category`, `tags`, `favorite`.
+Exporte toutes les entrees avec une colonne `type` indiquant le type d'entree (`PASSWORD`, `APP`, `CARD`). Les colonnes exportees incluent l'ensemble des champs de tous les types : `type`, `title`, `username`, `email`, `pseudo`, `password`, `url`, `notes`, `category`, `tags`, `favorite`, `pin`, `cardholder_name`, `card_number`, `expiry_date`, `cvv`, `card_pin`, `card_type`. Les champs non applicables a un type donne sont laisses vides.
 
 > **Avertissement** : les donnees exportees ne sont **pas chiffrees**. Un message d'avertissement est affiche avant l'export.
 
@@ -537,32 +711,32 @@ Exporte toutes les entrees avec les colonnes : `title`, `username`, `email`, `ps
 
 Le fichier exporte recoit automatiquement des permissions restrictives (proprietaire uniquement).
 
-### 12.5. Export JSON
+### 13.5. Export JSON
 
-Exporte le coffre complet au format JSON. Les donnees ne sont pas chiffrees. Le fichier exporte recoit des permissions restrictives.
+Exporte le coffre complet au format JSON avec des listes separees par type (`passwords`, `apps`, `cards`). Les donnees ne sont pas chiffrees. Le fichier exporte recoit des permissions restrictives.
 
-### 12.6. Export sauvegarde chiffree
+### 13.6. Export sauvegarde chiffree
 
-Cree une copie du fichier coffre chiffre (`.enc`). Ce fichier ne peut etre ouvert qu'avec le mot de passe maitre correspondant. C'est le **moyen le plus sur** de sauvegarder vos donnees.
+Cree une copie du fichier coffre chiffre (`.enc`). Ce fichier ne peut etre ouvert qu'avec le mot de passe maitre correspondant. C'est le **moyen le plus sur** de sauvegarder vos donnees. Tous les types d'entrees sont inclus.
 
-### 12.7. Specificites Android
+### 13.7. Specificites Android
 
 Sur Android, l'import et l'export utilisent le **Storage Access Framework (SAF)** : un selecteur de fichiers systeme permet de choisir l'emplacement. L'application n'a pas besoin de permissions de stockage globales.
 
 ---
 
-## 13. Synchronisation distante
+## 14. Synchronisation distante
 
-La synchronisation SFTP est disponible sur **desktop et Android**. Elle permet de maintenir le coffre synchronise entre plusieurs appareils via un serveur SFTP.
+La synchronisation SFTP est disponible sur **desktop et Android**. Elle permet de maintenir le coffre synchronise entre plusieurs appareils via un serveur SFTP. La synchronisation porte sur les trois types d'entrees (mots de passe, applications, cartes bancaires).
 
-### 13.1. Modes de stockage
+### 14.1. Modes de stockage
 
 | Mode | Description |
 |------|-------------|
 | **Local uniquement** (defaut) | Le coffre est stocke uniquement sur la machine locale |
 | **Serveur distant** | Le coffre est synchronise avec un serveur SFTP |
 
-### 13.2. Configuration SFTP
+### 14.2. Configuration SFTP
 
 **Acces** : Fichier > Parametres > onglet Synchronisation (desktop) | Parametres > section Synchronisation (Android)
 
@@ -581,7 +755,7 @@ Le bouton **Tester la connexion** permet de verifier la configuration.
 
 > En mode distant, la validation requiert que le fichier de cle SSH existe et soit lisible.
 
-### 13.3. Synchronisation manuelle
+### 14.3. Synchronisation manuelle
 
 **Acces** : Outils > Synchroniser maintenant | Barre d'outils
 
@@ -590,11 +764,11 @@ La synchronisation compare le coffre local et le coffre distant via leurs emprei
 - Si differents et le local est plus recent : envoi du local vers le serveur
 - Si differents et le distant est plus recent : notification de conflit
 
-### 13.4. Mode hors-ligne
+### 14.4. Mode hors-ligne
 
 Si le serveur est injoignable, les modifications sont mises en attente localement (fichier `.pending`). Elles sont automatiquement synchronisees lors de la prochaine connexion reussie.
 
-### 13.5. Gestion des conflits (fusion bidirectionnelle)
+### 14.5. Gestion des conflits (fusion bidirectionnelle)
 
 Lorsque le coffre a ete modifie a la fois localement et sur le serveur, le systeme effectue une **fusion par entree** (`EntryMerger`) :
 
@@ -605,7 +779,7 @@ Lorsque le coffre a ete modifie a la fois localement et sur le serveur, le syste
 
 **Si aucun conflit** : la fusion est automatique, le resultat est sauvegarde localement et uploade sur le serveur.
 
-**Si des conflits existent** : un dialogue de resolution s'affiche avec une vue cote-a-cote (local / distant) pour chaque entree en conflit. L'utilisateur choisit la version a conserver pour chaque entree.
+**Si des conflits existent** : un dialogue de resolution s'affiche avec une vue cote-a-cote (local / distant) pour chaque entree en conflit. Les champs affiches dans la comparaison sont adaptes au type d'entree (champs mot de passe, champs application ou champs carte bancaire). L'utilisateur choisit la version a conserver pour chaque entree.
 
 **Fallback** : si la fusion echoue, l'ancien mode est propose :
 
@@ -617,11 +791,11 @@ Lorsque le coffre a ete modifie a la fois localement et sur le serveur, le syste
 
 ---
 
-## 14. Parametres
+## 15. Parametres
 
 **Acces** : Fichier > Parametres
 
-### 14.1. Onglet General
+### 15.1. Onglet General
 
 | Parametre | Description | Valeurs |
 |-----------|-------------|---------|
@@ -632,20 +806,20 @@ Le theme **Systeme** detecte automatiquement le theme clair ou sombre de l'OS.
 
 Le changement de theme prend effet immediatement. Le changement de langue reconstruit l'interface.
 
-### 14.2. Onglet Securite
+### 15.2. Onglet Securite
 
 | Parametre | Description | Plage | Defaut |
 |-----------|-------------|-------|--------|
 | Verrouillage automatique | Delai d'inactivite avant verrouillage | 1 a 60 minutes | 15 min |
 | Effacement presse-papiers | Delai d'effacement apres copie d'un mot de passe | 5 a 120 secondes | 30 s |
 
-### 14.3. Onglet Synchronisation
+### 15.3. Onglet Synchronisation
 
-Voir la section [Synchronisation distante](#12-synchronisation-distante).
+Voir la section [Synchronisation distante](#14-synchronisation-distante).
 
 ---
 
-## 15. Changement du mot de passe maitre
+## 16. Changement du mot de passe maitre
 
 **Acces** : Edition > Changer mot de passe maitre
 
@@ -662,15 +836,15 @@ Le changement de mot de passe ne re-chiffre **pas** l'ensemble des donnees. Seul
 
 ---
 
-## 16. Securite
+## 17. Securite
 
-### 16.1. Chiffrement
+### 17.1. Chiffrement
 
 - **Algorithme** : AES-256-GCM (chiffrement authentifie)
 - **Derivation de cle** : PBKDF2-HMAC-SHA256 avec 600 000 iterations et sel de 32 octets
 - **Architecture** : chiffrement par enveloppe (DEK/KEK) separant la cle de donnees de la cle derivee du mot de passe
 
-### 16.2. Protection du mot de passe maitre
+### 17.2. Protection du mot de passe maitre
 
 - Politique stricte : minimum 12 caracteres, 4 types requis, rejet des mots de passe courants (44 mots de passe connus incluant des variantes francaises comme "motdepasse")
 - Le mot de passe n'est **jamais conserve en memoire** apres l'authentification
@@ -678,26 +852,26 @@ Le changement de mot de passe ne re-chiffre **pas** l'ensemble des donnees. Seul
 - Comparaison a temps constant contre la liste de mots de passe courants (empeche les attaques par canal auxiliaire de timing)
 - Sur Android, les formulaires contenant des mots de passe effacent automatiquement leurs donnees a la destruction du ViewModel
 
-### 16.3. Verrouillage automatique
+### 17.3. Verrouillage automatique
 
 Apres une periode d'inactivite configurable (defaut : 15 minutes), le coffre se verrouille automatiquement. Les cles sont effacees de la memoire et l'ecran de connexion est affiche.
 
 L'inactivite est detectee par l'absence d'evenements clavier et souris.
 
-### 16.4. Presse-papiers
+### 17.4. Presse-papiers
 
 Lorsqu'un mot de passe ou un identifiant est copie :
 - Le presse-papiers est automatiquement efface apres le delai configure (defaut : 30 secondes)
 - Le presse-papiers est egalement efface au verrouillage et a la fermeture de l'application
 - Sur Android 13+ (API 33), le flag `EXTRA_IS_SENSITIVE` empeche l'affichage du contenu dans la previsualisation du presse-papiers
 
-### 16.5. Masquage des mots de passe
+### 17.5. Masquage des mots de passe
 
 - Les mots de passe sont masques par defaut dans tous les affichages
 - Le devoilement est temporaire : **retour automatique au masquage apres 30 secondes**
 - L'ecran de connexion et le formulaire de creation d'utilisateur disposent d'une case a cocher pour afficher/masquer le mot de passe
 
-### 16.6. Securite des fichiers
+### 17.6. Securite des fichiers
 
 - Tous les fichiers sensibles (coffres, configuration, cle) ont des permissions restreintes au proprietaire uniquement
   - Linux/macOS : `rw-------` (600) pour les fichiers, `rwx------` (700) pour les repertoires
@@ -705,17 +879,17 @@ Lorsqu'un mot de passe ou un identifiant est copie :
 - Ecriture atomique (fichier temporaire + permissions + renommage) pour prevenir la corruption
 - Les fichiers exportes en clair recoivent egalement des permissions restrictives
 
-### 16.7. Aucune recuperation
+### 17.7. Aucune recuperation
 
 Par conception, il n'existe **aucun mecanisme de recuperation** du mot de passe maitre. Cela garantit qu'un attaquant ne peut pas contourner le chiffrement. Il est recommande de conserver une sauvegarde chiffree du coffre en lieu sur.
 
 ---
 
-## 17. Raccourcis clavier
+## 18. Raccourcis clavier
 
 | Raccourci | Action |
 |-----------|--------|
-| `Ctrl+N` | Nouvelle entree |
+| `Ctrl+N` | Nouvelle entree (type adapte a l'onglet actif) |
 | `Suppr` | Supprimer l'entree selectionnee |
 | `F5` | Actualiser l'affichage |
 | `Entree` (ecran de connexion) | Se connecter |
@@ -725,23 +899,23 @@ Par conception, il n'existe **aucun mecanisme de recuperation** du mot de passe 
 
 ---
 
-## 18. Verification des mises a jour
+## 19. Verification des mises a jour
 
 L'application verifie automatiquement la disponibilite de nouvelles versions via l'API GitHub Releases.
 
-### 18.1. Desktop
+### 19.1. Desktop
 
 - **Verification automatique** : au lancement et toutes les 5 minutes en arriere-plan
 - **Verification manuelle** : lien **Verifier les mises a jour** sur l'ecran de connexion
 - **Notification** : une barre jaune non intrusive apparait en haut de la fenetre principale si une mise a jour est disponible, avec un bouton pour ouvrir la page de release
 - La barre de notification est masquable (bouton X)
 
-### 18.2. Android
+### 19.2. Android
 
 - **Verification automatique** : au lancement de l'ecran principal
 - **Notification** : une boite de dialogue s'affiche si une mise a jour est disponible, avec les options **Telecharger** (ouvre le navigateur vers la page GitHub) ou **Plus tard**
 
-### 18.3. Securite
+### 19.3. Securite
 
 - Les URLs sont validees avant ouverture (seul le domaine `https://github.com/` est accepte)
 - La taille maximale de la reponse API est limitee a 1 Mo pour prevenir les attaques par depassement de memoire
@@ -749,9 +923,11 @@ L'application verifie automatiquement la disponibilite de nouvelles versions via
 
 ---
 
-## 19. Service d'auto-remplissage (Android)
+## 20. Service d'auto-remplissage (Android)
 
 Android 8.0+ (API 26) propose un framework d'auto-remplissage (Autofill) que Password Manager integre pour remplir automatiquement les champs de connexion dans les applications et navigateurs.
+
+> **Note** : le service d'auto-remplissage ne recherche des correspondances que parmi les **entrees mot de passe**. Les entrees application et carte bancaire ne sont pas proposees en suggestions d'auto-remplissage.
 
 ### Activation
 
@@ -775,7 +951,7 @@ Ce bouton ouvre les parametres systeme Android pour selectionner Password Manage
 
 ---
 
-## 20. Structure des donnees utilisateur
+## 21. Structure des donnees utilisateur
 
 Les donnees de l'application sont stockees dans le repertoire `~/.password-manager/` :
 
@@ -809,24 +985,28 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 
 ---
 
-## 21. Differences entre plateformes
+## 22. Differences entre plateformes
 
 | Fonctionnalite | Desktop | Android |
 |---|---|---|
 | Coffre-fort chiffre AES-256-GCM + AAD | Oui | Oui |
-| CRUD entrees | Oui | Oui |
-| Favoris (etoile, tri prioritaire) | Oui | Oui |
+| Entrees mot de passe | Oui (onglet Mots de passe) | Oui (onglet Mots de passe) |
+| Entrees application | Oui (onglet Applications) | Oui (onglet Applications) |
+| Entrees carte bancaire | Oui (onglet Cartes) | Oui (onglet Cartes) |
+| Navigation par onglets | JTabbedPane (3 onglets) | TabRow + HorizontalPager (3 onglets) |
+| CRUD entrees | Oui (tous types) | Oui (tous types) |
+| Favoris (etoile, tri prioritaire) | Oui (tous types) | Oui (tous types) |
 | Filtres avances (categorie, force, date, favoris) | Oui | Oui (FilterChips) |
 | Favicons des sites web | Oui (dans la colonne Titre) | Oui (avatar dans la carte d'entree) |
 | Generateur de mots de passe | Oui | Oui |
-| Analyse de securite + HIBP | Oui | Oui |
+| Analyse de securite + HIBP | Oui (entrees mot de passe uniquement) | Oui (entrees mot de passe uniquement) |
 | Import/export unifie (CSV/JSON/.enc) | Fichier > Importer.../Exporter... | Menu overflow > Importer.../Exporter... (SAF) |
 | Import sauvegarde chiffree | Oui | Oui |
-| Recherche en temps reel | Oui (titre, id, email, pseudo, URL, notes, categorie, tags) | Oui |
-| Tri (9 criteres) | En-tetes cliquables (toutes les colonnes) + menu Affichage | Menu overflow tri |
-| Filtrage par categorie | Panneau lateral | Dropdown (liste deroulante) |
+| Recherche en temps reel | Oui (champs adaptes au type d'entree) | Oui (champs adaptes au type d'entree) |
+| Tri | En-tetes cliquables + menu Affichage (criteres adaptes au type) | Menu overflow tri |
+| Filtrage par categorie | Panneau lateral (mots de passe uniquement) | Dropdown (mots de passe uniquement) |
 | Selection multiple + operations en masse | Oui (menu "Actions..." : supprimer, categorie, favoris) | Oui (appui long + menu "Actions..." : supprimer, categorie, favoris) |
-| Menu contextuel (clic droit) | Oui (modifier, supprimer, copier, ouvrir URL, dupliquer) | Non |
+| Menu contextuel (clic droit) | Oui (actions adaptees au type d'entree) | Non |
 | Gestion des categories | Ajout via panneau lateral | Ecran dedie (Parametres > Gerer les categories) |
 | Verification des mises a jour | Auto (5 min) + manuel (ecran connexion) | Au lancement (dialog) |
 | URL cliquable dans le detail | Oui (Desktop.browse) | Oui (UriHandler) |
@@ -835,8 +1015,8 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | Verrouillage ecran eteint | Non | Oui (BroadcastReceiver ACTION_SCREEN_OFF) |
 | Presse-papiers securise | SecureClipboard (char[], wipe on lostOwnership) | EXTRA_IS_SENSITIVE + clear on screen-off |
 | Anti brute-force | Oui | Oui |
-| Synchronisation SFTP bidirectionnelle | Oui (EntryMerger + ConflictResolutionDialog) | Oui |
-| Service d'auto-remplissage (Autofill) | Non | Oui (API 26+) |
+| Synchronisation SFTP bidirectionnelle | Oui (tous types, EntryMerger + ConflictResolutionDialog) | Oui (tous types) |
+| Service d'auto-remplissage (Autofill) | Non | Oui (API 26+, entrees mot de passe uniquement) |
 | Injection de dependances | N/A (gestion manuelle) | Hilt/Dagger |
 | Stockage configuration | `config.properties` chiffre | EncryptedSharedPreferences |
 | Raccourcis clavier | Oui | N/A |

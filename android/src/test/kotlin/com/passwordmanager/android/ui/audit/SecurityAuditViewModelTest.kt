@@ -4,7 +4,7 @@ import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.android.test.MainDispatcherExtension
 import com.passwordmanager.android.test.TestSessionHelper
 import com.passwordmanager.vault.Vault
-import com.passwordmanager.vault.VaultEntry
+import com.passwordmanager.vault.PasswordEntry
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -44,7 +44,7 @@ class SecurityAuditViewModelTest {
 
     @Test
     fun `weak passwords are detected`() {
-        val entry = VaultEntry("Weak", "u", "abc".toCharArray(), "", "", "Cat", null)
+        val entry = PasswordEntry("Weak", "u", "abc".toCharArray(), "", "", "Cat", null)
         SessionHolder.vaultService!!.addEntry(entry)
         val viewModel = SecurityAuditViewModel(SessionHolder)
         assertTrue(viewModel.uiState.value.weakEntries.isNotEmpty())
@@ -53,10 +53,10 @@ class SecurityAuditViewModelTest {
     @Test
     fun `duplicate passwords are detected`() {
         SessionHolder.vaultService!!.addEntry(
-            VaultEntry("Site1", "u", "SameP@ssword123!".toCharArray(), "", "", "Cat", null)
+            PasswordEntry("Site1", "u", "SameP@ssword123!".toCharArray(), "", "", "Cat", null)
         )
         SessionHolder.vaultService!!.addEntry(
-            VaultEntry("Site2", "u", "SameP@ssword123!".toCharArray(), "", "", "Cat", null)
+            PasswordEntry("Site2", "u", "SameP@ssword123!".toCharArray(), "", "", "Cat", null)
         )
         val viewModel = SecurityAuditViewModel(SessionHolder)
         assertTrue(viewModel.uiState.value.duplicateEntries.isNotEmpty())
@@ -64,7 +64,7 @@ class SecurityAuditViewModelTest {
 
     @Test
     fun `old passwords are detected`() {
-        val old = VaultEntry("Old", "u", "p@ssW0rd!123".toCharArray(), "", "", "Cat", null)
+        val old = PasswordEntry("Old", "u", "p@ssW0rd!123".toCharArray(), "", "", "Cat", null)
         // Use a fixed ISO 8601 timestamp well in the past (200+ days)
         old.updatedAt = "2024-01-01T00:00:00Z"
         vault.addEntry(old)
@@ -77,14 +77,14 @@ class SecurityAuditViewModelTest {
     fun `totalIssues sums all categories`() {
         // Add weak
         SessionHolder.vaultService!!.addEntry(
-            VaultEntry("Weak", "u", "abc".toCharArray(), "", "", "Cat", null)
+            PasswordEntry("Weak", "u", "abc".toCharArray(), "", "", "Cat", null)
         )
         // Add duplicates
         SessionHolder.vaultService!!.addEntry(
-            VaultEntry("Dup1", "u", "SameP@ssword123!".toCharArray(), "", "", "Cat", null)
+            PasswordEntry("Dup1", "u", "SameP@ssword123!".toCharArray(), "", "", "Cat", null)
         )
         SessionHolder.vaultService!!.addEntry(
-            VaultEntry("Dup2", "u", "SameP@ssword123!".toCharArray(), "", "", "Cat", null)
+            PasswordEntry("Dup2", "u", "SameP@ssword123!".toCharArray(), "", "", "Cat", null)
         )
 
         val viewModel = SecurityAuditViewModel(SessionHolder)

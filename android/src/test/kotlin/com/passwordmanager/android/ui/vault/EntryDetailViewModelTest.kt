@@ -4,7 +4,7 @@ import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.android.test.MainDispatcherExtension
 import com.passwordmanager.android.test.TestSessionHelper
 import com.passwordmanager.vault.Vault
-import com.passwordmanager.vault.VaultEntry
+import com.passwordmanager.vault.PasswordEntry
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -39,7 +39,7 @@ class EntryDetailViewModelTest {
 
     @Test
     fun `loadEntry existing entry`() {
-        val entry = VaultEntry("Gmail", "user@gmail.com", "pass".toCharArray(), "", "", "Email", null)
+        val entry = PasswordEntry("Gmail", "user@gmail.com", "pass".toCharArray(), "", "", "Email", null)
         SessionHolder.vaultService!!.addEntry(entry)
 
         viewModel.loadEntry(entry.id)
@@ -65,7 +65,7 @@ class EntryDetailViewModelTest {
 
     @Test
     fun `deleteEntry returns true for existing`() {
-        val entry = VaultEntry("ToDelete", "u", "p".toCharArray(), "", "", "Cat", null)
+        val entry = PasswordEntry("ToDelete", "u", "p".toCharArray(), "", "", "Cat", null)
         SessionHolder.vaultService!!.addEntry(entry)
         assertTrue(viewModel.deleteEntry(entry.id))
     }

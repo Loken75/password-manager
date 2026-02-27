@@ -1,7 +1,7 @@
 package com.passwordmanager.ui;
 
 import com.passwordmanager.i18n.LanguageManager;
-import com.passwordmanager.vault.VaultEntry;
+import com.passwordmanager.vault.PasswordEntry;
 
 import com.passwordmanager.util.SecureWiper;
 
@@ -31,10 +31,10 @@ public class EntryDialog extends JDialog {
     private JProgressBar strengthBar;
     private JLabel strengthLabel;
     private boolean confirmed = false;
-    private VaultEntry entry;
+    private PasswordEntry entry;
     private char echoChar;
 
-    public EntryDialog(Frame owner, String dialogTitle, VaultEntry existing, List<String> categories) {
+    public EntryDialog(Frame owner, String dialogTitle, PasswordEntry existing, List<String> categories) {
         super(owner, dialogTitle, true);
         this.entry = existing;
         initComponents(categories);
@@ -206,7 +206,7 @@ public class EntryDialog extends JDialog {
         setLocationRelativeTo(getOwner());
     }
 
-    private void populateFields(VaultEntry e) {
+    private void populateFields(PasswordEntry e) {
         titleField.setText(e.getTitle());
         usernameField.setText(e.getUsername());
         emailField.setText(e.getEmail() != null ? e.getEmail() : "");
@@ -239,7 +239,7 @@ public class EntryDialog extends JDialog {
 
     public boolean isConfirmed() { return confirmed; }
 
-    public VaultEntry getEntry() {
+    public PasswordEntry getEntry() {
         if (!confirmed) return null;
 
         String tagsStr = tagsField.getText().trim();
@@ -248,7 +248,7 @@ public class EntryDialog extends JDialog {
             : Arrays.asList(tagsStr.split("\\s*,\\s*"));
 
         if (entry == null) {
-            entry = new VaultEntry(
+            entry = new PasswordEntry(
                 titleField.getText().trim(),
                 usernameField.getText().trim(),
                 emailField.getText().trim(),

@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
-import com.passwordmanager.vault.VaultEntry
+import com.passwordmanager.vault.PasswordEntry
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -181,7 +181,7 @@ fun SecurityAuditScreen(
 @Composable
 private fun AuditSection(
     title: String,
-    entries: List<VaultEntry>,
+    entries: List<PasswordEntry>,
     onEntryClick: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }

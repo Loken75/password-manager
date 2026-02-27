@@ -4,8 +4,10 @@ import com.passwordmanager.crypto.VaultSession;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.util.FileSecurityUtils;
 import com.passwordmanager.util.SecureWiper;
+import com.passwordmanager.vault.AppEntry;
+import com.passwordmanager.vault.CardEntry;
 import com.passwordmanager.vault.Vault;
-import com.passwordmanager.vault.VaultEntry;
+import com.passwordmanager.vault.PasswordEntry;
 import com.passwordmanager.vault.VaultManager;
 import com.passwordmanager.vault.VaultService;
 
@@ -142,10 +144,18 @@ public class ImportExportController {
             return;
         }
         try {
-            List<VaultEntry> entries = vaultManager.importEncryptedVault(password, fc.getSelectedFile().getAbsolutePath());
+            Vault sourceVault = vaultManager.importEncryptedVault(password, fc.getSelectedFile().getAbsolutePath());
             int count = 0;
-            for (VaultEntry entry : entries) {
-                vaultService.addEntry(entry);
+            for (PasswordEntry entry : sourceVault.getEntries()) {
+                vault.addEntry(entry);
+                count++;
+            }
+            for (AppEntry entry : sourceVault.getAppEntries()) {
+                vault.addAppEntry(entry);
+                count++;
+            }
+            for (CardEntry entry : sourceVault.getCardEntries()) {
+                vault.addCardEntry(entry);
                 count++;
             }
             saveVaultCallback.run();

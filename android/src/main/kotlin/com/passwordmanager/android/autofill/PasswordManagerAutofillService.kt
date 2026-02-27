@@ -11,7 +11,7 @@ import android.widget.RemoteViews
 import com.passwordmanager.android.MainActivity
 import com.passwordmanager.android.R
 import com.passwordmanager.android.data.SessionHolder
-import com.passwordmanager.vault.VaultEntry
+import com.passwordmanager.vault.PasswordEntry
 
 class PasswordManagerAutofillService : AutofillService() {
 
@@ -112,7 +112,7 @@ class PasswordManagerAutofillService : AutofillService() {
         callback.onSuccess()
     }
 
-    private fun matchesEntry(entry: VaultEntry, domain: String): Boolean {
+    private fun matchesEntry(entry: PasswordEntry, domain: String): Boolean {
         if (domain.isBlank()) return false
         val entryUrl = entry.url?.lowercase() ?: return false
         val domainLower = domain.lowercase()

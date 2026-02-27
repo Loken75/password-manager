@@ -8,5 +8,7 @@ public enum SortField {
     DATE,
     CATEGORY,
     FAVORITE,
-    STRENGTH
+    STRENGTH,
+    CARDHOLDER_NAME,
+    CARD_TYPE
 }

@@ -10,7 +10,7 @@
 
 # --- Core module data classes (serialized by Gson) ---
 -keep class com.passwordmanager.vault.Vault { *; }
--keep class com.passwordmanager.vault.VaultEntry { *; }
+-keep class com.passwordmanager.vault.PasswordEntry { *; }
 -keep class com.passwordmanager.vault.VaultLoadResult { *; }
 -keep class com.passwordmanager.vault.VaultManager$CharArrayAdapter { *; }
 -keep class com.passwordmanager.config.** { *; }

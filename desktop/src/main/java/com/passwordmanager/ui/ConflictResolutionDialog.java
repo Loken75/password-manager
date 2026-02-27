@@ -2,7 +2,11 @@ package com.passwordmanager.ui;
 
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.sync.EntryMerger;
-import com.passwordmanager.vault.VaultEntry;
+import com.passwordmanager.vault.AppEntry;
+import com.passwordmanager.vault.CardEntry;
+import com.passwordmanager.vault.CardType;
+import com.passwordmanager.vault.PasswordEntry;
+import com.passwordmanager.vault.VaultItem;
 
 import javax.swing.*;
 import java.awt.*;
@@ -12,16 +16,17 @@ import java.util.List;
 /**
  * Dialog for resolving entry-level sync conflicts.
  * Shows local vs remote versions side-by-side with radio button selection.
+ * Supports PasswordEntry, AppEntry, and CardEntry conflicts.
  */
 public class ConflictResolutionDialog extends JDialog {
     private final LanguageManager lang = LanguageManager.getInstance();
-    private final List<EntryMerger.Conflict> conflicts;
+    private final List<EntryMerger.Conflict<? extends VaultItem>> conflicts;
     private final List<Boolean> keepLocal;
     private boolean confirmed = false;
 
-    public ConflictResolutionDialog(Frame owner, List<EntryMerger.Conflict> conflicts) {
+    public ConflictResolutionDialog(Frame owner, List<? extends EntryMerger.Conflict<? extends VaultItem>> conflicts) {
         super(owner, LanguageManager.getInstance().getString("sync.merge.conflicts"), true);
-        this.conflicts = conflicts;
+        this.conflicts = new ArrayList<>(conflicts);
         this.keepLocal = new ArrayList<>();
         for (int i = 0; i < conflicts.size(); i++) {
             keepLocal.add(true);
@@ -38,7 +43,7 @@ public class ConflictResolutionDialog extends JDialog {
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
         for (int i = 0; i < conflicts.size(); i++) {
-            EntryMerger.Conflict conflict = conflicts.get(i);
+            EntryMerger.Conflict<? extends VaultItem> conflict = conflicts.get(i);
             content.add(createConflictPanel(conflict, i));
             content.add(Box.createVerticalStrut(10));
         }
@@ -60,7 +65,7 @@ public class ConflictResolutionDialog extends JDialog {
         add(btnPanel, BorderLayout.SOUTH);
     }
 
-    private JPanel createConflictPanel(EntryMerger.Conflict conflict, int index) {
+    private JPanel createConflictPanel(EntryMerger.Conflict<? extends VaultItem> conflict, int index) {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.setBorder(BorderFactory.createTitledBorder(
             conflict.getLocalEntry().getTitle() != null
@@ -88,21 +93,47 @@ public class ConflictResolutionDialog extends JDialog {
         return panel;
     }
 
-    private String formatEntry(VaultEntry e) {
-        return (e.getUsername() != null ? e.getUsername() : "") + " — " +
-            (e.getUpdatedAt() != null ? e.getUpdatedAt() : "");
+    private String formatEntry(VaultItem item) {
+        if (item instanceof PasswordEntry) {
+            PasswordEntry e = (PasswordEntry) item;
+            return (e.getUsername() != null ? e.getUsername() : "") + " — " +
+                (e.getUrl() != null ? e.getUrl() : "") + " — " +
+                (e.getUpdatedAt() != null ? e.getUpdatedAt() : "");
+        } else if (item instanceof AppEntry) {
+            AppEntry e = (AppEntry) item;
+            return (e.getUsername() != null ? e.getUsername() : "") + " — " +
+                (e.getPin() != null ? "****" : "") + " — " +
+                (e.getUpdatedAt() != null ? e.getUpdatedAt() : "");
+        } else if (item instanceof CardEntry) {
+            CardEntry e = (CardEntry) item;
+            String cardTypeDisplay = e.getCardType() != null
+                ? lang.getString(CardType.toDesktopMessageKey(e.getCardType()))
+                : "";
+            String last4 = e.getLast4Digits();
+            return (e.getCardholderName() != null ? e.getCardholderName() : "") + " — " +
+                cardTypeDisplay +
+                (last4 != null ? " ****" + last4 : "") + " — " +
+                (e.getUpdatedAt() != null ? e.getUpdatedAt() : "");
+        }
+        // Fallback for unknown types
+        return item.getUpdatedAt() != null ? item.getUpdatedAt() : "";
     }
 
     public boolean isConfirmed() {
         return confirmed;
     }
 
-    public List<VaultEntry> getResolvedEntries() {
-        List<VaultEntry> resolved = new ArrayList<>();
+    /**
+     * Returns the resolved entries, one per conflict, chosen by the user.
+     */
+    @SuppressWarnings("unchecked")
+    public <T extends VaultItem> List<T> getResolvedEntries() {
+        List<T> resolved = new ArrayList<>();
         for (int i = 0; i < conflicts.size(); i++) {
-            resolved.add(keepLocal.get(i)
-                ? conflicts.get(i).getLocalEntry()
-                : conflicts.get(i).getRemoteEntry());
+            EntryMerger.Conflict<? extends VaultItem> conflict = conflicts.get(i);
+            resolved.add((T) (keepLocal.get(i)
+                ? conflict.getLocalEntry()
+                : conflict.getRemoteEntry()));
         }
         return resolved;
     }

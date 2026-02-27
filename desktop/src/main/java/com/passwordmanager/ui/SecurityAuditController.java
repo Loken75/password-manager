@@ -5,7 +5,7 @@ import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.security.HibpChecker;
 import com.passwordmanager.util.SecureWiper;
 import com.passwordmanager.vault.Vault;
-import com.passwordmanager.vault.VaultEntry;
+import com.passwordmanager.vault.PasswordEntry;
 import com.passwordmanager.vault.VaultService;
 
 import javax.swing.*;
@@ -33,8 +33,8 @@ public class SecurityAuditController {
 
     public void doSecurityAudit() {
         // Collect audit data (non-HIBP, fast)
-        List<VaultEntry> weakEntries = new ArrayList<>();
-        for (VaultEntry e : vault.getEntries()) {
+        List<PasswordEntry> weakEntries = new ArrayList<>();
+        for (PasswordEntry e : vault.getEntries()) {
             char[] auditPwd = e.getPassword();
             PasswordStrengthAnalyzer.Strength strength = PasswordStrengthAnalyzer.analyze(auditPwd);
             SecureWiper.wipe(auditPwd);
@@ -43,16 +43,16 @@ public class SecurityAuditController {
             }
         }
 
-        Map<String, List<VaultEntry>> dups = vaultService.findDuplicatePasswords();
-        List<VaultEntry> dupEntries = new ArrayList<>();
-        for (List<VaultEntry> group : dups.values()) {
+        Map<String, List<PasswordEntry>> dups = vaultService.findDuplicatePasswords();
+        List<PasswordEntry> dupEntries = new ArrayList<>();
+        for (List<PasswordEntry> group : dups.values()) {
             dupEntries.addAll(group);
         }
 
         int expiryDays = 180;
         Object expiry = vault.getSettings().get("password_expiry_days");
         if (expiry instanceof Number) expiryDays = ((Number) expiry).intValue();
-        List<VaultEntry> oldEntries = vaultService.findOldPasswords(expiryDays);
+        List<PasswordEntry> oldEntries = vaultService.findOldPasswords(expiryDays);
 
         int totalIssues = weakEntries.size() + dupEntries.size() + oldEntries.size();
 
@@ -136,9 +136,9 @@ public class SecurityAuditController {
                 @Override
                 protected List<String> doInBackground() {
                     List<String> breached = new ArrayList<>();
-                    List<VaultEntry> entries = vault.getEntries();
+                    List<PasswordEntry> entries = vault.getEntries();
                     for (int i = 0; i < entries.size(); i++) {
-                        VaultEntry entry = entries.get(i);
+                        PasswordEntry entry = entries.get(i);
                         char[] pwd = entry.getPassword();
                         if (pwd != null && pwd.length > 0) {
                             try {
@@ -202,7 +202,7 @@ public class SecurityAuditController {
             lang.getString("audit.title"), JOptionPane.PLAIN_MESSAGE);
     }
 
-    private JPanel createAuditSection(String title, List<VaultEntry> entries, Color accentColor) {
+    private JPanel createAuditSection(String title, List<PasswordEntry> entries, Color accentColor) {
         JPanel section = new JPanel(new BorderLayout(4, 4));
         section.setBorder(BorderFactory.createTitledBorder(
             BorderFactory.createLineBorder(accentColor),
@@ -217,7 +217,7 @@ public class SecurityAuditController {
             section.add(noIssue, BorderLayout.CENTER);
         } else {
             DefaultListModel<String> model = new DefaultListModel<>();
-            for (VaultEntry e : entries) {
+            for (PasswordEntry e : entries) {
                 String detail = e.getTitle();
                 if (e.getUsername() != null && !e.getUsername().isEmpty()) {
                     detail += "  (" + e.getUsername() + ")";
@@ -237,7 +237,7 @@ public class SecurityAuditController {
 
     public void doFilterWeak() {
         StringBuilder sb = new StringBuilder();
-        for (VaultEntry e : vault.getEntries()) {
+        for (PasswordEntry e : vault.getEntries()) {
             char[] pwd = e.getPassword();
             PasswordStrengthAnalyzer.Strength s = PasswordStrengthAnalyzer.analyze(pwd);
             SecureWiper.wipe(pwd);
@@ -249,10 +249,10 @@ public class SecurityAuditController {
     }
 
     public void doFilterDuplicate() {
-        Map<String, List<VaultEntry>> dups = vaultService.findDuplicatePasswords();
+        Map<String, List<PasswordEntry>> dups = vaultService.findDuplicatePasswords();
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, List<VaultEntry>> entry : dups.entrySet()) {
-            for (VaultEntry e : entry.getValue()) {
+        for (Map.Entry<String, List<PasswordEntry>> entry : dups.entrySet()) {
+            for (PasswordEntry e : entry.getValue()) {
                 sb.append("- ").append(e.getTitle()).append("\n");
             }
             sb.append("\n");
