@@ -203,7 +203,7 @@ Affiche en bas de la fenetre :
 
 Apres connexion, l'interface Android se compose de :
 
-- **TopAppBar** avec titre, icone de recherche et menu overflow (importer..., exporter..., synchroniser, audit de securite, parametres, verrouiller)
+- **TopAppBar** avec titre, icone de recherche et menu overflow (importer..., exporter..., synchroniser (desactive en mode local), audit de securite, parametres, verrouiller)
 - **TabRow + HorizontalPager** avec trois onglets : **Mots de passe**, **Applications**, **Cartes**. L'utilisateur peut naviguer entre les onglets par swipe ou en appuyant sur les titres d'onglets.
 - **Dropdown categorie** pour le filtrage (visible uniquement sur l'onglet Mots de passe) : liste deroulante "Toutes les categories" + categories existantes
 - **Liste scrollable** (LazyColumn) des entrees adaptee a l'onglet actif, avec favicon (ou avatar lettre), titre, et champs specifiques au type d'entree

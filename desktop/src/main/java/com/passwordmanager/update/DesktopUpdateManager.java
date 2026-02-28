@@ -102,8 +102,31 @@ public class DesktopUpdateManager {
                     if (result instanceof UpdateInfo) {
                         UpdateInfo info = (UpdateInfo) result;
                         showUpdateNotification(info);
-                        JOptionPane.showMessageDialog(parent,
-                            lang.getString("update.available").replace("{0}", info.getVersion()),
+
+                        JPanel panel = new JPanel();
+                        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+                        JLabel msgLabel = new JLabel(lang.getString("update.available").replace("{0}", info.getVersion()));
+                        panel.add(msgLabel);
+
+                        String releaseUrl = info.getReleaseNotesUrl();
+                        if (releaseUrl != null && releaseUrl.startsWith("https://github.com/")) {
+                            panel.add(Box.createVerticalStrut(8));
+                            JButton linkBtn = new JButton(lang.getString("update.download"));
+                            linkBtn.setBorderPainted(false);
+                            linkBtn.setContentAreaFilled(false);
+                            linkBtn.setForeground(new Color(0, 102, 204));
+                            linkBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                            linkBtn.addActionListener(ev -> {
+                                try {
+                                    Desktop.getDesktop().browse(new URI(releaseUrl));
+                                } catch (Exception ex) {
+                                    // ignore
+                                }
+                            });
+                            panel.add(linkBtn);
+                        }
+
+                        JOptionPane.showMessageDialog(parent, panel,
                             lang.getString("update.check"),
                             JOptionPane.INFORMATION_MESSAGE);
                     } else if (result instanceof Exception) {

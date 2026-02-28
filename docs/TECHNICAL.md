@@ -959,7 +959,7 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`), detruit la sessi
 |-----------|------|
 | `PasswordStrengthBar` | Barre animee de force (rouge/orange/vert/bleu) |
 | `PasswordField` | OutlinedTextField avec toggle visibilite |
-| `EntryCard` | Carte mot de passe pour la liste (favicon ou avatar lettre, titre, URL ou username en sous-titre, categorie, etoile favori, barre de force). Support selection multiple (checkbox, long press). Swipe gauche = supprimer, swipe droit = copier mot de passe |
+| `EntryCard` | Carte mot de passe pour la liste (favicon ou avatar lettre, titre, username ou URL en sous-titre, categorie, etoile favori, barre de force). Support selection multiple (checkbox, long press). Swipe gauche = supprimer, swipe droit = copier mot de passe |
 | `AppEntryCard` | Carte application pour la liste (avatar lettre, titre, username en sous-titre, etoile favori). Support selection multiple. Swipe gauche = supprimer, swipe droit = copier pin |
 | `CardEntryCard` | Carte bancaire pour la liste (icone type de carte, titre, titulaire en sous-titre, type de carte, etoile favori). Support selection multiple. Swipe gauche = supprimer, swipe droit = copier numero |
 | `ConfirmDialog` | AlertDialog de confirmation reutilisable |
@@ -1081,7 +1081,7 @@ update.enabled=true
 ### 12.1. Vue d'ensemble
 
 **Framework** : JUnit 5 (Jupiter) 5.14.2
-**Total** : **~390 tests** (unitaires + integration) repartis sur les 3 modules
+**Total** : **~391 tests** (unitaires + integration) repartis sur les 3 modules
 
 | Module Gradle | Tests | Framework |
 |---|---|---|
@@ -1108,7 +1108,7 @@ update.enabled=true
 | sync | `SFTPRepositoryTest` | 10 | Validation filename sur upload/download/exists/getRemoteLastModified |
 | vault | `VaultExporterTest` | 9 | CSV, JSON, injection formules, favoris, round-trip, multi-type |
 | crypto | `PasswordStrengthAnalyzerTest` | 9 | Niveaux de force, score, cas limites |
-| **android** | `EntryEditViewModelTest` | 8 | Formulaire CRUD nouveau/existant, sauvegarde, validation titre vide |
+| **android** | `EntryEditViewModelTest` | 9 | Formulaire CRUD nouveau/existant, sauvegarde, validation titre vide, toggle favori |
 | vault | `AppServiceTest` | 7 | CRUD, recherche sur username, favoris, operations en masse |
 | vault | `CardServiceTest` | 7 | CRUD, recherche sur cardholderName, cardType, favoris, operations en masse |
 | **android** | `LoginViewModelTest` | 27 | Etat initial, biometrie, selection utilisateur, validation, creation, nettoyage onCleared |
@@ -1125,7 +1125,7 @@ update.enabled=true
 | util | `DateUtilsTest` | 5 | Format ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types de caracteres, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance, auto-creation |
-| | | **~390** | |
+| | | **~391** | |
 
 ### 12.3. Infrastructure de test Android
 

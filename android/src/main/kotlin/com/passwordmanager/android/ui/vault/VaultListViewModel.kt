@@ -46,6 +46,7 @@ data class VaultListUiState(
     val message: String? = null,
     val refreshToken: Long = 0,
     val favicons: Map<String, Bitmap> = emptyMap(),
+    val isSyncEnabled: Boolean = false,
     /** Non-empty when sync found password conflicts that need manual resolution. */
     val passwordConflicts: List<EntryMerger.Conflict<PasswordEntry>> = emptyList()
 )
@@ -62,6 +63,7 @@ class VaultListViewModel @Inject constructor(
     val uiState: StateFlow<VaultListUiState> = _uiState.asStateFlow()
 
     init {
+        _uiState.update { it.copy(isSyncEnabled = configRepo.getStorageMode() == StorageMode.REMOTE) }
         refreshEntries()
     }
 

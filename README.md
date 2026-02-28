@@ -357,7 +357,7 @@ password-manager/
 
 ### Tests
 
-**390+ tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
+**391+ tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
 
 | Module | Classe de test | Tests | Description |
 |---|---|:---:|---|
@@ -377,7 +377,7 @@ password-manager/
 | vault | `VaultExporterTest` | 11 | CSV multi-types, JSON multi-types, injection, favoris, round-trip |
 | crypto | `PasswordStrengthAnalyzerTest` | 9 | Niveaux de force, score, cas limites |
 | vault | `VaultTest` | 9 | Constructeurs, add/remove (3 types), unmodifiable, wipe, settings |
-| **android** | `EntryEditViewModelTest` | 8 | Formulaire CRUD, sauvegarde, validation |
+| **android** | `EntryEditViewModelTest` | 9 | Formulaire CRUD, sauvegarde, validation, toggle favori |
 | **android** | `LoginViewModelTest` | 27 | Etat initial, biometrie, selection utilisateur, login, enrollment, config biometrique, creation utilisateur |
 | **android** | `ChangeMasterPasswordViewModelTest` | 9 | Validation, mismatch, nettoyage onCleared, invalidation biometrique |
 | vault | `EntryFilterTest` | 6 | Filtres combines (categorie, force, date, favoris, texte) |
@@ -391,7 +391,7 @@ password-manager/
 | util | `DateUtilsTest` | 5 | ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance |
-| | | **~390** | |
+| | | **~391** | |
 
 ---
 

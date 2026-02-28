@@ -120,4 +120,14 @@ class EntryEditViewModelTest {
         viewModel.setGeneratedPassword("generated123!")
         assertEquals("generated123!", viewModel.uiState.value.password)
     }
+
+    @Test
+    fun `toggleFavorite toggles state`() {
+        viewModel.loadEntry(null)
+        assertFalse(viewModel.uiState.value.favorite)
+        viewModel.toggleFavorite()
+        assertTrue(viewModel.uiState.value.favorite)
+        viewModel.toggleFavorite()
+        assertFalse(viewModel.uiState.value.favorite)
+    }
 }

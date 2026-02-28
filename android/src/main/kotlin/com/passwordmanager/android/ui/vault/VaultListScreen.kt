@@ -246,6 +246,7 @@ fun VaultListScreen(
                                 DropdownMenuItem(
                                     leadingIcon = { Icon(Icons.Default.Sync, contentDescription = null) },
                                     text = { Text(stringResource(R.string.menu_sync_now)) },
+                                    enabled = state.isSyncEnabled,
                                     onClick = {
                                         menuExpanded = false
                                         viewModel.syncNow()

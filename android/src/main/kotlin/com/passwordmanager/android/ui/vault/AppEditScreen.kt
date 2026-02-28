@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -46,12 +47,14 @@ fun AppEditScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.toggleFavorite() }) {
-                        Icon(
-                            imageVector = if (state.favorite) Icons.Default.Star else Icons.Default.StarBorder,
-                            contentDescription = stringResource(R.string.entry_toggle_favorite),
-                            tint = if (state.favorite) Color(0xFFFFC107) else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    key(state.favorite) {
+                        IconButton(onClick = { viewModel.toggleFavorite() }) {
+                            Icon(
+                                imageVector = if (state.favorite) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = stringResource(R.string.entry_toggle_favorite),
+                                tint = if (state.favorite) Color(0xFFFFC107) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     TextButton(onClick = {
                         if (viewModel.save()) onSaved()

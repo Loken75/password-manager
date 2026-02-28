@@ -138,8 +138,8 @@ fun EntryCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     val subtitle = when {
-                        !entry.url.isNullOrBlank() -> entry.url
                         !entry.username.isNullOrBlank() -> entry.username
+                        !entry.url.isNullOrBlank() -> entry.url
                         else -> null
                     }
                     if (subtitle != null) {
