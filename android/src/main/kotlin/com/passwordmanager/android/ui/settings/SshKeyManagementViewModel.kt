@@ -150,7 +150,11 @@ class SshKeyManagementViewModel @Inject constructor(
             return
         }
         if (content.isBlank()) return
-        val pemBytes = content.toByteArray(Charsets.UTF_8)
+        // Normalize pasted content: strip trailing whitespace per line, normalize line endings
+        val normalized = content.split(Regex("\\r?\\n"))
+            .joinToString("\n") { it.trimEnd() }
+            .trim() + "\n"
+        val pemBytes = normalized.toByteArray(Charsets.UTF_8)
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val jsch = JSch()

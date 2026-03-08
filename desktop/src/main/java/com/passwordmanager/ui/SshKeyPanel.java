@@ -758,7 +758,9 @@ public class SshKeyPanel extends JPanel {
         String content = contentArea.getText();
         if (content.isEmpty()) return;
 
-        byte[] pemBytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        // Normalize pasted content: strip trailing spaces per line, normalize line endings
+        String normalized = normalizePemContent(content);
+        byte[] pemBytes = normalized.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         // Clear the text area content
         contentArea.setText("");
 
@@ -804,6 +806,18 @@ public class SshKeyPanel extends JPanel {
                 }
             }
         }.execute();
+    }
+
+    /**
+     * Normalizes PEM content: strips trailing whitespace per line, normalizes line endings,
+     * and ensures a trailing newline. This prevents JSch parse failures from copy-paste artifacts.
+     */
+    private static String normalizePemContent(String content) {
+        StringBuilder sb = new StringBuilder();
+        for (String line : content.split("\\r?\\n")) {
+            sb.append(line.stripTrailing()).append('\n');
+        }
+        return sb.toString().trim() + "\n";
     }
 
     // === Table Model ===
