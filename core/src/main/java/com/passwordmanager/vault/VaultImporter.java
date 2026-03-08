@@ -160,6 +160,7 @@ public class VaultImporter {
             return 0;
         }
         if (imported == null) return 0;
+        imported.ensureInitialized();
 
         int count = 0;
 

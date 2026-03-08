@@ -4,6 +4,7 @@ import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.sync.EntryMerger;
 import com.passwordmanager.vault.AppEntry;
 import com.passwordmanager.vault.PasswordEntry;
+import com.passwordmanager.vault.SshKeyEntry;
 import com.passwordmanager.vault.VaultItem;
 
 import javax.swing.*;
@@ -14,7 +15,7 @@ import java.util.List;
 /**
  * Dialog for resolving entry-level sync conflicts.
  * Shows local vs remote versions side-by-side with radio button selection.
- * Supports PasswordEntry and AppEntry conflicts.
+ * Supports PasswordEntry, AppEntry, and SshKeyEntry conflicts.
  */
 public class ConflictResolutionDialog extends JDialog {
     private final LanguageManager lang = LanguageManager.getInstance();
@@ -101,6 +102,11 @@ public class ConflictResolutionDialog extends JDialog {
             AppEntry e = (AppEntry) item;
             return (e.getUsername() != null ? e.getUsername() : "") + " — " +
                 (e.getPin() != null ? "****" : "") + " — " +
+                (e.getUpdatedAt() != null ? e.getUpdatedAt() : "");
+        } else if (item instanceof SshKeyEntry) {
+            SshKeyEntry e = (SshKeyEntry) item;
+            return (e.getKeyType() != null ? e.getKeyType() : "") + " — " +
+                (e.getFingerprint() != null ? e.getFingerprint() : "") + " — " +
                 (e.getUpdatedAt() != null ? e.getUpdatedAt() : "");
         }
         // Fallback for unknown types

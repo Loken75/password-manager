@@ -116,7 +116,13 @@ class PasswordManagerAutofillService : AutofillService() {
         if (domain.isBlank()) return false
         val entryUrl = entry.url?.lowercase() ?: return false
         val domainLower = domain.lowercase()
-        return entryUrl.contains(domainLower) || domainLower.contains(extractDomain(entryUrl))
+        val entryDomain = extractDomain(entryUrl)
+        if (entryDomain.isBlank()) return false
+        // Exact match or proper suffix match (prevents evilgoogle.com matching google.com)
+        return domainLower == entryDomain ||
+            domainLower.endsWith(".$entryDomain") ||
+            entryDomain == domainLower ||
+            entryDomain.endsWith(".$domainLower")
     }
 
     private fun extractDomain(url: String): String {

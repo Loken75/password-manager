@@ -21,6 +21,7 @@ import com.passwordmanager.vault.VaultItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,6 +62,7 @@ class VaultListViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(VaultListUiState())
     val uiState: StateFlow<VaultListUiState> = _uiState.asStateFlow()
+    private var syncJob: Job? = null
 
     init {
         _uiState.update { it.copy(isSyncEnabled = configRepo.getStorageMode() == StorageMode.REMOTE) }
@@ -107,15 +109,33 @@ class VaultListViewModel @Inject constructor(
     }
 
     private fun loadFavicons(entries: List<PasswordEntry>) {
+        val neededDomains = entries.mapNotNull { entry ->
+            val url = entry.url ?: return@mapNotNull null
+            if (url.isBlank()) return@mapNotNull null
+            com.passwordmanager.util.FaviconService.extractDomain(url)
+        }.toSet()
+
+        // Evict stale favicons not needed by current entries
+        val currentFavicons = _uiState.value.favicons
+        if (currentFavicons.size > MAX_FAVICONS) {
+            val toKeep = currentFavicons.filterKeys { it in neededDomains }
+            _uiState.update { it.copy(favicons = toKeep) }
+        }
+
         for (entry in entries) {
             val url = entry.url ?: continue
             if (url.isBlank()) continue
             val domain = com.passwordmanager.util.FaviconService.extractDomain(url) ?: continue
             if (_uiState.value.favicons.containsKey(domain)) continue
+            if (_uiState.value.favicons.size >= MAX_FAVICONS) break
             viewModelScope.launch(Dispatchers.IO) {
                 val bitmap = faviconRepository.getFavicon(url)
                 if (bitmap != null) {
-                    _uiState.update { it.copy(favicons = it.favicons + (domain to bitmap)) }
+                    _uiState.update { state ->
+                        if (state.favicons.size < MAX_FAVICONS) {
+                            state.copy(favicons = state.favicons + (domain to bitmap))
+                        } else state
+                    }
                 }
             }
         }
@@ -314,8 +334,9 @@ class VaultListViewModel @Inject constructor(
 
     fun bulkChangeCategory(newCategory: String) {
         val service = sessionHolder.vaultService ?: return
-        val selectedIds = _uiState.value.selectedEntryIds
-        for (entry in _uiState.value.entries) {
+        val state = _uiState.value
+        val selectedIds = state.selectedEntryIds
+        for (entry in state.entries) {
             if (entry.id in selectedIds) {
                 entry.category = newCategory
                 service.updateEntry(entry)
@@ -367,7 +388,8 @@ class VaultListViewModel @Inject constructor(
         val username = sessionHolder.username ?: return
         val vaultFilename = "vault_${username}.enc"
 
-        viewModelScope.launch(Dispatchers.IO) {
+        syncJob?.cancel()
+        syncJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val host = configRepo.getSftpHost()
                 val port = configRepo.getSftpPort()
@@ -530,6 +552,7 @@ class VaultListViewModel @Inject constructor(
     }
 
     // Pending password conflicts awaiting user resolution
+    @Volatile
     private var pendingPasswordConflicts: List<EntryMerger.Conflict<PasswordEntry>> = emptyList()
 
     /**
@@ -708,8 +731,15 @@ class VaultListViewModel @Inject constructor(
         }
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        syncJob?.cancel()
+        syncJob = null
+    }
+
     companion object {
         private const val TAG = "VaultListViewModel"
+        private const val MAX_FAVICONS = 50
 
         /** Overwrites file content with zeros before deleting to prevent forensic recovery. */
         private fun secureDelete(file: java.io.File) {

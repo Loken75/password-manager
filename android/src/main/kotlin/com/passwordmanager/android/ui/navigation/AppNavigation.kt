@@ -38,6 +38,27 @@ import com.passwordmanager.android.ui.settings.SettingsScreen
 import com.passwordmanager.android.ui.settings.SshKeyManagementScreen
 import com.passwordmanager.android.ui.vault.*
 
+/**
+ * In-memory holder for a generated password, avoiding String storage in savedStateHandle
+ * which could be persisted to disk. The char[] is consumed (wiped) on retrieval.
+ */
+object GeneratedPasswordHolder {
+    private var password: CharArray? = null
+
+    @Synchronized
+    fun set(value: CharArray) {
+        password?.fill('\u0000')
+        password = value
+    }
+
+    @Synchronized
+    fun consume(): CharArray? {
+        val result = password
+        password = null
+        return result
+    }
+}
+
 object Routes {
     const val LOGIN = "login"
 
@@ -229,11 +250,11 @@ fun AppNavigation() {
                 }
             ) { backStackEntry ->
                 val entryId = backStackEntry.arguments?.getString("entryId")
-                val generatedPassword = backStackEntry.savedStateHandle
-                    ?.get<String>("generated_password")
-                // Clear immediately to avoid disk persistence of sensitive data
-                if (generatedPassword != null) {
-                    backStackEntry.savedStateHandle?.remove<String>("generated_password")
+                val generatedPasswordChars = remember { GeneratedPasswordHolder.consume() }
+                val generatedPassword = generatedPasswordChars?.let {
+                    val s = String(it)
+                    it.fill('\u0000')
+                    s
                 }
                 EntryEditScreen(
                     entryId = entryId,
@@ -316,10 +337,7 @@ fun AppNavigation() {
                     onBack = { navController.popBackStack() },
                     showBackNavigation = true,
                     onUsePassword = if (returnPassword) { password ->
-                        val passwordString = String(password)
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set("generated_password", passwordString)
+                        GeneratedPasswordHolder.set(password.copyOf())
                         password.fill('\u0000')
                         navController.popBackStack()
                     } else null

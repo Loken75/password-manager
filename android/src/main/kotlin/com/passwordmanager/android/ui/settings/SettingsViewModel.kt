@@ -295,6 +295,11 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(connectionTestResult = null) }
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        _uiState.update { it.copy(biometricPasswordInput = "") }
+    }
+
     companion object {
         private const val TAG = "SettingsViewModel"
     }

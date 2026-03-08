@@ -187,11 +187,11 @@ public class PasswordService extends BaseVaultService<PasswordEntry> {
 
     public synchronized void addCategory(String category) {
         if (!vault.getCategories().contains(category)) {
-            vault.getCategories().add(category);
+            vault.getCategoriesMutable().add(category);
         }
     }
 
     public synchronized boolean removeCategory(String category) {
-        return vault.getCategories().remove(category);
+        return vault.getCategoriesMutable().remove(category);
     }
 }

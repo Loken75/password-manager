@@ -2,6 +2,8 @@ package com.passwordmanager.crypto;
 
 import com.passwordmanager.util.SecureWiper;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.crypto.SecretKey;
 import javax.security.auth.Destroyable;
 
@@ -11,6 +13,7 @@ import javax.security.auth.Destroyable;
  * Implements AutoCloseable to support try-with-resources patterns.
  */
 public class VaultSession implements Destroyable, AutoCloseable {
+    private static final Logger LOGGER = Logger.getLogger(VaultSession.class.getName());
     private SecretKey dataKey;
     private byte[] salt;
     private byte[] kekIv;
@@ -50,7 +53,9 @@ public class VaultSession implements Destroyable, AutoCloseable {
     public void destroy() {
         if (!destroyed) {
             if (dataKey != null) {
-                try { dataKey.destroy(); } catch (Exception ignored) {}
+                try { dataKey.destroy(); } catch (Exception e) {
+                    LOGGER.log(Level.FINE, "SecretKey.destroy() not supported", e);
+                }
             }
             SecureWiper.wipe(salt);
             SecureWiper.wipe(kekIv);

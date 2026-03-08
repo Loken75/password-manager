@@ -286,7 +286,7 @@ Utilitaire statique pour PBKDF2-HMAC-SHA256.
 ```java
 public static SecretKey deriveKey(char[] password, byte[] salt, int iterations)
 public static SecretKey deriveKey(char[] password, byte[] salt) // 600 000 iterations
-public static byte[] generateSalt()                             // 32 octets SecureRandom
+public static byte[] generateSalt()                             // 32 octets, SecureRandom singleton partage
 public static int getDefaultIterations()                        // 600 000
 ```
 
@@ -306,7 +306,7 @@ public class VaultSession implements Destroyable, AutoCloseable {
     public byte[] getKekIv()         // retourne un clone
     public byte[] getEncryptedDek()  // retourne un clone
     void updateEnvelope(...)         // package-private, pour changePassword
-    public void destroy()            // efface toutes les donnees sensibles
+    public void destroy()            // efface toutes les donnees sensibles (log FINE si SecretKey.destroy() non supporte)
     public void close()              // delegue a destroy()
 }
 ```
@@ -381,8 +381,8 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 | `VaultItem` | Classe abstraite de base pour toutes les entrees (id, title, notes, favorite, createdAt, updatedAt, `wipe()`, `equals`/`hashCode` par id) |
 | `PasswordEntry extends VaultItem` | Entree mot de passe (username, email, password `char[]`, url, category, tags) |
 | `AppEntry extends VaultItem` | Entree application (username, pin `char[]`) |
-| `Vault` | Modele de donnees du coffre (version, utilisateur, 3 listes : `entries` (passwords), `appEntries`, `sshKeyEntries`, categories, parametres). Constructeur prive no-arg pour la deserialisation Gson (les JRE jlink n'incluent pas `jdk.unsupported` / `sun.misc.Unsafe`) |
-| `VaultManager` | Persistance : creation, chargement, sauvegarde, migration v1->v2, backup, import/export. `decryptVaultFile()` pour le dechiffrement d'un coffre externe |
+| `Vault` | Modele de donnees du coffre (version, utilisateur, 3 listes : `entries` (passwords), `appEntries`, `sshKeyEntries`, categories, parametres). Constructeur prive no-arg pour la deserialisation Gson. `getEntries()`/`getCategories()`/`getSettings()` retournent des vues non-modifiables ; `*Mutable()` pour l'acces en mutation. `ensureInitialized()` garantit les collections non-null apres deserialisation |
+| `VaultManager` | Persistance : creation, chargement, sauvegarde, migration v1->v2, backup, import/export. Appelle `ensureInitialized()` apres chaque deserialisation Gson. `decryptVaultFile()` pour le dechiffrement d'un coffre externe |
 | `SshKeyEntry extends VaultItem` | Entree cle SSH (privateKey `char[]`, publicKey, keyType, fingerprint). Copie defensive / effacement securise sur `privateKey` |
 | `VaultService` | Facade delegant aux 2 sous-services (`PasswordService`, `AppService`). Expose `getPasswordService()`, `getAppService()` |
 | `BaseVaultService<T extends VaultItem>` | Service generique : CRUD, recherche, favoris, operations en masse |
@@ -525,7 +525,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 | `LocalRepository` | Gestion des fichiers locaux (ecritures atomiques, prevention du path traversal, backups) |
 | `SFTPRepository` | Client SFTP via JSch (authentification par cle, `StrictHostKeyChecking=yes`, limite 50 Mo, validation des noms de fichiers distants contre le path traversal) |
 | `ConflictResolver` | Enum : `KEEP_LOCAL`, `KEEP_REMOTE`, `KEEP_BOTH` |
-| `EntryMerger` | Fusion bidirectionnelle generique : `merge<T extends VaultItem>(List<T> local, List<T> remote)`. Appliquee aux 3 types d'entrees (Android) ; mots de passe et applications uniquement (desktop) |
+| `EntryMerger` | Fusion bidirectionnelle generique : `merge<T extends VaultItem>(List<T> local, List<T> remote)`. Appliquee aux 3 types d'entrees sur les deux plateformes (desktop et Android) |
 
 **Flux de synchronisation :**
 
@@ -715,10 +715,11 @@ Emplacement : `~/.password-manager/data/.config_key`
 | Copie defensive session | `VaultSession.getSalt/getKekIv/getEncryptedDek()` retournent des clones |
 | Nettoyage de session | `VaultSession.destroy()` efface DEK, sel, IV, DEK chiffree |
 | Nettoyage Swing | Insertion via `Document.insertString()` au lieu de `JPasswordField.setText(String)` pour minimiser l'interning |
-| Nettoyage ViewModel (Android) | `EntryEditViewModel.onCleared()` et `ChangeMasterPasswordViewModel.onCleared()` effacent les mots de passe de l'etat UI |
-| Biometrie AndroidKeyStore | Cle AES-256-GCM par utilisateur, `setUserAuthenticationRequired(true)`, `setInvalidatedByBiometricEnrollment(true)`. Le mot de passe maitre est chiffre par la cle biometrique et stocke dans `EncryptedSharedPreferences`. L'inscription efface le `char[]` du mot de passe apres chiffrement |
+| Nettoyage ViewModel (Android) | `EntryEditViewModel.onCleared()`, `EntryDetailViewModel.onCleared()`, `AppDetailViewModel.onCleared()`, `ChangeMasterPasswordViewModel.onCleared()` et `SettingsViewModel.onCleared()` effacent les donnees sensibles de l'etat UI |
+| Biometrie AndroidKeyStore | Cle AES-256-GCM par utilisateur, `setUserAuthenticationRequired(true)`, `setInvalidatedByBiometricEnrollment(true)`. Le mot de passe maitre est chiffre/dechiffre via `CharBuffer`/`ByteBuffer` (sans intermediaire `String`) et stocke dans `EncryptedSharedPreferences`. L'inscription efface le `char[]` du mot de passe apres chiffrement |
 | Invalidation biometrique | Changement de mot de passe maitre → `configRepo.clearBiometricData()` + `biometricHelper.deleteKey()`. Changement d'empreinte → `KeyPermanentlyInvalidatedException` interceptee |
 | Thread safety SessionHolder | Champs `@Volatile` (`vault`, `session`, `vaultService`, `username`) + `@Synchronized` sur `unlock()`, `lock()`, `save()` |
+| Thread safety VaultListViewModel | `pendingPasswordConflicts` marque `@Volatile` ; `syncJob` suivi et annule dans `onCleared()` ; cache favicon borne (`MAX_FAVICONS=50`) |
 | Auto-masquage | Le mot de passe affiche se re-masque automatiquement apres 30 secondes |
 
 ### 7.2. Securite des fichiers
@@ -733,6 +734,7 @@ Emplacement : `~/.password-manager/data/.config_key`
 | Validation des noms d'utilisateur | Regex `[a-zA-Z0-9_]+` pour prevenir le path traversal |
 | Validation des noms de fichiers (local) | Rejet de `..`, `/`, `\`, `~` dans `LocalRepository` |
 | Validation des noms de fichiers (distant) | Rejet de `..`, `/`, `\`, `~` dans `SFTPRepository` |
+| Validation du chemin local (SFTP) | `SFTPRepository.validateLocalPath()` verifie le chemin canonique contre le repertoire vaults pour prevenir le path traversal |
 
 ### 7.3. Protection anti brute-force
 
@@ -793,9 +795,7 @@ VaultListViewModel
             +-- Resolution de conflits interactive (ConflictResolutionScreen)
 ```
 
-La synchronisation Android est integree directement dans `VaultListViewModel` car les classes `SyncService`/`SFTPRepository`/`LocalRepository` sont dans le module `:desktop`, non accessible depuis `:android`. Le mode Android utilise `EntryMerger` pour fusionner les 3 types d'entrees (mots de passe, applications, cles SSH) et propose une resolution de conflit interactive.
-
-> **Note** : la synchronisation desktop ne fusionne que les mots de passe et les applications (pas les cles SSH). Les cles SSH sont neanmoins synchronisees via le coffre chiffre complet.
+La synchronisation Android est integree directement dans `VaultListViewModel` car les classes `SyncService`/`SFTPRepository`/`LocalRepository` sont dans le module `:desktop`, non accessible depuis `:android`. Les deux plateformes utilisent `EntryMerger` pour fusionner les 3 types d'entrees (mots de passe, applications, cles SSH) et proposent une resolution de conflit interactive.
 
 ### 8.2. Algorithme de synchronisation
 
@@ -953,7 +953,7 @@ Navigation a deux niveaux definie dans `AppNavigation.kt` :
 
 **Routes modales** : `ENTRY_DETAIL(entryId)`, `ENTRY_EDIT(entryId?)`, `APP_DETAIL(entryId)`, `APP_EDIT(entryId?)`, `GENERATOR(returnPassword)`, `CHANGE_MASTER_PASSWORD`, `CATEGORY_MANAGEMENT`, `SSH_KEY_MANAGEMENT`.
 
-Le mot de passe genere est passe de `GeneratorScreen` a `EntryEditScreen` via `savedStateHandle`.
+Le mot de passe genere est passe de `GeneratorScreen` a `EntryEditScreen` via `GeneratedPasswordHolder` (singleton thread-safe avec `set()`/`consume()`, transfert securise en `char[]` sans persistence dans `savedStateHandle`).
 
 #### Auto-lock (Android)
 
@@ -1061,13 +1061,13 @@ update.enabled=true
 ### 12.1. Vue d'ensemble
 
 **Framework** : JUnit 5 (Jupiter) 5.14.2
-**Total** : **~391 tests** (unitaires + integration) repartis sur les 3 modules
+**Total** : **~431 tests** (unitaires + integration) repartis sur les 3 modules
 
 | Module Gradle | Tests | Framework |
 |---|---|---|
-| `:core` | 237 | JUnit 5 (Java) |
-| `:desktop` | 75 | JUnit 5 (Java) |
-| `:android` | 78 | JUnit 5 (Kotlin, JVM local) |
+| `:core` | 269 | JUnit 5 (Java) |
+| `:desktop` | 83 | JUnit 5 (Java) |
+| `:android` | 79 | JUnit 5 (Kotlin, JVM local) |
 
 ### 12.2. Matrice des tests
 
@@ -1076,34 +1076,39 @@ update.enabled=true
 | vault | `VaultServiceTest` | 33 | CRUD, recherche, tri, favoris, filtre, doublons, categories, timestamps, mots de passe anciens |
 | vault | `VaultImporterTest` | 33 | CSV (separateurs, alias, BOM, sanitisation, favoris, RFC 4180, round-trip multi-type), JSON (malformed, null), limites |
 | security | `SecurityAuditTest` | 31 | IV, KDF, memoire, permissions, format, import/export, generateur |
-| sync | `SyncServiceTest` | 28 | Synchronisation, hash, conflits, mode hors-ligne, mode local, syncAfterMerge |
+| sync | `SyncServiceTest` | 31 | Synchronisation, hash, conflits, mode hors-ligne, mode local, syncAfterMerge |
+| **android** | `LoginViewModelTest` | 27 | Etat initial, biometrie, selection utilisateur, validation, creation, nettoyage onCleared |
+| vault | `VaultTest` | 20 | Constructeurs, add/remove entries (3 types), unmodifiable views, mutable accessors, wipe, ensureInitialized, settings |
 | sync | `LocalRepositoryTest` | 17 | Path traversal, lecture/ecriture/suppression, pending, backups |
 | vault | `VaultManagerIntegrationTest` | 16 | Cycle complet avec vraie crypto, validation username, suppression backups |
-| vault | `VaultTest` | 16 | Constructeurs, add/remove entries (2 types), unmodifiable list, wipe, settings |
 | util | `PasswordValidatorTest` | 15 | Politique mot de passe maitre, rejet des 44 mots de passe courants |
 | crypto | `CryptoServiceTest` | 14 | Enveloppe DEK/KEK, chiffrement, AAD, changement mdp, tampering (ciphertext/IV), legacy, destroy/close |
+| update | `VersionComparatorTest` | 13 | Comparaison semantique, pre-release, null, egalite, snapshot |
+| **android** | `SettingsViewModelTest` | 13 | Configuration initiale, setTheme, setLanguage, clamp autoLock, clamp clipboard, biometrie (toggle, activation, desactivation, dialog) |
 | config | `ConfigEncryptorTest` | 11 | Round-trip, caracteres speciaux, null/vide, corruption, unicite IV, reutilisation cle |
 | **android** | `GeneratorViewModelTest` | 11 | Etat initial, generation, clamp longueur, toggles, force, nettoyage onCleared |
+| sync | `EntryMergerTest` | 11 | Fusion locale/distante generique, conflits, entrees identiques (tous types) |
 | sync | `SFTPRepositoryTest` | 10 | Validation filename sur upload/download/exists/getRemoteLastModified |
+| crypto | `VaultSessionTest` | 10 | Destroy idempotent, AutoCloseable, copies defensives (salt/iv/dek), updateEnvelope |
 | vault | `VaultExporterTest` | 9 | CSV, JSON, injection formules, favoris, round-trip, multi-type |
 | crypto | `PasswordStrengthAnalyzerTest` | 9 | Niveaux de force, score, cas limites |
 | **android** | `EntryEditViewModelTest` | 9 | Formulaire CRUD nouveau/existant, sauvegarde, validation titre vide, toggle favori |
-| vault | `AppServiceTest` | 7 | CRUD, recherche sur username, favoris, operations en masse |
-| **android** | `LoginViewModelTest` | 27 | Etat initial, biometrie, selection utilisateur, validation, creation, nettoyage onCleared |
 | **android** | `ChangeMasterPasswordViewModelTest` | 9 | Etat initial, validation, mismatch, mot de passe faible, nettoyage onCleared, invalidation biometrique |
+| vault | `SshKeyEntryTest` | 8 | Constructeur, copies defensives privateKey, wipe, equals/hashCode, tombstone |
+| vault | `AppServiceTest` | 7 | CRUD, recherche sur username, favoris, operations en masse |
+| vault | `EntryFilterTest` | 7 | Filtres combines (categorie, force, date, favoris, texte) |
+| crypto | `KeyDerivationTest` | 7 | Generation de cle, unicite du sel, iterations, SecureRandom partage |
 | vault | `AppEntryTest` | 6 | Constructeur, copies defensives pin, wipe, equals/hashCode |
-| vault | `EntryFilterTest` | 6 | Filtres combines (categorie, force, date, favoris, texte) |
 | i18n | `LanguageManagerTest` | 6 | Singleton, getString valide/manquant, setLanguage fr/en, getAvailableLanguages |
+| **desktop** | `AutoLockManagerTest` | 5 | Idempotence start, cleanup, lifecycle, listener |
 | util | `FaviconServiceTest` | 5 | Extraction domaine, cache disque, favicon null |
 | security | `HibpCheckerTest` | 5 | Null, vide, entree valide, caracteres speciaux, unicode |
-| sync | `EntryMergerTest` | 5 | Fusion locale/distante generique, conflits, entrees identiques |
 | **android** | `SecurityAuditViewModelTest` | 5 | Audit vide, mots de passe faibles, dupliques, anciens, totalIssues |
 | **android** | `EntryDetailViewModelTest` | 5 | Chargement existant/inconnu, toggle visibilite, suppression existant/inexistant |
-| **android** | `SettingsViewModelTest` | 13 | Configuration initiale, setTheme, setLanguage, clamp autoLock, clamp clipboard, biometrie (toggle, activation, desactivation, dialog) |
 | util | `DateUtilsTest` | 5 | Format ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types de caracteres, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance, auto-creation |
-| | | **~391** | |
+| | | **~431** | |
 
 ### 12.3. Infrastructure de test Android
 

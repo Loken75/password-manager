@@ -34,6 +34,7 @@ public class LoginFrame extends JFrame {
     // Static intentionally: persists across LoginFrame instances (lock/unlock cycles).
     // Per-username tracking prevents one user's failures from affecting another.
     private static final Map<String, Integer> failedAttemptsMap = new HashMap<>();
+    private Timer rateLimitTimer;
 
     public LoginFrame() {
         appConfig = configManager.loadConfig();
@@ -216,13 +217,14 @@ public class LoginFrame extends JFrame {
                 passwordField.setEnabled(false);
                 statusLabel.setText(lang.getString("error.too_many_attempts"));
                 int delay = Math.min(2000 * (1 << Math.min(attempts - 3, 4)), 30000);
-                Timer unlockTimer = new Timer(delay, evt -> {
+                if (rateLimitTimer != null) rateLimitTimer.stop();
+                rateLimitTimer = new Timer(delay, evt -> {
                     loginButton.setEnabled(true);
                     passwordField.setEnabled(true);
                     statusLabel.setText(lang.getString("error.invalid_password"));
                 });
-                unlockTimer.setRepeats(false);
-                unlockTimer.start();
+                rateLimitTimer.setRepeats(false);
+                rateLimitTimer.start();
             }
         } catch (Exception ex) {
             showError(lang.getString("common.error") + ": " + ex.getMessage());

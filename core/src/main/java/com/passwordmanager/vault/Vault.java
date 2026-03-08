@@ -3,7 +3,6 @@ package com.passwordmanager.vault;
 import com.passwordmanager.util.DateUtils;
 
 import java.util.*;
-import java.util.Collections;
 
 /**
  * Represents the complete password vault for a user.
@@ -88,6 +87,18 @@ public class Vault {
         updatedAt = null;
     }
 
+    /**
+     * Ensures all collection fields are non-null after Gson deserialization.
+     * Call this after deserializing a Vault from JSON to guard against missing fields.
+     */
+    public void ensureInitialized() {
+        if (entries == null) entries = new ArrayList<>();
+        if (appEntries == null) appEntries = new ArrayList<>();
+        if (sshKeyEntries == null) sshKeyEntries = new ArrayList<>();
+        if (categories == null) categories = new ArrayList<>();
+        if (settings == null) settings = new HashMap<>();
+    }
+
     public String getVersion() { return version; }
     public void setVersion(String version) { this.version = version; }
     public String getUser() { return user; }
@@ -146,8 +157,20 @@ public class Vault {
     }
     public void setSshKeyEntries(List<SshKeyEntry> sshKeyEntries) { this.sshKeyEntries = sshKeyEntries; }
 
-    public List<String> getCategories() { return categories; }
+    public List<String> getCategories() {
+        return categories != null ? Collections.unmodifiableList(categories) : Collections.emptyList();
+    }
+    public List<String> getCategoriesMutable() {
+        if (categories == null) categories = new ArrayList<>();
+        return categories;
+    }
     public void setCategories(List<String> categories) { this.categories = categories; }
-    public Map<String, Object> getSettings() { return settings; }
+    public Map<String, Object> getSettings() {
+        return settings != null ? Collections.unmodifiableMap(settings) : Collections.emptyMap();
+    }
+    public Map<String, Object> getSettingsMutable() {
+        if (settings == null) settings = new HashMap<>();
+        return settings;
+    }
     public void setSettings(Map<String, Object> settings) { this.settings = settings; }
 }

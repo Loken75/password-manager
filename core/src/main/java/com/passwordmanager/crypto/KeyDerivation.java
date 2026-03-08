@@ -17,6 +17,7 @@ public class KeyDerivation {
     private static final int DEFAULT_ITERATIONS = 600_000;
     private static final int KEY_SIZE = 256;
     private static final int SALT_LENGTH = 32;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     public static int getDefaultIterations() {
         return DEFAULT_ITERATIONS;
@@ -57,7 +58,7 @@ public class KeyDerivation {
      */
     public static byte[] generateSalt() {
         byte[] salt = new byte[SALT_LENGTH];
-        new SecureRandom().nextBytes(salt);
+        SECURE_RANDOM.nextBytes(salt);
         return salt;
     }
 }

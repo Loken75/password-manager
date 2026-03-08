@@ -24,6 +24,8 @@ import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Main application window with menu bar, vault panel, and status bar.
@@ -31,6 +33,7 @@ import java.util.List;
  * Delegates import/export, security audit, and auto-lock to dedicated controllers.
  */
 public class MainFrame extends JFrame {
+    private static final Logger LOGGER = Logger.getLogger(MainFrame.class.getName());
     private final LanguageManager lang = LanguageManager.getInstance();
     private Vault vault;
     private String username;
@@ -351,7 +354,8 @@ public class MainFrame extends JFrame {
             }
             if (dark) FlatDarkLaf.setup();
             else FlatLightLaf.setup();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to apply theme", e);
         }
     }
 
@@ -493,13 +497,16 @@ public class MainFrame extends JFrame {
                 vault.getEntriesMutable(), remoteVault.getEntriesMutable());
             EntryMerger.MergeResult<AppEntry> appMerge = syncService.mergeEntries(
                 vault.getAppEntriesMutable(), remoteVault.getAppEntriesMutable());
+            EntryMerger.MergeResult<SshKeyEntry> sshKeyMerge = syncService.mergeEntries(
+                vault.getSshKeyEntriesMutable(), remoteVault.getSshKeyEntriesMutable());
             boolean hasConflicts = passwordMerge.hasConflicts()
-                || appMerge.hasConflicts();
+                || appMerge.hasConflicts()
+                || sshKeyMerge.hasConflicts();
 
             String vaultFilename = "vault_" + username + ".enc";
             if (!hasConflicts) {
                 // Auto-merge: no conflicts, apply merged entries directly
-                applyMerge(passwordMerge, appMerge);
+                applyMerge(passwordMerge, appMerge, sshKeyMerge);
                 SyncService.SyncResult mergeResult = syncService.syncAfterMerge(
                     vaultFilename,
                     () -> vaultManager.saveVault(vault, username, session));
@@ -515,17 +522,20 @@ public class MainFrame extends JFrame {
                 List<EntryMerger.Conflict<? extends VaultItem>> allConflicts = new ArrayList<>();
                 allConflicts.addAll(passwordMerge.getConflicts());
                 allConflicts.addAll(appMerge.getConflicts());
+                allConflicts.addAll(sshKeyMerge.getConflicts());
 
                 ConflictResolutionDialog dlg = new ConflictResolutionDialog(this, allConflicts);
                 dlg.setVisible(true);
                 if (dlg.isConfirmed()) {
                     List<VaultItem> resolved = dlg.getResolvedEntries();
-                    applyMerge(passwordMerge, appMerge);
+                    applyMerge(passwordMerge, appMerge, sshKeyMerge);
                     for (VaultItem item : resolved) {
                         if (item instanceof PasswordEntry) {
                             vault.addEntry((PasswordEntry) item);
                         } else if (item instanceof AppEntry) {
                             vault.addAppEntry((AppEntry) item);
+                        } else if (item instanceof SshKeyEntry) {
+                            vault.addSshKeyEntry((SshKeyEntry) item);
                         }
                     }
                     SyncService.SyncResult mergeResult = syncService.syncAfterMerge(
@@ -573,14 +583,21 @@ public class MainFrame extends JFrame {
     }
 
     private void applyMerge(EntryMerger.MergeResult<PasswordEntry> passwordMerge,
-                            EntryMerger.MergeResult<AppEntry> appMerge) {
-        vault.getEntriesMutable().clear();
-        for (PasswordEntry e : passwordMerge.getMergedEntries()) {
-            vault.addEntry(e);
-        }
-        vault.getAppEntriesMutable().clear();
-        for (AppEntry e : appMerge.getMergedEntries()) {
-            vault.addAppEntry(e);
+                            EntryMerger.MergeResult<AppEntry> appMerge,
+                            EntryMerger.MergeResult<SshKeyEntry> sshKeyMerge) {
+        synchronized (vault) {
+            vault.getEntriesMutable().clear();
+            for (PasswordEntry e : passwordMerge.getMergedEntries()) {
+                vault.addEntry(e);
+            }
+            vault.getAppEntriesMutable().clear();
+            for (AppEntry e : appMerge.getMergedEntries()) {
+                vault.addAppEntry(e);
+            }
+            vault.getSshKeyEntriesMutable().clear();
+            for (SshKeyEntry e : sshKeyMerge.getMergedEntries()) {
+                vault.addSshKeyEntry(e);
+            }
         }
     }
 

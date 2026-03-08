@@ -69,6 +69,6 @@ public class PasswordEntry extends VaultItem {
     public void setUrl(String url) { this.url = url; }
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }
-    public List<String> getTags() { return tags != null ? Collections.unmodifiableList(tags) : null; }
+    public List<String> getTags() { return tags != null ? Collections.unmodifiableList(tags) : Collections.emptyList(); }
     public void setTags(List<String> tags) { this.tags = tags != null ? new ArrayList<>(tags) : new ArrayList<>(); }
 }

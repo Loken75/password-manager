@@ -6,6 +6,7 @@ import com.passwordmanager.util.SecureWiper;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
 
 /**
  * Dialog for generating secure passwords.
@@ -126,6 +127,14 @@ public class PasswordGeneratorDialog extends JDialog {
             // generatedPassword is already set by doGenerate(), no need to read from UI field
             cancelClipboardTimer();
             dispose();
+        });
+
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(java.awt.event.WindowEvent e) {
+                cancelClipboardTimer();
+            }
         });
 
         doGenerate();

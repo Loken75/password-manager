@@ -8,6 +8,8 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import java.nio.ByteBuffer
+import java.nio.CharBuffer
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -115,7 +117,12 @@ open class BiometricHelper(private val context: Context?) {
         private fun keyAlias(username: String) = "biometric_key_$username"
 
         fun encryptPassword(cipher: Cipher, password: CharArray): Pair<ByteArray, ByteArray> {
-            val bytes = String(password).toByteArray(Charsets.UTF_8)
+            val byteBuffer = Charsets.UTF_8.encode(CharBuffer.wrap(password))
+            val bytes = ByteArray(byteBuffer.remaining())
+            byteBuffer.get(bytes)
+            // Wipe the intermediate ByteBuffer
+            byteBuffer.clear()
+            while (byteBuffer.hasRemaining()) byteBuffer.put(0)
             try {
                 val encrypted = cipher.doFinal(bytes)
                 val iv = cipher.iv
@@ -128,7 +135,13 @@ open class BiometricHelper(private val context: Context?) {
         fun decryptPassword(cipher: Cipher, encryptedData: ByteArray): CharArray {
             val bytes = cipher.doFinal(encryptedData)
             try {
-                return String(bytes, Charsets.UTF_8).toCharArray()
+                val charBuffer = Charsets.UTF_8.decode(ByteBuffer.wrap(bytes))
+                val chars = CharArray(charBuffer.remaining())
+                charBuffer.get(chars)
+                // Wipe the intermediate CharBuffer
+                charBuffer.clear()
+                while (charBuffer.hasRemaining()) charBuffer.put('\u0000')
+                return chars
             } finally {
                 bytes.fill(0)
             }

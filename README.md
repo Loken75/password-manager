@@ -299,8 +299,15 @@ DEK (Data Encryption Key) -- AES-256, 32 octets aleatoires
 | Anti brute-force | Backoff progressif apres 3 echecs (jusqu'a 30s), compteur par utilisateur |
 | Masquage temporaire | Mot de passe re-masque automatiquement apres 30 secondes |
 | Validation JSON vault | Null-checks sur les champs obligatoires du fichier `.enc` (corruption detectee) |
-| Nettoyage ViewModel | `onCleared()` efface les mots de passe des formulaires Android |
-| Thread safety | `VaultService` : toutes les methodes publiques `synchronized` ; `SessionHolder` : `@Volatile` + `@Synchronized` ; `AutoLockManager.lastActivity` : `volatile` |
+| Nettoyage ViewModel | `onCleared()` efface les donnees sensibles dans `EntryEditViewModel`, `EntryDetailViewModel`, `AppDetailViewModel`, `ChangeMasterPasswordViewModel`, `SettingsViewModel` |
+| Thread safety | `VaultService` : toutes les methodes publiques `synchronized` ; `SessionHolder` : `@Volatile` + `@Synchronized` ; `AutoLockManager.lastActivity` : `volatile` ; `VaultListViewModel.pendingPasswordConflicts` : `@Volatile` |
+| Collections non-modifiables | `Vault.getEntries()`/`getCategories()`/`getSettings()` retournent des vues non-modifiables ; `*Mutable()` pour l'acces en mutation |
+| Post-deserialisation | `Vault.ensureInitialized()` garantit les collections non-null apres deserialisation Gson |
+| Biometrie sans String | `BiometricHelper` utilise `CharBuffer`/`ByteBuffer` pour chiffrer/dechiffrer le mot de passe sans intermediaire `String` |
+| SFTP path traversal | `SFTPRepository.validateLocalPath()` verifie le chemin canonique contre le repertoire vaults |
+| Autofill domain matching | Correspondance par suffixe de domaine (`endsWith`) au lieu de `contains` |
+| Transfert mot de passe genere | `GeneratedPasswordHolder` singleton thread-safe (remplace `savedStateHandle`) |
+| Cache favicon borne | Limite a 50 entrees avec eviction des plus anciennes |
 | Limite taille fichier | Rejet des fichiers coffre > 50 Mo au chargement |
 | Rejet mots de passe courants | 44 mots de passe connus rejetes (comparaison a temps constant) |
 | Verification mises a jour | API GitHub limitee a 1 Mo de reponse, URLs validees (`https://github.com/` uniquement) |
@@ -358,40 +365,46 @@ password-manager/
 
 ### Tests
 
-**379+ tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
+**431+ tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
 
 | Module | Classe de test | Tests | Description |
 |---|---|:---:|---|
-| vault | `PasswordServiceTest` | 35 | CRUD mots de passe, recherche, tri, favoris, filtre, doublons, categories, timestamps |
+| vault | `VaultServiceTest` | 33 | CRUD mots de passe, recherche, tri, favoris, filtre, doublons, categories, timestamps |
+| vault | `VaultImporterTest` | 33 | CSV (separateurs, alias, BOM, sanitisation, favoris, RFC 4180, round-trip multi-type), JSON, limites |
 | security | `SecurityAuditTest` | 31 | IV, KDF, memoire, permissions, format, import/export, generateur |
-| sync | `SyncServiceTest` | 23 | Synchronisation, hash, conflits, mode hors-ligne (tous types) |
-| vault | `VaultImporterTest` | 22 | CSV (separateurs, alias, BOM, sanitisation, favoris, colonne type, RFC 4180), JSON multi-types, limites |
+| sync | `SyncServiceTest` | 31 | Synchronisation, hash, conflits, mode hors-ligne, mode local (tous types) |
+| **android** | `LoginViewModelTest` | 27 | Etat initial, biometrie, selection utilisateur, login, enrollment, creation utilisateur |
+| vault | `VaultTest` | 20 | Constructeurs, add/remove (3 types), unmodifiable views, mutable accessors, wipe, ensureInitialized, settings |
 | sync | `LocalRepositoryTest` | 17 | Path traversal, CRUD, pending, backups |
 | vault | `VaultManagerIntegrationTest` | 16 | Cycle complet avec vraie crypto, validation username |
 | util | `PasswordValidatorTest` | 15 | Politique mot de passe maitre, rejet des mots de passe courants |
 | crypto | `CryptoServiceTest` | 14 | Enveloppe DEK/KEK, chiffrement, AAD, changement mdp, tampering, legacy |
-| vault | `AppServiceTest` | 12 | CRUD applications, recherche, tri, favoris |
+| update | `VersionComparatorTest` | 13 | Comparaison semantique, pre-release, null, egalite |
+| **android** | `SettingsViewModelTest` | 13 | Configuration initiale, theme, langue, auto-lock, clipboard, toggle biometrique |
 | config | `ConfigEncryptorTest` | 11 | Round-trip, caracteres speciaux, corruption, unicite IV |
 | **android** | `GeneratorViewModelTest` | 11 | Etat initial, generation, longueur, toggles, force, nettoyage |
+| sync | `EntryMergerTest` | 11 | Fusion locale/distante generique, conflits, entrees identiques (tous types) |
 | sync | `SFTPRepositoryTest` | 10 | Validation filename sur 4 methodes publiques |
-| vault | `VaultExporterTest` | 11 | CSV multi-types, JSON multi-types, injection, favoris, round-trip |
+| crypto | `VaultSessionTest` | 10 | Destroy idempotent, AutoCloseable, copies defensives, updateEnvelope |
+| vault | `VaultExporterTest` | 9 | CSV multi-types, JSON multi-types, injection, favoris, round-trip |
 | crypto | `PasswordStrengthAnalyzerTest` | 9 | Niveaux de force, score, cas limites |
-| vault | `VaultTest` | 9 | Constructeurs, add/remove (2 types), unmodifiable, wipe, settings |
 | **android** | `EntryEditViewModelTest` | 9 | Formulaire CRUD, sauvegarde, validation, toggle favori |
-| **android** | `LoginViewModelTest` | 27 | Etat initial, biometrie, selection utilisateur, login, enrollment, config biometrique, creation utilisateur |
 | **android** | `ChangeMasterPasswordViewModelTest` | 9 | Validation, mismatch, nettoyage onCleared, invalidation biometrique |
-| vault | `EntryFilterTest` | 6 | Filtres combines (categorie, force, date, favoris, texte) |
+| vault | `SshKeyEntryTest` | 8 | Constructeur, copies defensives, wipe, equals/hashCode, tombstone |
+| vault | `AppServiceTest` | 7 | CRUD applications, recherche, favoris, operations en masse |
+| vault | `EntryFilterTest` | 7 | Filtres combines (categorie, force, date, favoris, texte) |
+| crypto | `KeyDerivationTest` | 7 | Generation de cle, unicite du sel, iterations, SecureRandom partage |
+| vault | `AppEntryTest` | 6 | Constructeur, copies defensives pin, wipe, equals/hashCode |
 | i18n | `LanguageManagerTest` | 6 | Singleton, getString, setLanguage, langues disponibles |
+| **desktop** | `AutoLockManagerTest` | 5 | Idempotence start, cleanup, lifecycle, listener |
 | util | `FaviconServiceTest` | 5 | Extraction domaine, cache disque, favicon null |
 | security | `HibpCheckerTest` | 5 | Null, vide, entree valide, caracteres speciaux, unicode |
-| sync | `EntryMergerTest` | 7 | Fusion locale/distante generique, conflits, entrees identiques (tous types) |
 | **android** | `SecurityAuditViewModelTest` | 5 | Audit vide, faibles, dupliques, anciens, total |
 | **android** | `EntryDetailViewModelTest` | 5 | Chargement, visibilite, suppression |
-| **android** | `SettingsViewModelTest` | 13 | Configuration initiale, theme, langue, auto-lock, clipboard, toggle biometrique |
 | util | `DateUtilsTest` | 5 | ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance |
-| | | **~379** | |
+| | | **~431** | |
 
 ---
 

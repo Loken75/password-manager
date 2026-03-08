@@ -161,6 +161,7 @@ public class VaultManager {
         if (vault == null) {
             throw new IOException("Corrupted vault file: deserialization returned null");
         }
+        vault.ensureInitialized();
 
         // If migrated from v1.0, save in v2.0 format immediately
         if (!"2.0".equals(version)) {
@@ -296,11 +297,14 @@ public class VaultManager {
         } catch (VaultDecryptionException e) {
             vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
         }
+        Vault vault;
         try {
-            return gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
+            vault = gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
         } finally {
             SecureWiper.wipe(vaultJsonBytes);
         }
+        if (vault != null) vault.ensureInitialized();
+        return vault;
     }
 
     /**
@@ -337,11 +341,14 @@ public class VaultManager {
         } catch (VaultDecryptionException e) {
             vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
         }
+        Vault vault;
         try {
-            return gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
+            vault = gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
         } finally {
             SecureWiper.wipe(vaultJsonBytes);
         }
+        if (vault != null) vault.ensureInitialized();
+        return vault;
     }
 
     /**
@@ -433,6 +440,7 @@ public class VaultManager {
         if (sourceVault == null) {
             return new Vault("import");
         }
+        sourceVault.ensureInitialized();
         return sourceVault;
     }
 

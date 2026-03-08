@@ -90,6 +90,7 @@ public class SFTPRepository implements RemoteSyncRepository {
 
     public void uploadFile(String localPath, String remoteFilename) throws SftpException {
         validateFilename(remoteFilename);
+        validateLocalPath(localPath);
         sftpChannel.put(localPath, remotePath + "/" + remoteFilename, ChannelSftp.OVERWRITE);
     }
 
@@ -139,6 +140,23 @@ public class SFTPRepository implements RemoteSyncRepository {
         } catch (Exception e) {
             LOGGER.log(Level.FINE, "Connection test failed", e);
             return false;
+        }
+    }
+
+    private static void validateLocalPath(String localPath) {
+        if (localPath == null || localPath.isEmpty()) {
+            throw new IllegalArgumentException("Local path must not be empty");
+        }
+        try {
+            File localFile = new File(localPath).getCanonicalFile();
+            String vaultDir = new File(System.getProperty("user.home"), ".passwordmanager")
+                    .getCanonicalPath();
+            if (!localFile.getPath().startsWith(vaultDir + File.separator) &&
+                    !localFile.getPath().equals(vaultDir)) {
+                throw new IllegalArgumentException("Local path escapes vault directory: " + localPath);
+            }
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Cannot resolve local path: " + localPath, e);
         }
     }
 

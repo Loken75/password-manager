@@ -119,6 +119,68 @@ class VaultTest {
     }
 
     @Test
+    void ensureInitialized_fixesNullCollections() {
+        Vault vault = new Vault("user");
+        vault.setEntries(null);
+        vault.setAppEntries(null);
+        vault.setSshKeyEntries(null);
+        vault.setCategories(null);
+        vault.setSettings(null);
+        vault.ensureInitialized();
+        assertNotNull(vault.getEntries());
+        assertNotNull(vault.getAppEntries());
+        assertNotNull(vault.getSshKeyEntries());
+        assertNotNull(vault.getCategories());
+        assertNotNull(vault.getSettings());
+    }
+
+    @Test
+    void ensureInitialized_preservesExistingData() {
+        Vault vault = new Vault("user");
+        vault.addEntry(new PasswordEntry("T", "u", "p".toCharArray(), "", "", "C", null));
+        vault.ensureInitialized();
+        assertEquals(1, vault.getEntries().size());
+    }
+
+    @Test
+    void getCategoriesIsUnmodifiable() {
+        Vault vault = new Vault("user");
+        List<String> cats = vault.getCategories();
+        assertThrows(UnsupportedOperationException.class, () -> cats.add("NewCat"));
+    }
+
+    @Test
+    void getSettingsIsUnmodifiable() {
+        Vault vault = new Vault("user");
+        java.util.Map<String, Object> settings = vault.getSettings();
+        assertThrows(UnsupportedOperationException.class, () -> settings.put("key", "val"));
+    }
+
+    @Test
+    void getCategoriesMutableAllowsMutation() {
+        Vault vault = new Vault("user");
+        vault.getCategoriesMutable().add("TestCat");
+        assertTrue(vault.getCategories().contains("TestCat"));
+    }
+
+    @Test
+    void addSshKeyEntry() {
+        Vault vault = new Vault("user");
+        SshKeyEntry entry = new SshKeyEntry("mykey", null, "pub", "ED25519", "fp");
+        vault.addSshKeyEntry(entry);
+        assertEquals(1, vault.getSshKeyEntries().size());
+    }
+
+    @Test
+    void removeSshKeyEntry() {
+        Vault vault = new Vault("user");
+        SshKeyEntry entry = new SshKeyEntry("mykey", null, "pub", "RSA", "fp");
+        vault.addSshKeyEntry(entry);
+        assertTrue(vault.removeSshKeyEntry(entry));
+        assertEquals(0, vault.getSshKeyEntries().size());
+    }
+
+    @Test
     void defaultSettings() {
         Vault vault = new Vault("user");
         assertEquals(15, ((Number) vault.getSettings().get("auto_lock_minutes")).intValue());

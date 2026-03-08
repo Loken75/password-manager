@@ -49,4 +49,9 @@ class EntryDetailViewModel @Inject constructor(
         if (deleted) sessionHolder.save()
         return deleted
     }
+
+    override fun onCleared() {
+        super.onCleared()
+        _uiState.value = EntryDetailUiState()
+    }
 }

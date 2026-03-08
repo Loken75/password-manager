@@ -686,7 +686,7 @@ Sur Android, l'import et l'export utilisent le **Storage Access Framework (SAF)*
 
 ## 14. Synchronisation distante
 
-La synchronisation SFTP est disponible sur **desktop et Android**. Elle permet de maintenir le coffre synchronise entre plusieurs appareils via un serveur SFTP. La synchronisation porte sur les trois types d'entrees. La fusion par entree (`EntryMerger`) est appliquee aux 3 types sur Android, et aux mots de passe et applications sur desktop.
+La synchronisation SFTP est disponible sur **desktop et Android**. Elle permet de maintenir le coffre synchronise entre plusieurs appareils via un serveur SFTP. La synchronisation porte sur les trois types d'entrees. La fusion par entree (`EntryMerger`) est appliquee aux 3 types (mots de passe, applications, cles SSH) sur les deux plateformes.
 
 ### 14.1. Modes de stockage
 
@@ -738,7 +738,7 @@ Lorsque le coffre a ete modifie a la fois localement et sur le serveur, le syste
 
 **Si aucun conflit** : la fusion est automatique, le resultat est sauvegarde localement et uploade sur le serveur.
 
-**Si des conflits existent** : un dialogue de resolution s'affiche avec une vue cote-a-cote (local / distant) pour chaque entree en conflit. Les champs affiches dans la comparaison sont adaptes au type d'entree (champs mot de passe ou champs application). L'utilisateur choisit la version a conserver pour chaque entree.
+**Si des conflits existent** : un dialogue de resolution s'affiche avec une vue cote-a-cote (local / distant) pour chaque entree en conflit. Les champs affiches dans la comparaison sont adaptes au type d'entree (champs mot de passe, application ou cle SSH). L'utilisateur choisit la version a conserver pour chaque entree.
 
 **Fallback** : si la fusion echoue, l'ancien mode est propose :
 
@@ -916,7 +916,7 @@ Ce bouton ouvre les parametres systeme Android pour selectionner Password Manage
 
 1. Lorsqu'une application affiche un formulaire de connexion, Android interroge le service d'auto-remplissage
 2. Le service analyse les champs du formulaire (par hints d'auto-remplissage puis heuristiques)
-3. Les entrees du coffre sont comparees par domaine web ou nom de package
+3. Les entrees du coffre sont comparees par correspondance de suffixe de domaine (ex. `login.example.com` correspond a `example.com`) ou nom de package
 4. Si le coffre est verrouille, une invite d'authentification est affichee
 5. Si le coffre est deverrouille, jusqu'a 5 suggestions sont proposees
 
