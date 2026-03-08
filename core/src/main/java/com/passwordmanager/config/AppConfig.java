@@ -12,6 +12,7 @@ public class AppConfig {
     private int sftpPort = 22;
     private String sftpUser = "";
     private String sftpKeyPath = "";
+    private String sftpVaultKeyId = "";
     private String sftpRemotePath = "/vault/data";
     private String localVaultDirectory;
     private int autoLockMinutes = 15;
@@ -52,6 +53,16 @@ public class AppConfig {
     public String getSftpKeyPath() { return sftpKeyPath; }
     public void setSftpKeyPath(String sftpKeyPath) {
         this.sftpKeyPath = sftpKeyPath != null ? sftpKeyPath.trim() : "";
+    }
+
+    public String getSftpVaultKeyId() { return sftpVaultKeyId; }
+    public void setSftpVaultKeyId(String sftpVaultKeyId) {
+        this.sftpVaultKeyId = sftpVaultKeyId != null ? sftpVaultKeyId.trim() : "";
+    }
+
+    /** Returns true if SFTP should use a vault-stored SSH key instead of a file. */
+    public boolean isUsingVaultKey() {
+        return sftpVaultKeyId != null && !sftpVaultKeyId.isEmpty();
     }
 
     public String getSftpRemotePath() { return sftpRemotePath; }

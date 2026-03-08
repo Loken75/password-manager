@@ -20,6 +20,7 @@ public class SFTPRepository implements RemoteSyncRepository {
     private final int port;
     private final String user;
     private final String privateKeyPath;
+    private final byte[] privateKeyBytes;
     private final String remotePath;
 
     public SFTPRepository(String host, int port, String user, String privateKeyPath, String remotePath) {
@@ -27,12 +28,26 @@ public class SFTPRepository implements RemoteSyncRepository {
         this.port = port;
         this.user = user;
         this.privateKeyPath = privateKeyPath;
+        this.privateKeyBytes = null;
+        this.remotePath = remotePath;
+    }
+
+    public SFTPRepository(String host, int port, String user, byte[] privateKeyBytes, String remotePath) {
+        this.host = host;
+        this.port = port;
+        this.user = user;
+        this.privateKeyPath = null;
+        this.privateKeyBytes = privateKeyBytes;
         this.remotePath = remotePath;
     }
 
     public void connect() throws JSchException {
         JSch jsch = new JSch();
-        jsch.addIdentity(privateKeyPath);
+        if (privateKeyBytes != null) {
+            jsch.addIdentity("vault-key", privateKeyBytes, null, null);
+        } else {
+            jsch.addIdentity(privateKeyPath);
+        }
         LOGGER.fine("Using SSH key authentication");
 
         // SEC-01: Ensure known_hosts exists so StrictHostKeyChecking can work.

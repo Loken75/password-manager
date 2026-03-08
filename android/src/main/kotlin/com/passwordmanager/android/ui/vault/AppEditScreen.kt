@@ -96,13 +96,22 @@ fun AppEditScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // PIN (masked)
+            // PIN (masked) + generate button
             PasswordField(
                 value = state.pin,
                 onValueChange = { viewModel.updatePin(it) },
                 label = stringResource(R.string.entry_pin),
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            OutlinedButton(
+                onClick = { viewModel.generatePin() },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.entry_generate))
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 

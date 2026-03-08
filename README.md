@@ -7,7 +7,7 @@ Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et prot
 - **3 types d'entrees** :
   - **Mots de passe** : identifiant, email, pseudo, mot de passe, URL, categorie, tags (onglet dedie)
   - **Applications** : nom d'utilisateur et code PIN (onglet dedie)
-  - **Cles SSH** : cle privee, cle publique, type, empreinte (Android : ecran dedie dans les parametres)
+  - **Cles SSH** : cle privee, cle publique, type, empreinte, generation (ED25519/RSA) et import PEM (desktop : onglet dedie, Android : ecran dedie dans les parametres)
 - Coffre-fort chiffre par utilisateur (AES-256-GCM avec AAD, PBKDF2 600 000 iterations)
 - Chiffrement par enveloppe DEK/KEK (changement de mot de passe instantane)
 - Generateur de mots de passe cryptographiquement sur (SecureRandom)
@@ -23,7 +23,7 @@ Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et prot
 - Effacement securise du presse-papiers (`SecureClipboard` avec `char[]`, efface a la perte de propriete)
 - Protection anti brute-force sur l'ecran de connexion
 - Verification semi-automatique des mises a jour via l'API GitHub Releases
-- **Desktop** : JTabbedPane avec 2 onglets (Mots de passe, Applications)
+- **Desktop** : JTabbedPane avec 3 onglets (Mots de passe, Applications, Cles SSH) avec generation/import de cles SSH
 - **Desktop** : distribution autonome avec JRE embarque (aucune installation Java requise)
 - **Desktop** : selection multiple, menu "Actions..." (suppression, categorie, favoris en masse) et menu contextuel (clic droit)
 - **Desktop** : boutons de copie en ligne dans le panneau de details (identifiant, email, pseudo, mot de passe, URL)
@@ -151,9 +151,9 @@ Apres connexion, l'interface se compose de :
 - **Barre de menus** : Fichier, Edition, Affichage, Outils, Aide
 - **Barre d'outils** : Nouvelle entree, Generateur, Synchroniser, Verrouiller
 - **Panneau gauche** (180 px) : liste des categories avec filtrage au clic (mots de passe uniquement)
-- **Panneau central** : JTabbedPane avec 2 onglets (**Mots de passe**, **Applications**) + barre de recherche en temps reel + filtres avances (le filtre favoris s'applique meme quand le panneau de filtres est replie) + tableau des entrees avec tri par clic sur les en-tetes de colonnes + menu "Actions..." en masse (visible quand >1 entree selectionnee)
+- **Panneau central** : JTabbedPane avec 3 onglets (**Mots de passe**, **Applications**, **Cles SSH**) + barre de recherche en temps reel + filtres avances (le filtre favoris s'applique meme quand le panneau de filtres est replie) + tableau des entrees avec tri par clic sur les en-tetes de colonnes + menu "Actions..." en masse (visible quand >1 entree selectionnee)
 - **Panneau droit** (300 px) : details de l'entree selectionnee avec boutons copier en ligne (champs adaptes au type d'entree)
-- **Menu contextuel** (clic droit) : modifier, supprimer, copier mot de passe/identifiant/email/URL, ouvrir l'URL, dupliquer
+- **Menu contextuel** (clic droit) : modifier, supprimer, dupliquer, copier mot de passe/identifiant/email/URL, ouvrir l'URL
 - **Barre de notification** : mise a jour disponible (barre jaune en haut, masquable)
 - **Barre de statut** : statut de synchronisation, utilisateur connecte, nombre d'entrees (mis a jour dynamiquement)
 
@@ -173,11 +173,12 @@ Apres connexion, l'interface se compose de :
 
 | Fonctionnalite | Desktop | Android |
 |---|---|---|
-| Interface a onglets (2 types dans les onglets) | Oui (JTabbedPane) | Oui (TabRow + HorizontalPager) |
+| Interface a onglets (3 types dans les onglets) | Oui (JTabbedPane, 3 onglets) | Oui (TabRow + HorizontalPager, 2 onglets + ecran dedie SSH) |
 | Mots de passe (identifiant, email, URL, categorie, tags) | Oui | Oui |
 | Applications (nom d'utilisateur, code PIN) | Oui | Oui |
-| Cles SSH (cle privee, cle publique, type, empreinte) | Conservees (pas d'UI) | Oui (ecran dedie dans les parametres) |
+| Cles SSH (cle privee, cle publique, type, empreinte) | Oui (onglet dedie) | Oui (ecran dedie dans les parametres) |
 | CRUD entrees (tous types) | Oui | Oui |
+| Dupliquer une entree | Oui (3 types, clic droit) | Oui (mots de passe et applications) |
 | Favoris (etoile, tri prioritaire, tous types) | Oui | Oui |
 | Filtres avances (categorie, force, date, favoris) | Oui | Oui |
 | Favicons des sites web | Oui | Oui |
@@ -187,13 +188,13 @@ Apres connexion, l'interface se compose de :
 | Recherche et tri (9 criteres, tous types) | Oui | Oui |
 | Selection multiple + actions en masse (tous types) | Oui (menu "Actions...") | Oui |
 | Menu contextuel (clic droit) | Oui | Non |
-| Gestion des categories (mots de passe uniquement) | Oui | Oui (ecran dedie) |
+| Gestion des categories (ajout et suppression) | Oui (panneau lateral) | Oui (ecran dedie) |
 | Verification des mises a jour | Oui (auto + manuel) | Oui (au lancement) |
 | Themes Systeme/Clair/Sombre | Oui (FlatLaf) | Oui (Material 3 / Dynamic Colors) |
 | Deverrouillage biometrique (empreinte digitale) | Non | Oui (BiometricPrompt + AndroidKeyStore) |
 | Verrouillage automatique | Oui | Oui |
 | Verrouillage ecran eteint | Non | Oui |
-| Synchronisation SFTP bidirectionnelle (tous types) | Oui | Oui |
+| Synchronisation SFTP bidirectionnelle (tous types) | Oui (cle fichier ou cle du coffre) | Oui |
 | Resolution de conflits (fusion par entree, tous types) | Oui | Oui |
 | Service d'auto-remplissage (mots de passe uniquement) | Non | Oui (API 26+) |
 | URL cliquable dans le detail | Oui | Oui |
@@ -232,7 +233,7 @@ Disponible sur **desktop** et **Android**.
 - Mode hors-ligne : modifications mises en attente automatiquement (fichier `.pending`, desktop)
 - Resolution de conflits interactive : vue cote-a-cote local/distant par entree avec champs adaptes au type (`ConflictResolutionDialog`)
 - Fusion automatique si aucun conflit (entrees uniquement locales + uniquement distantes)
-- Authentification par cle SSH uniquement
+- Authentification par cle SSH uniquement (fichier ou cle du coffre-fort sur desktop)
 - `StrictHostKeyChecking` active (`yes` avec known_hosts, ou `accept-new` pour la premiere connexion)
 
 ---
@@ -365,7 +366,7 @@ password-manager/
 
 ### Tests
 
-**431+ tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
+**441+ tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` :
 
 | Module | Classe de test | Tests | Description |
 |---|---|:---:|---|
@@ -391,6 +392,7 @@ password-manager/
 | **android** | `EntryEditViewModelTest` | 9 | Formulaire CRUD, sauvegarde, validation, toggle favori |
 | **android** | `ChangeMasterPasswordViewModelTest` | 9 | Validation, mismatch, nettoyage onCleared, invalidation biometrique |
 | vault | `SshKeyEntryTest` | 8 | Constructeur, copies defensives, wipe, equals/hashCode, tombstone |
+| vault | `SshKeyServiceTest` | 10 | CRUD cles SSH, recherche (titre/type/empreinte), tri, favoris, operations en masse |
 | vault | `AppServiceTest` | 7 | CRUD applications, recherche, favoris, operations en masse |
 | vault | `EntryFilterTest` | 7 | Filtres combines (categorie, force, date, favoris, texte) |
 | crypto | `KeyDerivationTest` | 7 | Generation de cle, unicite du sel, iterations, SecureRandom partage |
@@ -404,7 +406,7 @@ password-manager/
 | util | `DateUtilsTest` | 5 | ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types, exclusion ambigus |
 | config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance |
-| | | **~431** | |
+| | | **~441** | |
 
 ---
 

@@ -384,7 +384,8 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 | `Vault` | Modele de donnees du coffre (version, utilisateur, 3 listes : `entries` (passwords), `appEntries`, `sshKeyEntries`, categories, parametres). Constructeur prive no-arg pour la deserialisation Gson. `getEntries()`/`getCategories()`/`getSettings()` retournent des vues non-modifiables ; `*Mutable()` pour l'acces en mutation. `ensureInitialized()` garantit les collections non-null apres deserialisation |
 | `VaultManager` | Persistance : creation, chargement, sauvegarde, migration v1->v2, backup, import/export. Appelle `ensureInitialized()` apres chaque deserialisation Gson. `decryptVaultFile()` pour le dechiffrement d'un coffre externe |
 | `SshKeyEntry extends VaultItem` | Entree cle SSH (privateKey `char[]`, publicKey, keyType, fingerprint). Copie defensive / effacement securise sur `privateKey` |
-| `VaultService` | Facade delegant aux 2 sous-services (`PasswordService`, `AppService`). Expose `getPasswordService()`, `getAppService()` |
+| `VaultService` | Facade delegant aux 3 sous-services (`PasswordService`, `AppService`, `SshKeyService`). Expose `getPasswordService()`, `getAppService()`, `getSshKeyService()` |
+| `SshKeyService extends BaseVaultService<SshKeyEntry>` | Operations specifiques cles SSH : recherche sur titre/type/empreinte |
 | `BaseVaultService<T extends VaultItem>` | Service generique : CRUD, recherche, favoris, operations en masse |
 | `PasswordService extends BaseVaultService<PasswordEntry>` | Operations specifiques mots de passe : categories, filtres, doublons, anciens mots de passe |
 | `AppService extends BaseVaultService<AppEntry>` | Operations specifiques applications : recherche sur username |
@@ -432,11 +433,12 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 - `getPrivateKey()` retourne un clone (copie defensive)
 - `setPrivateKey()` efface l'ancienne cle via `SecureWiper.wipe()` avant d'affecter le nouveau clone
 - `wipe()` efface la cle privee et nullifie les champs sensibles
-- Gere uniquement sur Android (ecran dedie dans les parametres) ; pas d'UI desktop
+- Desktop : onglet dedie (`SshKeyPanel`) avec table, detail et formulaire (`SshKeyEntryDialog`)
+- Android : ecran dedie dans les parametres (`SshKeyManagementScreen`)
 
 **VaultService (facade) — details :**
-- Delegue aux 2 sous-services : `PasswordService`, `AppService`
-- Expose `getPasswordService()`, `getAppService()`
+- Delegue aux 3 sous-services : `PasswordService`, `AppService`, `SshKeyService`
+- Expose `getPasswordService()`, `getAppService()`, `getSshKeyService()`
 - Les methodes historiques (CRUD, recherche, tri) sont conservees pour compatibilite et deleguent a `PasswordService`
 
 **BaseVaultService\<T extends VaultItem\> — details :**
@@ -504,6 +506,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 | `sftpPort` | `sftp.port` | `22` |
 | `sftpUser` | `sftp.user` | `""` |
 | `sftpKeyPath` | `sftp.key_path` | `""` |
+| `sftpVaultKeyId` | `sftp.vault_key_id` | `""` |
 | `sftpRemotePath` | `sftp.remote_path` | `"/vault/data"` |
 | `localVaultDirectory` | `local.vault_directory` | `{app.home}/data/vaults` |
 | `autoLockMinutes` | `security.auto_lock_minutes` | `15` |
@@ -513,7 +516,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 
 **ConfigManager — details :**
 - Fichier de configuration : `{app.home}/data/config.properties`
-- Les champs SFTP (`sftp.host`, `sftp.user`, `sftp.key_path`, `sftp.remote_path`) sont chiffres via `ConfigEncryptor` a l'ecriture et dechiffres a la lecture
+- Les champs SFTP (`sftp.host`, `sftp.user`, `sftp.key_path`, `sftp.vault_key_id`, `sftp.remote_path`) sont chiffres via `ConfigEncryptor` a l'ecriture et dechiffres a la lecture
 - Ecriture atomique : fichier `.tmp` -> permissions -> renommage
 - Permissions fichier via `FileSecurityUtils.setOwnerOnlyPermissions()`
 
@@ -523,7 +526,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 |--------|------|
 | `SyncService` | Orchestration de la synchronisation (hash SHA-256, detection de conflit, mode hors-ligne). `hashFile()` propage les `IOException` (jamais de retour silencieux `""`). `syncAfterMerge()` pour la synchronisation post-fusion |
 | `LocalRepository` | Gestion des fichiers locaux (ecritures atomiques, prevention du path traversal, backups) |
-| `SFTPRepository` | Client SFTP via JSch (authentification par cle, `StrictHostKeyChecking=yes`, limite 50 Mo, validation des noms de fichiers distants contre le path traversal) |
+| `SFTPRepository` | Client SFTP via JSch (authentification par cle fichier ou cle du coffre-fort en `byte[]`, `StrictHostKeyChecking=yes`, limite 50 Mo, validation des noms de fichiers distants contre le path traversal) |
 | `ConflictResolver` | Enum : `KEEP_LOCAL`, `KEEP_REMOTE`, `KEEP_BOTH` |
 | `EntryMerger` | Fusion bidirectionnelle generique : `merge<T extends VaultItem>(List<T> local, List<T> remote)`. Appliquee aux 3 types d'entrees sur les deux plateformes (desktop et Android) |
 
@@ -608,15 +611,17 @@ public static void wipe(char[] data) {
 | Classe | Role |
 |--------|------|
 | `LoginFrame` | Ecran de connexion, creation d'utilisateur, toggle visibilite mot de passe, changement de langue |
-| `MainFrame` | Fenetre principale avec `JTabbedPane` (2 onglets : mots de passe, applications), menus, barre d'outils, auto-lock, shutdown hook (retire au verrouillage) |
+| `MainFrame` | Fenetre principale avec `JTabbedPane` (3 onglets : mots de passe, applications, cles SSH), menus, barre d'outils, auto-lock, shutdown hook (retire au verrouillage) |
 | `VaultPanel` | Onglet mots de passe. Panneau 3 colonnes : categories, table d'entrees, details avec boutons copier. Selection multiple (`MULTIPLE_INTERVAL_SELECTION`), barre d'actions en masse (menu "Actions..." dropdown), menu contextuel (clic droit). Chargement asynchrone des favicons (`SwingWorker` + `ConcurrentHashMap`). Timers `javax.swing.Timer` (pas `java.util.Timer`) |
-| `AppPanel` | Onglet applications. Table d'entrees `AppEntry` avec recherche, selection multiple, operations en masse |
+| `AppPanel` | Onglet applications. Table d'entrees `AppEntry` avec recherche, selection multiple, operations en masse, duplication |
 | `SecurityAuditController` | Audit de securite visuel (`JPanel` avec `BoxLayout`). Sections colorees (`TitledBorder`) : faibles (rouge), reutilises (orange), anciens (jaune), compromis HIBP (rouge). Verification HIBP asynchrone via `SwingWorker<List<String>, Integer>` avec `JProgressBar`. Bouton "Verifier maintenant" desactive pendant la verification |
 | `EntryDialog` | Formulaire modal de creation/edition d'entree mot de passe |
 | `AppEntryDialog` | Formulaire modal de creation/edition d'entree application |
+| `SshKeyPanel` | Onglet cles SSH. Table d'entrees `SshKeyEntry` (type, empreinte) avec recherche, detail, selection multiple, operations en masse, generation de cles (ED25519/RSA via JSch) et import de fichiers PEM |
+| `SshKeyEntryDialog` | Formulaire modal de creation/edition de cle SSH (nom, type, cle privee, cle publique, empreinte) |
 | `PasswordGeneratorDialog` | Dialogue du generateur de mots de passe. Timer clipboard `javax.swing.Timer` annule a la fermeture |
 | `ImportExportController` | Popup unifiee d'import/export (CSV, JSON, coffre chiffre .enc) avec champ mot de passe pour l'import chiffre |
-| `SettingsDialog` | Dialogue des parametres (3 onglets : General, Securite, Synchronisation). Test SFTP sur `SwingWorker` (hors EDT) |
+| `SettingsDialog` | Dialogue des parametres (3 onglets : General, Securite, Synchronisation). Source de cle SSH configurable (fichier ou cle du coffre-fort via `CardLayout`). Test SFTP sur `SwingWorker` (hors EDT) |
 | `ConflictResolutionDialog` | Dialogue generique de resolution de conflits pour tous les sous-types `VaultItem` |
 | `StrengthBarHelper` | Utilitaire d'affichage de la barre de force (couleurs : rouge/orange/vert/bleu) |
 
@@ -873,7 +878,7 @@ Le changement de langue est possible depuis l'ecran de connexion (effet immediat
 | Fenetre | Type | Taille | Description |
 |---------|------|--------|-------------|
 | `LoginFrame` | `JFrame` | 450x450 (non-redimensionnable) | Connexion, creation utilisateur, toggle mot de passe, selection de langue |
-| `MainFrame` | `JFrame` | 1100x700 (min 900x600) | `JTabbedPane` avec 2 onglets (Mots de passe, Applications), menus, barre d'outils, barre de statut |
+| `MainFrame` | `JFrame` | 1100x700 (min 900x600) | `JTabbedPane` avec 3 onglets (Mots de passe, Applications, Cles SSH), menus, barre d'outils, barre de statut |
 | `EntryDialog` | `JDialog` (modal) | min 550x480 | Creation/edition d'entree mot de passe avec barre de force |
 | `AppEntryDialog` | `JDialog` (modal) | — | Creation/edition d'entree application |
 | `PasswordGeneratorDialog` | `JDialog` (modal) | min 450x420 | Generateur avec options et barre de force |
@@ -1061,11 +1066,11 @@ update.enabled=true
 ### 12.1. Vue d'ensemble
 
 **Framework** : JUnit 5 (Jupiter) 5.14.2
-**Total** : **~431 tests** (unitaires + integration) repartis sur les 3 modules
+**Total** : **~441 tests** (unitaires + integration) repartis sur les 3 modules
 
 | Module Gradle | Tests | Framework |
 |---|---|---|
-| `:core` | 269 | JUnit 5 (Java) |
+| `:core` | 279 | JUnit 5 (Java) |
 | `:desktop` | 83 | JUnit 5 (Java) |
 | `:android` | 79 | JUnit 5 (Kotlin, JVM local) |
 
@@ -1095,6 +1100,7 @@ update.enabled=true
 | **android** | `EntryEditViewModelTest` | 9 | Formulaire CRUD nouveau/existant, sauvegarde, validation titre vide, toggle favori |
 | **android** | `ChangeMasterPasswordViewModelTest` | 9 | Etat initial, validation, mismatch, mot de passe faible, nettoyage onCleared, invalidation biometrique |
 | vault | `SshKeyEntryTest` | 8 | Constructeur, copies defensives privateKey, wipe, equals/hashCode, tombstone |
+| vault | `SshKeyServiceTest` | 10 | CRUD cles SSH, recherche (titre/type/empreinte), tri, favoris, operations en masse |
 | vault | `AppServiceTest` | 7 | CRUD, recherche sur username, favoris, operations en masse |
 | vault | `EntryFilterTest` | 7 | Filtres combines (categorie, force, date, favoris, texte) |
 | crypto | `KeyDerivationTest` | 7 | Generation de cle, unicite du sel, iterations, SecureRandom partage |

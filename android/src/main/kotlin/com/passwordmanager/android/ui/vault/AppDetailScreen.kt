@@ -37,6 +37,7 @@ fun AppDetailScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onDeleted: () -> Unit,
+    onDuplicated: ((String) -> Unit)? = null,
     viewModel: AppDetailViewModel = hiltViewModel()
 ) {
     LaunchedEffect(entryId) { viewModel.loadEntry(entryId) }
@@ -65,6 +66,13 @@ fun AppDetailScreen(
                                 tint = if (entry.isFavorite) Color(0xFFFFC107) else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                    val dupPrefix = stringResource(R.string.menu_duplicate_prefix)
+                    IconButton(onClick = {
+                        val dupId = viewModel.duplicateEntry(entryId, dupPrefix)
+                        if (dupId != null) onDuplicated?.invoke(dupId)
+                    }) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.menu_duplicate))
                     }
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.vault_edit_entry))

@@ -12,11 +12,13 @@ public class VaultService {
     private Vault vault;
     private PasswordService passwordService;
     private AppService appService;
+    private SshKeyService sshKeyService;
 
     public VaultService(Vault vault) {
         this.vault = vault;
         this.passwordService = new PasswordService(vault);
         this.appService = new AppService(vault);
+        this.sshKeyService = new SshKeyService(vault);
     }
 
     public Vault getVault() { return vault; }
@@ -25,10 +27,12 @@ public class VaultService {
         this.vault = vault;
         this.passwordService = new PasswordService(vault);
         this.appService = new AppService(vault);
+        this.sshKeyService = new SshKeyService(vault);
     }
 
     public PasswordService getPasswordService() { return passwordService; }
     public AppService getAppService() { return appService; }
+    public SshKeyService getSshKeyService() { return sshKeyService; }
 
     // === Delegate to PasswordService for backward compatibility ===
 

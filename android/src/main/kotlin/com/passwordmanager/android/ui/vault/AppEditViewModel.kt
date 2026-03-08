@@ -58,6 +58,14 @@ class AppEditViewModel @Inject constructor(
     fun updateNotes(value: String) = _uiState.update { it.copy(notes = value) }
     fun toggleFavorite() = _uiState.update { it.copy(favorite = !it.favorite) }
 
+    fun generatePin() {
+        val random = java.security.SecureRandom()
+        val length = 4 + random.nextInt(3) // 4, 5, or 6 digits
+        val pin = CharArray(length) { ('0' + random.nextInt(10)) }
+        _uiState.update { it.copy(pin = String(pin)) }
+        com.passwordmanager.util.SecureWiper.wipe(pin)
+    }
+
     override fun onCleared() {
         super.onCleared()
         _uiState.update { it.copy(pin = "") }

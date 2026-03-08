@@ -45,6 +45,7 @@ public class MainFrame extends JFrame {
     private SyncService syncService;
     private VaultPanel vaultPanel;
     private AppPanel appPanel;
+    private SshKeyPanel sshKeyPanel;
     private JTabbedPane tabbedPane;
     private JLabel statusLabel;
     private Thread shutdownHook;
@@ -134,8 +135,15 @@ public class MainFrame extends JFrame {
             statusLabel.setText(getStatusText());
         });
 
+        sshKeyPanel = new SshKeyPanel(vaultService.getSshKeyService(), appConfig.getClipboardClearSeconds());
+        sshKeyPanel.setOnVaultChanged(() -> {
+            saveVault();
+            statusLabel.setText(getStatusText());
+        });
+
         tabbedPane.addTab(lang.getString("tab.passwords"), vaultPanel);
         tabbedPane.addTab(lang.getString("tab.applications"), appPanel);
+        tabbedPane.addTab(lang.getString("tab.ssh_keys"), sshKeyPanel);
 
         add(tabbedPane, BorderLayout.CENTER);
 
@@ -302,11 +310,36 @@ public class MainFrame extends JFrame {
         }
     }
 
+    private void updateSyncVaultKey() {
+        if (appConfig.isUsingVaultKey()) {
+            String keyId = appConfig.getSftpVaultKeyId();
+            com.passwordmanager.vault.SshKeyEntry keyEntry = vaultService.getSshKeyService()
+                .getActiveList().stream()
+                .filter(k -> k.getId().equals(keyId))
+                .findFirst().orElse(null);
+            if (keyEntry != null) {
+                char[] pk = keyEntry.getPrivateKey();
+                if (pk != null) {
+                    byte[] bytes = new String(pk).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    com.passwordmanager.util.SecureWiper.wipe(pk);
+                    syncService.setVaultKeyBytes(bytes);
+                } else {
+                    syncService.setVaultKeyBytes(null);
+                }
+            } else {
+                syncService.setVaultKeyBytes(null);
+            }
+        } else {
+            syncService.setVaultKeyBytes(null);
+        }
+    }
+
     private void doSettings() {
         String oldLang = appConfig.getLanguage();
         ThemeMode oldTheme = appConfig.getTheme();
 
-        SettingsDialog dlg = new SettingsDialog(this, appConfig, configManager);
+        SettingsDialog dlg = new SettingsDialog(this, appConfig, configManager,
+            vaultService.getSshKeyService().getActiveList());
         dlg.setVisible(true);
         if (!dlg.isSaved()) return;
 
@@ -320,10 +353,12 @@ public class MainFrame extends JFrame {
             rebuildMainFrame();
         } else {
             // Apply live on current frame
+            updateSyncVaultKey();
             syncService.refreshConfig(appConfig);
             statusLabel.setText(getStatusText());
             vaultPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
             appPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
+            sshKeyPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
             autoLockManager.startAutoLock();
             boolean remoteEnabled = appConfig.getStorageMode() == StorageMode.REMOTE;
             syncNowMenuItem.setEnabled(remoteEnabled);
@@ -419,6 +454,7 @@ public class MainFrame extends JFrame {
         autoLockManager.cleanup();
         vaultPanel.cancelClipboardTimer();
         appPanel.cancelClipboardTimer();
+        sshKeyPanel.cancelClipboardTimer();
         if (updateManager != null) updateManager.stop();
     }
 
@@ -605,6 +641,7 @@ public class MainFrame extends JFrame {
         int idx = tabbedPane.getSelectedIndex();
         switch (idx) {
             case 1: appPanel.addNewEntry(); break;
+            case 2: sshKeyPanel.addNewEntry(); break;
             default: vaultPanel.addNewEntry(); break;
         }
     }
@@ -613,6 +650,7 @@ public class MainFrame extends JFrame {
         int idx = tabbedPane.getSelectedIndex();
         switch (idx) {
             case 1: appPanel.editSelectedEntry(); break;
+            case 2: sshKeyPanel.editSelectedEntry(); break;
             default: vaultPanel.editSelectedEntry(); break;
         }
     }
@@ -621,6 +659,7 @@ public class MainFrame extends JFrame {
         int idx = tabbedPane.getSelectedIndex();
         switch (idx) {
             case 1: appPanel.deleteSelectedEntry(); break;
+            case 2: sshKeyPanel.deleteSelectedEntry(); break;
             default: vaultPanel.deleteSelectedEntry(); break;
         }
     }
@@ -628,6 +667,7 @@ public class MainFrame extends JFrame {
     private void refreshAllPanels() {
         vaultPanel.refreshAll();
         appPanel.refreshEntries();
+        sshKeyPanel.refreshEntries();
     }
 
     /**
@@ -638,6 +678,7 @@ public class MainFrame extends JFrame {
      * Valid fields per panel:
      *   Passwords  (0) - TITLE, USERNAME, EMAIL, URL, DATE, CATEGORY
      *   Applications (1) - TITLE, USERNAME, DATE
+     *   SSH Keys (2) - TITLE, DATE
      */
     private void setSortModeForActiveTab(SortField field) {
         int idx = tabbedPane.getSelectedIndex();
@@ -654,6 +695,17 @@ public class MainFrame extends JFrame {
                         break;
                 }
                 break;
+            case 2: // SSH Keys
+                switch (field) {
+                    case TITLE:
+                    case DATE:
+                        sshKeyPanel.setSortMode(field);
+                        break;
+                    default:
+                        sshKeyPanel.setSortMode(SortField.TITLE);
+                        break;
+                }
+                break;
             default: // Passwords (index 0)
                 vaultPanel.setSortMode(field);
                 break;
@@ -664,7 +716,7 @@ public class MainFrame extends JFrame {
         String mode = appConfig.getStorageMode() == StorageMode.LOCAL
             ? lang.getString("sync.status_local")
             : syncService.getSyncStatus();
-        int total = vault.getEntries().size() + vault.getAppEntries().size();
+        int total = vault.getEntries().size() + vault.getAppEntries().size() + vault.getSshKeyEntries().size();
         return mode + "  |  " + username + "  |  " + total + " " + lang.getString("vault.entries");
     }
 

@@ -107,8 +107,12 @@ public class VaultPanel extends JPanel {
         categoryList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         leftPanel.add(new JScrollPane(categoryList), BorderLayout.CENTER);
 
+        JPanel catBtnPanel = new JPanel(new GridLayout(1, 2, 4, 0));
         JButton addCatBtn = new JButton(lang.getString("category.add"));
-        leftPanel.add(addCatBtn, BorderLayout.SOUTH);
+        JButton delCatBtn = new JButton(lang.getString("category.delete"));
+        catBtnPanel.add(addCatBtn);
+        catBtnPanel.add(delCatBtn);
+        leftPanel.add(catBtnPanel, BorderLayout.SOUTH);
 
         // === Center: Search + Filters + Table ===
         JPanel centerPanel = new JPanel(new BorderLayout(5, 5));
@@ -473,6 +477,26 @@ public class VaultPanel extends JPanel {
             if (name != null && !name.trim().isEmpty()) {
                 vaultService.addCategory(name.trim());
                 refreshCategories();
+                notifyChanged();
+            }
+        });
+
+        delCatBtn.addActionListener(e -> {
+            String selected = categoryList.getSelectedValue();
+            if (selected == null || selected.equals(lang.getString("category.all"))) return;
+            int confirm = JOptionPane.showConfirmDialog(VaultPanel.this,
+                lang.getString("category.delete_confirm"),
+                lang.getString("category.delete"),
+                JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (confirm == JOptionPane.YES_OPTION) {
+                for (PasswordEntry entry : vaultService.search("")) {
+                    if (selected.equals(entry.getCategory())) {
+                        entry.setCategory("");
+                    }
+                }
+                vaultService.removeCategory(selected);
+                refreshCategories();
+                refreshEntries();
                 notifyChanged();
             }
         });

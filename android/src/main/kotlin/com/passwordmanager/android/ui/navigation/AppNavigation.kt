@@ -226,7 +226,11 @@ fun AppNavigation() {
                     entryId = entryId,
                     onBack = { navController.popBackStack() },
                     onEdit = { navController.navigate(Routes.entryEdit(entryId)) },
-                    onDeleted = { navController.popBackStack() }
+                    onDeleted = { navController.popBackStack() },
+                    onDuplicated = { dupId ->
+                        navController.popBackStack()
+                        navController.navigate(Routes.entryDetail(dupId))
+                    }
                 )
             }
 
@@ -285,7 +289,11 @@ fun AppNavigation() {
                     entryId = entryId,
                     onBack = { navController.popBackStack() },
                     onEdit = { navController.navigate(Routes.appEdit(entryId)) },
-                    onDeleted = { navController.popBackStack() }
+                    onDeleted = { navController.popBackStack() },
+                    onDuplicated = { dupId ->
+                        navController.popBackStack()
+                        navController.navigate(Routes.appDetail(dupId))
+                    }
                 )
             }
 

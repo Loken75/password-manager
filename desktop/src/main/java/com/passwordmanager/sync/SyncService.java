@@ -27,6 +27,7 @@ public class SyncService {
     private final Object lock = new Object();
     private long lastSyncTime = 0;
     private volatile String syncStatus = "offline";
+    private byte[] vaultKeyBytes;
 
     /** Temp suffix used when downloading remote content for hash comparison. */
     private static final String SYNC_TMP_SUFFIX = ".sync_tmp";
@@ -57,13 +58,27 @@ public class SyncService {
 
     private void buildSftpRepo() {
         if (config != null && config.getStorageMode() == StorageMode.REMOTE) {
-            this.remoteRepo = new SFTPRepository(
-                config.getSftpHost(), config.getSftpPort(),
-                config.getSftpUser(), config.getSftpKeyPath(),
-                config.getSftpRemotePath()
-            );
+            if (config.isUsingVaultKey() && vaultKeyBytes != null) {
+                this.remoteRepo = new SFTPRepository(
+                    config.getSftpHost(), config.getSftpPort(),
+                    config.getSftpUser(), vaultKeyBytes,
+                    config.getSftpRemotePath()
+                );
+            } else {
+                this.remoteRepo = new SFTPRepository(
+                    config.getSftpHost(), config.getSftpPort(),
+                    config.getSftpUser(), config.getSftpKeyPath(),
+                    config.getSftpRemotePath()
+                );
+            }
         } else {
             this.remoteRepo = null;
+        }
+    }
+
+    public void setVaultKeyBytes(byte[] vaultKeyBytes) {
+        synchronized (lock) {
+            this.vaultKeyBytes = vaultKeyBytes;
         }
     }
 

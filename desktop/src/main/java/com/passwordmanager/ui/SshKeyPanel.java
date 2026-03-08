@@ -1,14 +1,17 @@
 package com.passwordmanager.ui;
 
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.KeyPair;
 import com.passwordmanager.i18n.LanguageManager;
-import com.passwordmanager.vault.AppEntry;
-import com.passwordmanager.vault.AppService;
+import com.passwordmanager.vault.SshKeyEntry;
+import com.passwordmanager.vault.SshKeyService;
 import com.passwordmanager.vault.SortField;
 import com.passwordmanager.util.SecureWiper;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.text.BadLocationException;
@@ -17,46 +20,47 @@ import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Panel displaying and managing application PIN entries with search, table, and detail view.
+ * Panel displaying and managing SSH key entries with search, table, and detail view.
  */
-public class AppPanel extends JPanel {
+public class SshKeyPanel extends JPanel {
     private final LanguageManager lang = LanguageManager.getInstance();
-    private AppService appService;
+    private SshKeyService sshKeyService;
     private int clipboardClearSeconds;
 
     private JTextField searchField;
     private JTable entryTable;
-    private AppTableModel tableModel;
-    private JLabel detailTitle, detailUser, detailCreated, detailUpdated;
-    private JPasswordField detailPin;
-    private JCheckBox showDetailPin;
+    private SshKeyTableModel tableModel;
+    private JLabel detailTitle, detailKeyType, detailFingerprint, detailCreated, detailUpdated;
+    private JPasswordField detailPrivateKey;
+    private JCheckBox showDetailPrivateKey;
+    private JTextArea detailPublicKey;
     private JTextArea detailNotes;
 
-    // Star column (0), then data columns start at 1
     private static final SortField[] COLUMN_SORT_FIELDS = {
-        SortField.FAVORITE, SortField.TITLE, SortField.USERNAME
+        SortField.FAVORITE, SortField.TITLE, null, null
     };
 
-    private List<AppEntry> displayedEntries = new ArrayList<>();
+    private List<SshKeyEntry> displayedEntries = new ArrayList<>();
     private SortField currentSort = SortField.TITLE;
     private boolean sortAscending = true;
     private javax.swing.Timer clipboardTimer;
-    private javax.swing.Timer pinVisibilityTimer;
-    private static final int PIN_VISIBILITY_TIMEOUT_MS = 30_000;
+    private javax.swing.Timer keyVisibilityTimer;
+    private static final int KEY_VISIBILITY_TIMEOUT_MS = 30_000;
 
-    // Bulk action toolbar
     private JPanel bulkToolbar;
     private JLabel bulkSelectionLabel;
 
-    // Callbacks
     private Runnable onVaultChanged;
 
-    public AppPanel(AppService appService, int clipboardClearSeconds) {
-        this.appService = appService;
+    public SshKeyPanel(SshKeyService sshKeyService, int clipboardClearSeconds) {
+        this.sshKeyService = sshKeyService;
         this.clipboardClearSeconds = clipboardClearSeconds;
         initComponents();
         refreshEntries();
@@ -73,27 +77,35 @@ public class AppPanel extends JPanel {
         JPanel centerPanel = new JPanel(new BorderLayout(5, 5));
         centerPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-        // Search bar
+        // Search bar + Generate/Import buttons
         searchField = new JTextField();
         searchField.setToolTipText(lang.getString("vault.search"));
         JPanel searchPanel = new JPanel(new BorderLayout(5, 0));
         searchPanel.add(new JLabel(lang.getString("vault.search")), BorderLayout.WEST);
         searchPanel.add(searchField, BorderLayout.CENTER);
+        JPanel keyActionBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        JButton generateBtn = new JButton(lang.getString("ssh.generate"));
+        JButton importBtn = new JButton(lang.getString("ssh.import"));
+        keyActionBtns.add(generateBtn);
+        keyActionBtns.add(importBtn);
+        searchPanel.add(keyActionBtns, BorderLayout.EAST);
         centerPanel.add(searchPanel, BorderLayout.NORTH);
 
+        generateBtn.addActionListener(e -> generateSshKey());
+        importBtn.addActionListener(e -> importSshKey());
+
         // Table
-        tableModel = new AppTableModel();
+        tableModel = new SshKeyTableModel();
         entryTable = new JTable(tableModel);
         entryTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         entryTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         entryTable.setRowHeight(28);
-        // Column widths: star(30), title, username
         entryTable.getColumnModel().getColumn(0).setPreferredWidth(30);
         entryTable.getColumnModel().getColumn(0).setMaxWidth(30);
         entryTable.getColumnModel().getColumn(1).setPreferredWidth(200);
-        entryTable.getColumnModel().getColumn(2).setPreferredWidth(180);
+        entryTable.getColumnModel().getColumn(2).setPreferredWidth(80);
+        entryTable.getColumnModel().getColumn(3).setPreferredWidth(200);
 
-        // Clickable header for sorting
         entryTable.getTableHeader().addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -104,7 +116,6 @@ public class AppPanel extends JPanel {
             }
         });
 
-        // Star column renderer
         entryTable.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
@@ -143,12 +154,10 @@ public class AppPanel extends JPanel {
             BorderFactory.createTitledBorder(lang.getString("vault.details")),
             BorderFactory.createEmptyBorder(5, 5, 5, 5)));
 
-        // NORTH: Title
         detailTitle = new JLabel(" ", SwingConstants.CENTER);
         detailTitle.setFont(new Font("SansSerif", Font.BOLD, 16));
         rightPanel.add(detailTitle, BorderLayout.NORTH);
 
-        // CENTER: Table layout with GridBag
         JPanel tablePanel = new JPanel(new GridBagLayout());
         GridBagConstraints gl = new GridBagConstraints();
         gl.anchor = GridBagConstraints.NORTHWEST;
@@ -157,41 +166,73 @@ public class AppPanel extends JPanel {
         Font boldFont = new Font("SansSerif", Font.BOLD, 12);
         int row = 0;
 
-        // Username with inline copy
+        // Key type
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
-        JLabel lblUser = new JLabel(lang.getString("entry.username"));
-        lblUser.setFont(boldFont);
-        tablePanel.add(createCell(lblUser, true, true), gl);
+        JLabel lblType = new JLabel(lang.getString("ssh.key_type"));
+        lblType.setFont(boldFont);
+        tablePanel.add(createCell(lblType, true, true), gl);
         gl.gridx = 1; gl.weightx = 1;
-        detailUser = new JLabel(" ");
-        tablePanel.add(createCell(createDetailValuePanel(detailUser, this::copyUsernameToClipboard), false, true), gl);
+        detailKeyType = new JLabel(" ");
+        tablePanel.add(createCell(detailKeyType, false, true), gl);
 
-        // PIN with inline copy + show/hide toggle
+        // Fingerprint with copy
         row++;
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
-        JLabel lblPin = new JLabel(lang.getString("entry.pin"));
-        lblPin.setFont(boldFont);
-        tablePanel.add(createCell(lblPin, true, true), gl);
+        JLabel lblFp = new JLabel(lang.getString("ssh.fingerprint"));
+        lblFp.setFont(boldFont);
+        tablePanel.add(createCell(lblFp, true, true), gl);
         gl.gridx = 1; gl.weightx = 1;
-        detailPin = new JPasswordField();
-        detailPin.setEditable(false);
-        showDetailPin = new JCheckBox();
-        showDetailPin.setToolTipText(lang.getString("entry.show_password"));
-        JPanel pinPanel = new JPanel(new BorderLayout());
-        pinPanel.add(detailPin, BorderLayout.CENTER);
-        JPanel pinBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        pinBtns.add(showDetailPin);
-        JButton copyPinSmall = new JButton("\u2398");
-        copyPinSmall.setMargin(new Insets(1, 4, 1, 4));
-        copyPinSmall.setToolTipText(lang.getString("entry.copy"));
-        copyPinSmall.addActionListener(e -> copyPinToClipboard());
-        pinBtns.add(copyPinSmall);
-        pinPanel.add(pinBtns, BorderLayout.EAST);
-        tablePanel.add(createCell(pinPanel, false, true), gl);
+        detailFingerprint = new JLabel(" ");
+        tablePanel.add(createCell(createDetailValuePanel(detailFingerprint, this::copyFingerprintToClipboard), false, true), gl);
 
-        // Notes (takes remaining vertical space)
+        // Private key with show/hide + copy
         row++;
-        gl.gridx = 0; gl.gridy = row; gl.weightx = 0; gl.weighty = 0;
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
+        JLabel lblPk = new JLabel(lang.getString("ssh.private_key"));
+        lblPk.setFont(boldFont);
+        tablePanel.add(createCell(lblPk, true, true), gl);
+        gl.gridx = 1; gl.weightx = 1;
+        detailPrivateKey = new JPasswordField();
+        detailPrivateKey.setEditable(false);
+        showDetailPrivateKey = new JCheckBox();
+        showDetailPrivateKey.setToolTipText(lang.getString("entry.show_password"));
+        JPanel pkPanel = new JPanel(new BorderLayout());
+        pkPanel.add(detailPrivateKey, BorderLayout.CENTER);
+        JPanel pkBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        pkBtns.add(showDetailPrivateKey);
+        JButton copyPkSmall = new JButton("\u2398");
+        copyPkSmall.setMargin(new Insets(1, 4, 1, 4));
+        copyPkSmall.setToolTipText(lang.getString("entry.copy"));
+        copyPkSmall.addActionListener(e -> copyPrivateKeyToClipboard());
+        pkBtns.add(copyPkSmall);
+        pkPanel.add(pkBtns, BorderLayout.EAST);
+        tablePanel.add(createCell(pkPanel, false, true), gl);
+
+        // Public key (multi-line, read-only)
+        row++;
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
+        JLabel lblPub = new JLabel(lang.getString("ssh.public_key"));
+        lblPub.setFont(boldFont);
+        tablePanel.add(createCell(lblPub, true, true), gl);
+        gl.gridx = 1; gl.weightx = 1; gl.weighty = 0.3;
+        detailPublicKey = new JTextArea(2, 20);
+        detailPublicKey.setEditable(false);
+        detailPublicKey.setLineWrap(true);
+        JPanel pubPanel = new JPanel(new BorderLayout());
+        pubPanel.add(new JScrollPane(detailPublicKey), BorderLayout.CENTER);
+        JButton copyPubBtn = new JButton("\u2398");
+        copyPubBtn.setMargin(new Insets(1, 4, 1, 4));
+        copyPubBtn.setToolTipText(lang.getString("entry.copy"));
+        copyPubBtn.addActionListener(e -> copyPublicKeyToClipboard());
+        JPanel pubBtnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        pubBtnPanel.add(copyPubBtn);
+        pubPanel.add(pubBtnPanel, BorderLayout.EAST);
+        tablePanel.add(createCell(pubPanel, false, true), gl);
+        gl.weighty = 0;
+
+        // Notes
+        row++;
+        gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblNotes = new JLabel(lang.getString("entry.notes"));
         lblNotes.setFont(boldFont);
         tablePanel.add(createCell(lblNotes, true, true), gl);
@@ -212,7 +253,7 @@ public class AppPanel extends JPanel {
         detailCreated = new JLabel(" ");
         tablePanel.add(createCell(detailCreated, false, true), gl);
 
-        // Updated (last row -- no bottom border)
+        // Updated
         row++;
         gl.gridx = 0; gl.gridy = row; gl.weightx = 0;
         JLabel lblUpdated = new JLabel(lang.getString("entry.updated"));
@@ -225,7 +266,7 @@ public class AppPanel extends JPanel {
         tablePanel.setBorder(BorderFactory.createMatteBorder(1, 1, 1, 1, Color.GRAY));
         rightPanel.add(new JScrollPane(tablePanel), BorderLayout.CENTER);
 
-        // === Assemble with resizable JSplitPane ===
+        // === Assemble ===
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, centerPanel, rightPanel);
         mainSplit.setResizeWeight(0.7);
         mainSplit.setDividerLocation(550);
@@ -255,34 +296,33 @@ public class AppPanel extends JPanel {
             }
         });
 
-        final char echoChar = detailPin.getEchoChar();
-        showDetailPin.addActionListener(e -> {
-            if (showDetailPin.isSelected()) {
-                detailPin.setEchoChar((char) 0);
-                if (pinVisibilityTimer != null) pinVisibilityTimer.stop();
-                pinVisibilityTimer = new javax.swing.Timer(PIN_VISIBILITY_TIMEOUT_MS, evt -> {
-                    detailPin.setEchoChar(echoChar);
-                    showDetailPin.setSelected(false);
+        final char echoChar = detailPrivateKey.getEchoChar();
+        showDetailPrivateKey.addActionListener(e -> {
+            if (showDetailPrivateKey.isSelected()) {
+                detailPrivateKey.setEchoChar((char) 0);
+                if (keyVisibilityTimer != null) keyVisibilityTimer.stop();
+                keyVisibilityTimer = new javax.swing.Timer(KEY_VISIBILITY_TIMEOUT_MS, evt -> {
+                    detailPrivateKey.setEchoChar(echoChar);
+                    showDetailPrivateKey.setSelected(false);
                 });
-                pinVisibilityTimer.setRepeats(false);
-                pinVisibilityTimer.start();
+                keyVisibilityTimer.setRepeats(false);
+                keyVisibilityTimer.start();
             } else {
-                detailPin.setEchoChar(echoChar);
-                if (pinVisibilityTimer != null) {
-                    pinVisibilityTimer.stop();
-                    pinVisibilityTimer = null;
+                detailPrivateKey.setEchoChar(echoChar);
+                if (keyVisibilityTimer != null) {
+                    keyVisibilityTimer.stop();
+                    keyVisibilityTimer = null;
                 }
             }
         });
 
-        // Click on star column to toggle favorite; double-click to edit; right-click for context menu
         entryTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 int col = entryTable.columnAtPoint(e.getPoint());
                 int mRow = entryTable.rowAtPoint(e.getPoint());
                 if (col == 0 && mRow >= 0 && mRow < displayedEntries.size() && SwingUtilities.isLeftMouseButton(e)) {
-                    appService.toggleFavorite(displayedEntries.get(mRow).getId());
+                    sshKeyService.toggleFavorite(displayedEntries.get(mRow).getId());
                     refreshEntries();
                     notifyChanged();
                 } else if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
@@ -310,9 +350,9 @@ public class AppPanel extends JPanel {
 
     public void refreshEntries() {
         String query = searchField.getText().trim();
-        List<AppEntry> entries = appService.search(query);
+        List<SshKeyEntry> entries = sshKeyService.search(query);
 
-        displayedEntries = appService.sorted(entries, currentSort);
+        displayedEntries = sshKeyService.sorted(entries, currentSort);
         if (!sortAscending) {
             java.util.Collections.reverse(displayedEntries);
         }
@@ -325,12 +365,14 @@ public class AppPanel extends JPanel {
             clearDetails();
             return;
         }
-        AppEntry e = displayedEntries.get(row);
+        SshKeyEntry e = displayedEntries.get(row);
         detailTitle.setText((e.isFavorite() ? "\u2605 " : "") + e.getTitle());
-        detailUser.setText(e.getUsername() != null ? e.getUsername() : "");
-        char[] pin = e.getPin();
-        setPasswordFieldValue(detailPin, pin);
-        SecureWiper.wipe(pin);
+        detailKeyType.setText(e.getKeyType() != null ? e.getKeyType() : "");
+        detailFingerprint.setText(e.getFingerprint() != null ? e.getFingerprint() : "");
+        char[] pk = e.getPrivateKey();
+        setPasswordFieldValue(detailPrivateKey, pk);
+        SecureWiper.wipe(pk);
+        detailPublicKey.setText(e.getPublicKey() != null ? e.getPublicKey() : "");
         detailNotes.setText(e.getNotes() != null ? e.getNotes() : "");
         detailCreated.setText(e.getCreatedAt() != null ? e.getCreatedAt() : "");
         detailUpdated.setText(e.getUpdatedAt() != null ? e.getUpdatedAt() : "");
@@ -338,8 +380,10 @@ public class AppPanel extends JPanel {
 
     private void clearDetails() {
         detailTitle.setText(" ");
-        detailUser.setText(" ");
-        detailPin.setText("");
+        detailKeyType.setText(" ");
+        detailFingerprint.setText(" ");
+        detailPrivateKey.setText("");
+        detailPublicKey.setText("");
         detailNotes.setText("");
         detailCreated.setText(" ");
         detailUpdated.setText(" ");
@@ -363,7 +407,7 @@ public class AppPanel extends JPanel {
             lang.getString("vault.delete_entry"),
             JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (confirm == JOptionPane.YES_OPTION) {
-            appService.bulkDelete(ids);
+            sshKeyService.bulkDelete(ids);
             refreshEntries();
             clearDetails();
             notifyChanged();
@@ -373,16 +417,14 @@ public class AppPanel extends JPanel {
     private void bulkToggleFavoriteSelected() {
         List<String> ids = getSelectedEntryIds();
         if (ids.isEmpty()) return;
-        // Check if any selected entry is not a favorite
         boolean anyNotFav = false;
-        for (AppEntry e : displayedEntries) {
+        for (SshKeyEntry e : displayedEntries) {
             if (ids.contains(e.getId()) && !e.isFavorite()) {
                 anyNotFav = true;
                 break;
             }
         }
-        // If any is not favorite, set all to favorite; otherwise unfavorite all
-        appService.bulkSetFavorite(ids, anyNotFav);
+        sshKeyService.bulkSetFavorite(ids, anyNotFav);
         refreshEntries();
         notifyChanged();
     }
@@ -405,77 +447,57 @@ public class AppPanel extends JPanel {
         JMenuItem toggleFav = new JMenuItem(lang.getString("entry.toggle_favorite"));
         toggleFav.setEnabled(singleSelected);
         toggleFav.addActionListener(e -> {
-            AppEntry se = getSelectedEntry();
+            SshKeyEntry se = getSelectedEntry();
             if (se != null) {
-                appService.toggleFavorite(se.getId());
+                sshKeyService.toggleFavorite(se.getId());
                 refreshEntries();
                 notifyChanged();
             }
         });
         menu.add(toggleFav);
 
-        JMenuItem duplicate = new JMenuItem(lang.getString("menu.duplicate"));
-        duplicate.setEnabled(singleSelected);
-        duplicate.addActionListener(e -> duplicateEntry());
-        menu.add(duplicate);
-
         menu.addSeparator();
 
-        JMenuItem copyPin = new JMenuItem(lang.getString("entry.copy") + " " + lang.getString("entry.pin"));
-        copyPin.setEnabled(singleSelected);
-        copyPin.addActionListener(e -> copyPinToClipboard());
-        menu.add(copyPin);
+        JMenuItem copyPub = new JMenuItem(lang.getString("entry.copy") + " " + lang.getString("ssh.public_key"));
+        copyPub.setEnabled(singleSelected);
+        copyPub.addActionListener(e -> copyPublicKeyToClipboard());
+        menu.add(copyPub);
 
-        JMenuItem copyUser = new JMenuItem(lang.getString("entry.copy") + " " + lang.getString("entry.username"));
-        copyUser.setEnabled(singleSelected);
-        copyUser.addActionListener(e -> copyUsernameToClipboard());
-        menu.add(copyUser);
+        JMenuItem copyFp = new JMenuItem(lang.getString("entry.copy") + " " + lang.getString("ssh.fingerprint"));
+        copyFp.setEnabled(singleSelected);
+        copyFp.addActionListener(e -> copyFingerprintToClipboard());
+        menu.add(copyFp);
 
         return menu;
     }
 
-    private void duplicateEntry() {
-        AppEntry selected = getSelectedEntry();
-        if (selected == null) return;
-        char[] pinCopy = selected.getPin();
-        try {
-            AppEntry dup = new AppEntry(
-                lang.getString("menu.duplicate.prefix") + " " + selected.getTitle(),
-                selected.getUsername(),
-                pinCopy,
-                selected.getNotes()
-            );
-            appService.addEntry(dup);
-            refreshEntries();
-            notifyChanged();
-        } finally {
-            SecureWiper.wipe(pinCopy);
-        }
-    }
-
-    private void copyUsernameToClipboard() {
+    private void copyFingerprintToClipboard() {
         int row = entryTable.getSelectedRow();
         if (row < 0 || row >= displayedEntries.size()) return;
-        AppEntry e = displayedEntries.get(row);
-        String username = e.getUsername();
-        if (username == null || username.isEmpty()) return;
-
+        String fp = displayedEntries.get(row).getFingerprint();
+        if (fp == null || fp.isEmpty()) return;
         Toolkit.getDefaultToolkit().getSystemClipboard()
-            .setContents(new StringSelection(username), null);
-
+            .setContents(new StringSelection(fp), null);
         scheduleClipboardClear();
     }
 
-    private void copyPinToClipboard() {
+    private void copyPublicKeyToClipboard() {
         int row = entryTable.getSelectedRow();
         if (row < 0 || row >= displayedEntries.size()) return;
-        AppEntry e = displayedEntries.get(row);
-        char[] clipPin = e.getPin();
-        if (clipPin == null) return;
+        String pub = displayedEntries.get(row).getPublicKey();
+        if (pub == null || pub.isEmpty()) return;
+        Toolkit.getDefaultToolkit().getSystemClipboard()
+            .setContents(new StringSelection(pub), null);
+        scheduleClipboardClear();
+    }
 
-        SecureClipboard.copyPassword(clipPin);
-        SecureWiper.wipe(clipPin);
-
+    private void copyPrivateKeyToClipboard() {
+        int row = entryTable.getSelectedRow();
+        if (row < 0 || row >= displayedEntries.size()) return;
+        char[] pk = displayedEntries.get(row).getPrivateKey();
+        if (pk == null) return;
+        SecureClipboard.copyPassword(pk);
+        SecureWiper.wipe(pk);
         scheduleClipboardClear();
     }
 
@@ -490,21 +512,18 @@ public class AppPanel extends JPanel {
         clipboardTimer.start();
     }
 
-    /**
-     * Cancels the clipboard clear timer and PIN visibility timer if running.
-     */
     public void cancelClipboardTimer() {
         if (clipboardTimer != null) {
             clipboardTimer.stop();
             clipboardTimer = null;
         }
-        if (pinVisibilityTimer != null) {
-            pinVisibilityTimer.stop();
-            pinVisibilityTimer = null;
+        if (keyVisibilityTimer != null) {
+            keyVisibilityTimer.stop();
+            keyVisibilityTimer = null;
         }
     }
 
-    public AppEntry getSelectedEntry() {
+    public SshKeyEntry getSelectedEntry() {
         int row = entryTable.getSelectedRow();
         if (row < 0 || row >= displayedEntries.size()) return null;
         return displayedEntries.get(row);
@@ -512,28 +531,28 @@ public class AppPanel extends JPanel {
 
     public void editSelectedEntry() {
         if (entryTable.getSelectedRowCount() != 1) return;
-        AppEntry selected = getSelectedEntry();
+        SshKeyEntry selected = getSelectedEntry();
         if (selected == null) return;
-        AppEntryDialog dlg = new AppEntryDialog(
+        SshKeyEntryDialog dlg = new SshKeyEntryDialog(
             (Frame) SwingUtilities.getWindowAncestor(this),
             lang.getString("vault.edit_entry"),
             selected);
         dlg.setVisible(true);
         if (dlg.isConfirmed()) {
-            appService.updateEntry(dlg.getEntry());
+            sshKeyService.updateEntry(dlg.getEntry());
             refreshEntries();
             notifyChanged();
         }
     }
 
     public void addNewEntry() {
-        AppEntryDialog dlg = new AppEntryDialog(
+        SshKeyEntryDialog dlg = new SshKeyEntryDialog(
             (Frame) SwingUtilities.getWindowAncestor(this),
             lang.getString("vault.new_entry"),
             null);
         dlg.setVisible(true);
         if (dlg.isConfirmed()) {
-            appService.addEntry(dlg.getEntry());
+            sshKeyService.addEntry(dlg.getEntry());
             refreshEntries();
             notifyChanged();
         }
@@ -549,7 +568,7 @@ public class AppPanel extends JPanel {
             lang.getString("vault.delete_entry"),
             JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (confirm == JOptionPane.YES_OPTION) {
-            appService.bulkDelete(ids);
+            sshKeyService.bulkDelete(ids);
             refreshEntries();
             clearDetails();
             notifyChanged();
@@ -574,12 +593,146 @@ public class AppPanel extends JPanel {
         if (onVaultChanged != null) onVaultChanged.run();
     }
 
+    private void generateSshKey() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(4, 4, 4, 4);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        gbc.gridx = 0; gbc.gridy = 0;
+        panel.add(new JLabel(lang.getString("ssh.key_name")), gbc);
+        gbc.gridx = 1; gbc.weightx = 1;
+        JTextField nameField = new JTextField(20);
+        panel.add(nameField, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0;
+        panel.add(new JLabel(lang.getString("ssh.key_type")), gbc);
+        gbc.gridx = 1; gbc.weightx = 1;
+        JComboBox<String> typeCombo = new JComboBox<>(new String[]{"ED25519", "RSA"});
+        panel.add(typeCombo, gbc);
+
+        int result = JOptionPane.showConfirmDialog(this, panel,
+            lang.getString("ssh.generate"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return;
+
+        String name = nameField.getText().trim();
+        if (name.isEmpty()) return;
+        String type = (String) typeCombo.getSelectedItem();
+
+        new SwingWorker<SshKeyEntry, Void>() {
+            @Override
+            protected SshKeyEntry doInBackground() throws Exception {
+                JSch jsch = new JSch();
+                int keyType = "RSA".equals(type) ? KeyPair.RSA : KeyPair.ED25519;
+                int keySize = "RSA".equals(type) ? 4096 : 0;
+                KeyPair kpair = KeyPair.genKeyPair(jsch, keyType, keySize);
+
+                ByteArrayOutputStream privOut = new ByteArrayOutputStream();
+                ByteArrayOutputStream pubOut = new ByteArrayOutputStream();
+                kpair.writePrivateKey(privOut);
+                kpair.writePublicKey(pubOut, name);
+                String fingerprint = kpair.getFingerPrint();
+                kpair.dispose();
+
+                byte[] privBytes = privOut.toByteArray();
+                char[] privChars = new String(privBytes, java.nio.charset.StandardCharsets.UTF_8).toCharArray();
+                java.util.Arrays.fill(privBytes, (byte) 0);
+                // Best-effort wipe of ByteArrayOutputStream
+                int sz = privOut.size();
+                privOut.reset();
+                privOut.write(new byte[sz]);
+                privOut.reset();
+
+                String pubString = pubOut.toString(java.nio.charset.StandardCharsets.UTF_8);
+
+                SshKeyEntry entry = new SshKeyEntry(name, privChars, pubString, type, fingerprint);
+                SecureWiper.wipe(privChars);
+                return entry;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    SshKeyEntry entry = get();
+                    sshKeyService.addEntry(entry);
+                    refreshEntries();
+                    notifyChanged();
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(SshKeyPanel.this,
+                        lang.getString("ssh.generate_error"),
+                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
+    private void importSshKey() {
+        JFileChooser fc = new JFileChooser();
+        fc.setFileFilter(new FileNameExtensionFilter("PEM files", "pem", "key", "id_rsa", "id_ed25519"));
+        fc.setAcceptAllFileFilterUsed(true);
+        if (fc.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+
+        File file = fc.getSelectedFile();
+        String defaultName = file.getName().replaceFirst("\\.[^.]+$", "");
+
+        String name = (String) JOptionPane.showInputDialog(this,
+            lang.getString("ssh.key_name"), lang.getString("ssh.import"),
+            JOptionPane.PLAIN_MESSAGE, null, null, defaultName);
+        if (name == null || name.trim().isEmpty()) return;
+        final String keyName = name.trim();
+
+        new SwingWorker<SshKeyEntry, Void>() {
+            @Override
+            protected SshKeyEntry doInBackground() throws Exception {
+                byte[] pemBytes = Files.readAllBytes(file.toPath());
+                try {
+                    JSch jsch = new JSch();
+                    KeyPair kpair = KeyPair.load(jsch, pemBytes, null);
+
+                    ByteArrayOutputStream pubOut = new ByteArrayOutputStream();
+                    kpair.writePublicKey(pubOut, keyName);
+                    String fingerprint = kpair.getFingerPrint();
+                    String keyType;
+                    switch (kpair.getKeyType()) {
+                        case KeyPair.RSA: keyType = "RSA"; break;
+                        case KeyPair.ED25519: keyType = "ED25519"; break;
+                        case KeyPair.ECDSA: keyType = "ECDSA"; break;
+                        default: keyType = "UNKNOWN";
+                    }
+                    kpair.dispose();
+
+                    char[] privChars = new String(pemBytes, java.nio.charset.StandardCharsets.UTF_8).toCharArray();
+                    SshKeyEntry entry = new SshKeyEntry(keyName, privChars, pubOut.toString(java.nio.charset.StandardCharsets.UTF_8), keyType, fingerprint);
+                    SecureWiper.wipe(privChars);
+                    return entry;
+                } finally {
+                    java.util.Arrays.fill(pemBytes, (byte) 0);
+                }
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    SshKeyEntry entry = get();
+                    sshKeyService.addEntry(entry);
+                    refreshEntries();
+                    notifyChanged();
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(SshKeyPanel.this,
+                        lang.getString("ssh.import_error"),
+                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
     // === Table Model ===
-    private class AppTableModel extends AbstractTableModel {
+    private class SshKeyTableModel extends AbstractTableModel {
         private final String[] columns = {
-            "\u2605",  // star column
+            "\u2605",
             lang.getString("entry.title"),
-            lang.getString("entry.username")
+            lang.getString("ssh.key_type"),
+            lang.getString("ssh.fingerprint")
         };
 
         @Override public int getRowCount() { return displayedEntries.size(); }
@@ -588,11 +741,12 @@ public class AppPanel extends JPanel {
 
         @Override
         public Object getValueAt(int row, int col) {
-            AppEntry e = displayedEntries.get(row);
+            SshKeyEntry e = displayedEntries.get(row);
             switch (col) {
                 case 0: return e.isFavorite() ? "\u2605" : "\u2606";
                 case 1: return e.getTitle();
-                case 2: return e.getUsername();
+                case 2: return e.getKeyType();
+                case 3: return e.getFingerprint();
                 default: return "";
             }
         }
@@ -600,9 +754,6 @@ public class AppPanel extends JPanel {
         @Override public boolean isCellEditable(int row, int col) { return false; }
     }
 
-    /**
-     * Wraps a component in a cell panel with border separators.
-     */
     private static JPanel createCell(Component comp, boolean rightBorder, boolean bottomBorder) {
         JPanel cell = new JPanel(new BorderLayout());
         cell.add(comp, BorderLayout.CENTER);
@@ -612,10 +763,6 @@ public class AppPanel extends JPanel {
         return cell;
     }
 
-    /**
-     * Creates a detail value panel with the value component on the left and
-     * a small copy button on the right.
-     */
     private static JPanel createDetailValuePanel(JComponent value, Runnable onCopy) {
         JPanel panel = new JPanel(new BorderLayout());
         panel.add(value, BorderLayout.CENTER);
@@ -627,10 +774,6 @@ public class AppPanel extends JPanel {
         return panel;
     }
 
-    /**
-     * Sets a JPasswordField value from char[] without creating an intermediate String.
-     * Uses the Document model directly to minimize String interning.
-     */
     private static void setPasswordFieldValue(JPasswordField field, char[] value) {
         Document doc = field.getDocument();
         try {

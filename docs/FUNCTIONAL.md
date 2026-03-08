@@ -10,7 +10,7 @@
 6. [Types d'entrees](#6-types-dentrees)
    - 6.1. [Entrees mot de passe (Mots de passe)](#61-entrees-mot-de-passe-mots-de-passe)
    - 6.2. [Entrees application (Applications)](#62-entrees-application-applications)
-   - 6.3. [Entrees cle SSH (Android uniquement)](#63-entrees-cle-ssh-android-uniquement)
+   - 6.3. [Entrees cle SSH](#63-entrees-cle-ssh)
 7. [Gestion des entrees](#7-gestion-des-entrees)
 8. [Recherche, tri et filtres](#8-recherche-tri-et-filtres)
 9. [Categories](#9-categories)
@@ -174,12 +174,13 @@ Acces rapide aux fonctions courantes :
 
 ### 5.3. Zone centrale (onglets + 3 colonnes)
 
-La zone centrale est organisee en un **JTabbedPane** avec deux onglets correspondant aux types d'entrees :
+La zone centrale est organisee en un **JTabbedPane** avec trois onglets correspondant aux types d'entrees :
 
 | Onglet | Contenu |
 |--------|---------|
 | **Mots de passe** | Panneau principal avec categories (gauche), tableau des entrees mot de passe (centre) et panneau de details (droite) |
 | **Applications** | Tableau des entrees application (centre) et panneau de details (droite). Pas de panneau de categories. |
+| **Cles SSH** | Tableau des cles SSH (centre, colonnes : Favori, Titre, Type, Empreinte) et panneau de details (droite : type, empreinte, cle privee masquee, cle publique, notes). |
 
 Pour l'onglet **Mots de passe**, la disposition en 3 colonnes reste inchangee :
 
@@ -216,7 +217,7 @@ La navigation suit le pattern Android standard : appui sur le bouton retour pour
 
 ## 6. Types d'entrees
 
-Le coffre-fort gere trois types d'entrees. Les mots de passe et applications sont affiches dans des onglets dedies (desktop : JTabbedPane, Android : TabRow + HorizontalPager). Les cles SSH sont gerees via un ecran dedie dans les parametres (Android uniquement).
+Le coffre-fort gere trois types d'entrees. Les mots de passe, applications et cles SSH sont affiches dans des onglets dedies (desktop : JTabbedPane avec 3 onglets, Android : TabRow + HorizontalPager pour mots de passe et applications, ecran dedie pour les cles SSH).
 
 ### 6.1. Entrees mot de passe (Mots de passe)
 
@@ -249,11 +250,11 @@ Type dedie au stockage des codes PIN et identifiants d'applications (banque, dig
 | Code PIN | Oui | Code PIN de l'application (masque par defaut) |
 | Notes | Non | Informations complementaires |
 
-Le champ **Code PIN** est masque par defaut avec un bouton **Afficher/Masquer**. Un bouton **Generer** permet de generer un code numerique (chiffres uniquement).
+Le champ **Code PIN** est masque par defaut avec un bouton **Afficher/Masquer**. Un bouton **Generer** permet de generer un code PIN numerique aleatoire de 4 a 6 chiffres (desktop et Android).
 
 Les entrees application ne supportent ni les categories, ni les tags.
 
-### 6.3. Entrees cle SSH (Android uniquement)
+### 6.3. Entrees cle SSH
 
 Type dedie au stockage des cles SSH pour l'authentification serveur.
 
@@ -266,13 +267,13 @@ Type dedie au stockage des cles SSH pour l'authentification serveur.
 | Empreinte | Non | Fingerprint de la cle |
 | Notes | Non | Informations complementaires |
 
-**Acces** : Parametres > Gerer les cles SSH (Android uniquement)
+**Acces** : Onglet Cles SSH (desktop) | Parametres > Gerer les cles SSH (Android)
 
-Les cles SSH ne sont pas affichees dans les onglets principaux. Elles sont gerees dans un ecran dedie accessible depuis les parametres Android (`SshKeyManagementScreen`). Cet ecran permet de creer, modifier et supprimer des cles SSH.
+Sur desktop, les cles SSH sont gerees dans un onglet dedie (`SshKeyPanel`) avec table, panneau de details et formulaire d'edition. Sur Android, elles sont gerees dans un ecran dedie accessible depuis les parametres (`SshKeyManagementScreen`). Les deux plateformes permettent de creer, modifier et supprimer des cles SSH.
 
-Les cles SSH ne supportent ni les categories, ni les tags, ni les favoris. Elles sont incluses dans les exports JSON et les sauvegardes chiffrees (.enc), mais pas dans les exports CSV. L'import JSON et l'import .enc incluent les cles SSH.
+Les cles SSH ne supportent ni les categories, ni les tags. Elles supportent les **favoris** (etoile, tri prioritaire, operations en masse). Elles sont incluses dans les exports JSON et les sauvegardes chiffrees (.enc), mais pas dans les exports CSV. L'import JSON et l'import .enc incluent les cles SSH.
 
-> **Note** : la gestion des cles SSH n'est disponible que sur Android. Sur desktop, les cles SSH presentes dans le coffre (importees ou synchronisees) sont conservees mais ne disposent pas d'interface de gestion.
+Sur desktop, les cles SSH sont gerees via un onglet dedie (`SshKeyPanel`) avec generation de cles (ED25519, RSA via JSch) et import de fichiers PEM. Sur Android, elles sont gerees dans un ecran dedie accessible depuis les parametres.
 
 ---
 
@@ -333,11 +334,11 @@ Un clic droit sur le tableau affiche un menu contextuel avec les actions disponi
 | Copier le PIN | 1 entree (application) | Copie dans le presse-papiers |
 | Dupliquer | 1 entree | Cree une copie de l'entree avec le prefixe "Copie de" |
 
-### 7.6. Dupliquer une entree (Desktop)
+### 7.6. Dupliquer une entree
 
-**Acces** : Clic droit > Dupliquer
+**Acces** : Clic droit > Dupliquer (desktop) | Bouton Dupliquer dans la barre d'actions (Android)
 
-Cree une nouvelle entree identique a l'entree selectionnee avec le titre prefixe par "Copie de". Tous les champs specifiques au type sont copies.
+Cree une nouvelle entree identique a l'entree selectionnee avec le titre prefixe par "Copie de". Tous les champs specifiques au type sont copies. Disponible pour les trois types d'entrees (mots de passe, applications, cles SSH sur desktop ; mots de passe et applications sur Android).
 
 ### 7.7. Consulter les details
 
@@ -446,7 +447,7 @@ Les noms des categories par defaut sont localises selon la langue de l'interface
 | Voir toutes les entrees | Cliquer sur **Toutes les categories** dans le panneau gauche | Selectionner "Toutes les categories" dans le dropdown |
 | Filtrer par categorie | Cliquer sur une categorie dans le panneau gauche | Selectionner dans le dropdown |
 | Ajouter une categorie | Bouton **Ajouter une categorie** en bas du panneau gauche | Parametres > Gerer les categories > champ d'ajout |
-| Supprimer une categorie | Non disponible | Parametres > Gerer les categories > icone supprimer |
+| Supprimer une categorie | Bouton **Supprimer la categorie** (panneau gauche) | Parametres > Gerer les categories > icone supprimer |
 
 Les categories personnalisees sont sauvegardees dans le coffre et persistent entre les sessions.
 
@@ -706,13 +707,14 @@ La synchronisation SFTP est disponible sur **desktop et Android**. Elle permet d
 | Port | Port SSH | 22 |
 | Utilisateur SSH | Nom d'utilisateur sur le serveur | -- |
 | Cle privee SSH | Chemin vers la cle privee (authentification par cle uniquement) | -- |
+| Source de la cle SSH | Fichier externe ou cle du coffre-fort (desktop) | Fichier |
 | Repertoire distant | Dossier de stockage sur le serveur | `/vault/data` |
 
 Le bouton **Tester la connexion** permet de verifier la configuration.
 
 > **Note** : seule l'authentification par cle SSH est supportee. L'authentification par mot de passe n'est pas disponible.
 
-> En mode distant, la validation requiert que le fichier de cle SSH existe et soit lisible.
+> Sur desktop, la cle SSH peut etre un fichier externe ou une cle stockee dans le coffre-fort (selection via boutons radio dans les parametres SFTP). En mode fichier, la validation requiert que le fichier existe et soit lisible.
 
 ### 14.3. Synchronisation manuelle
 
@@ -969,9 +971,10 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | Coffre-fort chiffre AES-256-GCM + AAD | Oui | Oui |
 | Entrees mot de passe | Oui (onglet Mots de passe) | Oui (onglet Mots de passe) |
 | Entrees application | Oui (onglet Applications) | Oui (onglet Applications) |
-| Entrees cle SSH | Conservees dans le coffre (pas d'UI) | Oui (Parametres > Gerer les cles SSH) |
-| Navigation par onglets | JTabbedPane (2 onglets) | TabRow + HorizontalPager (2 onglets) |
+| Entrees cle SSH (CRUD, favoris, generation, import) | Oui (onglet dedie) | Oui (Parametres > Gerer les cles SSH) |
+| Navigation par onglets | JTabbedPane (3 onglets) | TabRow + HorizontalPager (2 onglets) + ecran dedie SSH |
 | CRUD entrees | Oui (tous types) | Oui (tous types) |
+| Dupliquer une entree | Oui (clic droit, 3 types) | Oui (bouton, mots de passe et applications) |
 | Favoris (etoile, tri prioritaire) | Oui (tous types) | Oui (tous types) |
 | Filtres avances (categorie, force, date, favoris) | Oui | Oui (FilterChips) |
 | Favicons des sites web | Oui (dans la colonne Titre) | Oui (avatar dans la carte d'entree) |
@@ -984,7 +987,7 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | Filtrage par categorie | Panneau lateral (mots de passe uniquement) | Dropdown (mots de passe uniquement) |
 | Selection multiple + operations en masse | Oui (menu "Actions..." : supprimer, categorie, favoris) | Oui (appui long + menu "Actions..." : supprimer, categorie, favoris) |
 | Menu contextuel (clic droit) | Oui (actions adaptees au type d'entree) | Non |
-| Gestion des categories | Ajout via panneau lateral | Ecran dedie (Parametres > Gerer les categories) |
+| Gestion des categories | Ajout et suppression via panneau lateral | Ecran dedie (Parametres > Gerer les categories) |
 | Verification des mises a jour | Auto (5 min) + manuel (ecran connexion) | Au lancement (dialog) |
 | URL cliquable dans le detail | Oui (Desktop.browse) | Oui (UriHandler) |
 | Themes Systeme/Clair/Sombre | FlatLaf | Material 3 (Dynamic Colors Android 12+) |

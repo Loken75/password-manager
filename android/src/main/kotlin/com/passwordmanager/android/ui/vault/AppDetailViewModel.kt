@@ -3,6 +3,7 @@ package com.passwordmanager.android.ui.vault
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.passwordmanager.android.data.SessionHolder
+import com.passwordmanager.util.SecureWiper
 import com.passwordmanager.vault.AppEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +43,20 @@ class AppDetailViewModel @Inject constructor(
             sessionHolder.save()
         }
         loadEntry(entryId)
+    }
+
+    fun duplicateEntry(entryId: String, prefix: String = "Copy of"): String? {
+        val appService = sessionHolder.vaultService?.getAppService() ?: return null
+        val entry = appService.search("").find { it.id == entryId } ?: return null
+        val pinCopy = entry.pin
+        try {
+            val dup = AppEntry("$prefix ${entry.title}", entry.username, pinCopy, entry.notes)
+            appService.addEntry(dup)
+            viewModelScope.launch(Dispatchers.IO) { sessionHolder.save() }
+            return dup.id
+        } finally {
+            SecureWiper.wipe(pinCopy)
+        }
     }
 
     fun deleteEntry(entryId: String): Boolean {

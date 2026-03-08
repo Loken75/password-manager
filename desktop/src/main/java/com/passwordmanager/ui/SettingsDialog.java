@@ -7,9 +7,12 @@ import com.passwordmanager.config.ThemeMode;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.sync.SFTPRepository;
 
+import com.passwordmanager.vault.SshKeyEntry;
+
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.util.List;
 
 /**
  * Settings dialog with tabs: General, Security, Synchronization.
@@ -32,11 +35,19 @@ public class SettingsDialog extends JDialog {
     private JRadioButton localRadio, remoteRadio;
     private JTextField hostField, userField, keyPathField, remotePathField;
     private JSpinner portSpinner;
+    private JRadioButton keySourceFile, keySourceVault;
+    private JComboBox<String> vaultKeyCombo;
+    private List<SshKeyEntry> vaultKeys;
 
     public SettingsDialog(Frame owner, AppConfig config, ConfigManager configManager) {
+        this(owner, config, configManager, List.of());
+    }
+
+    public SettingsDialog(Frame owner, AppConfig config, ConfigManager configManager, List<SshKeyEntry> vaultKeys) {
         super(owner, LanguageManager.getInstance().getString("settings.title"), true);
         this.config = config;
         this.configManager = configManager;
+        this.vaultKeys = vaultKeys;
         initComponents();
     }
 
@@ -144,26 +155,57 @@ public class SettingsDialog extends JDialog {
         syncPanel.add(userField, c);
 
         c.gridy = 5; c.gridx = 0; c.weightx = 0;
-        syncPanel.add(new JLabel(lang.getString("settings.ssh_key")), c);
+        syncPanel.add(new JLabel(lang.getString("settings.ssh_key_source")), c);
         c.gridx = 1; c.weightx = 1;
-        JPanel keyPanel = new JPanel(new BorderLayout(5, 0));
-        keyPathField = new JTextField(config.getSftpKeyPath(), 15);
-        JButton browseBtn = new JButton(lang.getString("common.browse"));
-        keyPanel.add(keyPathField, BorderLayout.CENTER);
-        keyPanel.add(browseBtn, BorderLayout.EAST);
-        syncPanel.add(keyPanel, c);
+        JPanel keySourcePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        keySourceFile = new JRadioButton(lang.getString("settings.ssh_key_source.file"));
+        keySourceVault = new JRadioButton(lang.getString("settings.ssh_key_source.vault"));
+        ButtonGroup keySourceGroup = new ButtonGroup();
+        keySourceGroup.add(keySourceFile);
+        keySourceGroup.add(keySourceVault);
+        if (config.isUsingVaultKey()) keySourceVault.setSelected(true);
+        else keySourceFile.setSelected(true);
+        keySourcePanel.add(keySourceFile);
+        keySourcePanel.add(keySourceVault);
+        syncPanel.add(keySourcePanel, c);
 
         c.gridy = 6; c.gridx = 0; c.weightx = 0;
+        syncPanel.add(new JLabel(lang.getString("settings.ssh_key")), c);
+        c.gridx = 1; c.weightx = 1;
+        JPanel keyPanel = new JPanel(new CardLayout());
+        JPanel fileKeyPanel = new JPanel(new BorderLayout(5, 0));
+        keyPathField = new JTextField(config.getSftpKeyPath(), 15);
+        JButton browseBtn = new JButton(lang.getString("common.browse"));
+        fileKeyPanel.add(keyPathField, BorderLayout.CENTER);
+        fileKeyPanel.add(browseBtn, BorderLayout.EAST);
+        vaultKeyCombo = new JComboBox<>();
+        int selectedVaultKeyIdx = -1;
+        for (int i = 0; i < vaultKeys.size(); i++) {
+            SshKeyEntry vk = vaultKeys.get(i);
+            vaultKeyCombo.addItem(vk.getTitle() + " (" + vk.getKeyType() + ")");
+            if (vk.getId().equals(config.getSftpVaultKeyId())) selectedVaultKeyIdx = i;
+        }
+        if (selectedVaultKeyIdx >= 0) vaultKeyCombo.setSelectedIndex(selectedVaultKeyIdx);
+        keyPanel.add(fileKeyPanel, "file");
+        keyPanel.add(vaultKeyCombo, "vault");
+        CardLayout keyCardLayout = (CardLayout) keyPanel.getLayout();
+        keyCardLayout.show(keyPanel, config.isUsingVaultKey() ? "vault" : "file");
+        syncPanel.add(keyPanel, c);
+
+        keySourceFile.addActionListener(e -> keyCardLayout.show(keyPanel, "file"));
+        keySourceVault.addActionListener(e -> keyCardLayout.show(keyPanel, "vault"));
+
+        c.gridy = 7; c.gridx = 0; c.weightx = 0;
         syncPanel.add(new JLabel(lang.getString("settings.remote_path")), c);
         c.gridx = 1; c.weightx = 1;
         remotePathField = new JTextField(config.getSftpRemotePath(), 20);
         syncPanel.add(remotePathField, c);
 
-        c.gridy = 7; c.gridx = 1;
+        c.gridy = 8; c.gridx = 1;
         JButton testBtn = new JButton(lang.getString("settings.test_connection"));
         syncPanel.add(testBtn, c);
 
-        c.gridy = 8; c.weighty = 1;
+        c.gridy = 9; c.weighty = 1;
         syncPanel.add(Box.createVerticalGlue(), c);
 
         tabs.addTab(lang.getString("settings.sync"), syncPanel);
@@ -237,23 +279,30 @@ public class SettingsDialog extends JDialog {
                 showValidationError(lang.getString("settings.user"));
                 return;
             }
-            String keyPath = keyPathField.getText().trim();
-            if (keyPath.isEmpty()) {
-                showValidationError(lang.getString("settings.ssh_key"));
-                return;
-            }
-            File keyFile = new File(keyPath);
-            if (!keyFile.exists() || !keyFile.isFile()) {
-                JOptionPane.showMessageDialog(this,
-                    lang.getString("settings.ssh_key") + ": " + lang.getString("error.file_not_found"),
-                    lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-            if (!keyFile.canRead()) {
-                JOptionPane.showMessageDialog(this,
-                    lang.getString("settings.ssh_key") + ": " + lang.getString("error.file_not_readable"),
-                    lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
-                return;
+            if (keySourceFile.isSelected()) {
+                String keyPath = keyPathField.getText().trim();
+                if (keyPath.isEmpty()) {
+                    showValidationError(lang.getString("settings.ssh_key"));
+                    return;
+                }
+                File keyFile = new File(keyPath);
+                if (!keyFile.exists() || !keyFile.isFile()) {
+                    JOptionPane.showMessageDialog(this,
+                        lang.getString("settings.ssh_key") + ": " + lang.getString("error.file_not_found"),
+                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                if (!keyFile.canRead()) {
+                    JOptionPane.showMessageDialog(this,
+                        lang.getString("settings.ssh_key") + ": " + lang.getString("error.file_not_readable"),
+                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            } else {
+                if (vaultKeys.isEmpty() || vaultKeyCombo.getSelectedIndex() < 0) {
+                    showValidationError(lang.getString("settings.ssh_key"));
+                    return;
+                }
             }
             if (remotePathField.getText().trim().isEmpty()) {
                 showValidationError(lang.getString("settings.remote_path"));
@@ -270,7 +319,13 @@ public class SettingsDialog extends JDialog {
         config.setSftpHost(hostField.getText());
         config.setSftpPort((Integer) portSpinner.getValue());
         config.setSftpUser(userField.getText());
-        config.setSftpKeyPath(keyPathField.getText());
+        if (keySourceVault.isSelected() && vaultKeyCombo.getSelectedIndex() >= 0) {
+            config.setSftpVaultKeyId(vaultKeys.get(vaultKeyCombo.getSelectedIndex()).getId());
+            config.setSftpKeyPath("");
+        } else {
+            config.setSftpVaultKeyId("");
+            config.setSftpKeyPath(keyPathField.getText());
+        }
         config.setSftpRemotePath(remotePathField.getText());
 
         configManager.saveConfig(config);

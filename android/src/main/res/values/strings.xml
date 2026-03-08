@@ -101,6 +101,8 @@
     <string name="settings_change_master">Change master password</string>
 
     <!-- Menu / Actions -->
+    <string name="menu_duplicate">Duplicate entry</string>
+    <string name="menu_duplicate_prefix">Copy of</string>
     <string name="menu_import">Import…</string>
     <string name="menu_export">Export…</string>
     <string name="menu_settings">Settings</string>
