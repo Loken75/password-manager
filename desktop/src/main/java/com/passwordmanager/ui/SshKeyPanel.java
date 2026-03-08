@@ -86,13 +86,16 @@ public class SshKeyPanel extends JPanel {
         JPanel keyActionBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
         JButton generateBtn = new JButton(lang.getString("ssh.generate"));
         JButton importBtn = new JButton(lang.getString("ssh.import"));
+        JButton importContentBtn = new JButton(lang.getString("ssh.import_content"));
         keyActionBtns.add(generateBtn);
         keyActionBtns.add(importBtn);
+        keyActionBtns.add(importContentBtn);
         searchPanel.add(keyActionBtns, BorderLayout.EAST);
         centerPanel.add(searchPanel, BorderLayout.NORTH);
 
         generateBtn.addActionListener(e -> generateSshKey());
         importBtn.addActionListener(e -> importSshKey());
+        importContentBtn.addActionListener(e -> importSshKeyFromContent());
 
         // Table
         tableModel = new SshKeyTableModel();
@@ -720,6 +723,83 @@ public class SshKeyPanel extends JPanel {
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(SshKeyPanel.this,
                         lang.getString("ssh.import_error"),
+                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
+    private void importSshKeyFromContent() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(4, 4, 4, 4);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        gbc.gridx = 0; gbc.gridy = 0;
+        panel.add(new JLabel(lang.getString("ssh.key_name")), gbc);
+        gbc.gridx = 1; gbc.weightx = 1;
+        JTextField nameField = new JTextField(20);
+        panel.add(nameField, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0; gbc.gridwidth = 2;
+        panel.add(new JLabel(lang.getString("ssh.import_content_hint")), gbc);
+
+        gbc.gridy = 2; gbc.fill = GridBagConstraints.BOTH; gbc.weighty = 1;
+        JTextArea contentArea = new JTextArea(10, 40);
+        contentArea.setLineWrap(true);
+        panel.add(new JScrollPane(contentArea), gbc);
+
+        int result = JOptionPane.showConfirmDialog(this, panel,
+            lang.getString("ssh.import_content"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return;
+
+        String name = nameField.getText().trim();
+        if (name.isEmpty()) return;
+        String content = contentArea.getText();
+        if (content.isEmpty()) return;
+
+        byte[] pemBytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        // Clear the text area content
+        contentArea.setText("");
+
+        new SwingWorker<SshKeyEntry, Void>() {
+            @Override
+            protected SshKeyEntry doInBackground() throws Exception {
+                try {
+                    JSch jsch = new JSch();
+                    KeyPair kpair = KeyPair.load(jsch, pemBytes, null);
+
+                    ByteArrayOutputStream pubOut = new ByteArrayOutputStream();
+                    kpair.writePublicKey(pubOut, name);
+                    String fingerprint = kpair.getFingerPrint();
+                    String keyType;
+                    switch (kpair.getKeyType()) {
+                        case KeyPair.RSA: keyType = "RSA"; break;
+                        case KeyPair.ED25519: keyType = "ED25519"; break;
+                        case KeyPair.ECDSA: keyType = "ECDSA"; break;
+                        default: keyType = "UNKNOWN";
+                    }
+                    kpair.dispose();
+
+                    char[] privChars = new String(pemBytes, java.nio.charset.StandardCharsets.UTF_8).toCharArray();
+                    SshKeyEntry entry = new SshKeyEntry(name, privChars, pubOut.toString(java.nio.charset.StandardCharsets.UTF_8), keyType, fingerprint);
+                    SecureWiper.wipe(privChars);
+                    return entry;
+                } finally {
+                    java.util.Arrays.fill(pemBytes, (byte) 0);
+                }
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    SshKeyEntry entry = get();
+                    sshKeyService.addEntry(entry);
+                    refreshEntries();
+                    notifyChanged();
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(SshKeyPanel.this,
+                        lang.getString("ssh.import_content_error"),
                         lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
                 }
             }

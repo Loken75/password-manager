@@ -263,8 +263,11 @@
     <string name="ssh_key_management_title">Clés SSH</string>
     <string name="ssh_key_generate">Générer une clé</string>
     <string name="ssh_key_import">Importer une clé</string>
-    <string name="ssh_key_import_hint">Sélectionnez un fichier de clé privée (format PEM)</string>
-    <string name="ssh_key_select_file">Choisir le fichier</string>
+    <string name="ssh_key_import_hint">Importez une clé privée depuis un fichier ou en collant son contenu</string>
+    <string name="ssh_key_select_file">Choisir un fichier</string>
+    <string name="ssh_key_paste_content">Coller le contenu</string>
+    <string name="ssh_key_content_hint">Collez le contenu de la clé privée (format PEM)</string>
+    <string name="ssh_key_import_content_error">Contenu de clé invalide</string>
     <string name="ssh_key_name">Nom de la clé</string>
     <string name="ssh_key_type">Type de clé</string>
     <string name="ssh_key_public_key">Clé publique</string>

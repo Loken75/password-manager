@@ -141,6 +141,49 @@ class SshKeyManagementViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Import from pasted text content. Validates with JSch, stores in vault.
+     */
+    fun importKeyFromContent(name: String, content: String) {
+        if (name.isBlank()) {
+            _uiState.update { it.copy(error = "ssh_key_name_required") }
+            return
+        }
+        if (content.isBlank()) return
+        val pemBytes = content.toByteArray(Charsets.UTF_8)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val jsch = JSch()
+                val kpair = KeyPair.load(jsch, pemBytes, null)
+
+                val pubOut = ByteArrayOutputStream()
+                kpair.writePublicKey(pubOut, name)
+                val fingerprint = kpair.getFingerPrint()
+                val type = when (kpair.keyType) {
+                    KeyPair.RSA -> "RSA"
+                    KeyPair.ED25519 -> "ED25519"
+                    KeyPair.ECDSA -> "ECDSA"
+                    else -> "UNKNOWN"
+                }
+                kpair.dispose()
+
+                val privChars = String(pemBytes, Charsets.UTF_8).toCharArray()
+                pemBytes.fill(0)
+
+                val entry = SshKeyEntry(name, privChars, pubOut.toString(Charsets.UTF_8), type, fingerprint)
+                SecureWiper.wipe(privChars)
+
+                val vault = sessionHolder.vault ?: return@launch
+                vault.addSshKeyEntry(entry)
+                sessionHolder.save()
+                load()
+            } catch (e: Exception) {
+                pemBytes.fill(0)
+                _uiState.update { it.copy(error = "ssh_key_import_content_error") }
+            }
+        }
+    }
+
     fun deleteKey(keyId: String) {
         val vault = sessionHolder.vault ?: return
         val entry = vault.sshKeyEntriesMutable.find { it.id == keyId } ?: return

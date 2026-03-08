@@ -263,8 +263,11 @@
     <string name="ssh_key_management_title">SSH Keys</string>
     <string name="ssh_key_generate">Generate key</string>
     <string name="ssh_key_import">Import key</string>
-    <string name="ssh_key_import_hint">Select a private key file (PEM format)</string>
+    <string name="ssh_key_import_hint">Import a private key from a file or by pasting its content</string>
     <string name="ssh_key_select_file">Select file</string>
+    <string name="ssh_key_paste_content">Paste content</string>
+    <string name="ssh_key_content_hint">Paste the private key content (PEM format)</string>
+    <string name="ssh_key_import_content_error">Invalid key content</string>
     <string name="ssh_key_name">Key name</string>
     <string name="ssh_key_type">Key type</string>
     <string name="ssh_key_public_key">Public key</string>

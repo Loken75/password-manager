@@ -42,6 +42,8 @@ fun SshKeyManagementScreen(
     var showGenerateDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
     var importName by remember { mutableStateOf("") }
+    var importContent by remember { mutableStateOf("") }
+    var importMode by remember { mutableStateOf("file") } // "file" or "content"
     var showDeleteDialog by remember { mutableStateOf<String?>(null) }
 
     // File picker for SSH key import
@@ -131,6 +133,7 @@ fun SshKeyManagementScreen(
             "ssh_key_name_required" -> stringResource(R.string.ssh_key_name_required)
             "ssh_key_generate_error" -> stringResource(R.string.ssh_key_generate_error)
             "ssh_key_invalid" -> stringResource(R.string.ssh_key_invalid)
+            "ssh_key_import_content_error" -> stringResource(R.string.ssh_key_import_content_error)
             else -> errorKey
         }
         AlertDialog(
@@ -190,7 +193,7 @@ fun SshKeyManagementScreen(
     // Import key dialog
     if (showImportDialog) {
         AlertDialog(
-            onDismissRequest = { showImportDialog = false; importName = "" },
+            onDismissRequest = { showImportDialog = false; importName = ""; importContent = ""; importMode = "file" },
             title = { Text(stringResource(R.string.ssh_key_import)) },
             text = {
                 Column {
@@ -206,18 +209,60 @@ fun SshKeyManagementScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row {
+                        FilterChip(
+                            selected = importMode == "file",
+                            onClick = { importMode = "file" },
+                            label = { Text(stringResource(R.string.ssh_key_select_file)) }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        FilterChip(
+                            selected = importMode == "content",
+                            onClick = { importMode = "content" },
+                            label = { Text(stringResource(R.string.ssh_key_paste_content)) }
+                        )
+                    }
+                    if (importMode == "content") {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = importContent,
+                            onValueChange = { importContent = it },
+                            label = { Text(stringResource(R.string.ssh_key_content_hint)) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 120.dp),
+                            minLines = 5,
+                            maxLines = 10
+                        )
+                    }
                 }
             },
             confirmButton = {
-                TextButton(
-                    onClick = { filePickerLauncher.launch("*/*") },
-                    enabled = importName.isNotBlank()
-                ) {
-                    Text(stringResource(R.string.ssh_key_select_file))
+                if (importMode == "file") {
+                    TextButton(
+                        onClick = { filePickerLauncher.launch("*/*") },
+                        enabled = importName.isNotBlank()
+                    ) {
+                        Text(stringResource(R.string.ssh_key_select_file))
+                    }
+                } else {
+                    TextButton(
+                        onClick = {
+                            viewModel.importKeyFromContent(importName, importContent)
+                            importName = ""
+                            importContent = ""
+                            importMode = "file"
+                            showImportDialog = false
+                        },
+                        enabled = importName.isNotBlank() && importContent.isNotBlank()
+                    ) {
+                        Text(stringResource(R.string.common_save))
+                    }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showImportDialog = false; importName = "" }) {
+                TextButton(onClick = { showImportDialog = false; importName = ""; importContent = ""; importMode = "file" }) {
                     Text(stringResource(R.string.common_cancel))
                 }
             }
