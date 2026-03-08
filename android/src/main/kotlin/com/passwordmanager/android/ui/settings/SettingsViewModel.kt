@@ -21,6 +21,8 @@ import kotlinx.coroutines.launch
 import android.util.Log
 import javax.inject.Inject
 
+data class SshKeyOption(val id: String, val name: String)
+
 data class SettingsUiState(
     val language: String = "en",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
@@ -38,6 +40,8 @@ data class SettingsUiState(
     val sftpUser: String = "",
     val sftpKeyPath: String = "",
     val sftpRemotePath: String = "",
+    val sshKeys: List<SshKeyOption> = emptyList(),
+    val selectedSshKeyId: String = "",
     val connectionTestResult: String? = null
 )
 
@@ -61,10 +65,24 @@ class SettingsViewModel @Inject constructor(
             sftpPort = configRepo.getSftpPort().toString(),
             sftpUser = configRepo.getSftpUser(),
             sftpKeyPath = configRepo.getSftpKeyPath(),
-            sftpRemotePath = configRepo.getSftpRemotePath()
+            sftpRemotePath = configRepo.getSftpRemotePath(),
+            selectedSshKeyId = configRepo.getSftpKeyId()
         )
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+
+    init { refreshSshKeys() }
+
+    fun refreshSshKeys() {
+        val vault = sessionHolder.vault ?: return
+        val keys = vault.sshKeyEntries.map { SshKeyOption(it.id, it.title ?: "") }
+        _uiState.update { it.copy(sshKeys = keys) }
+    }
+
+    fun selectSshKey(keyId: String) {
+        configRepo.setSftpKeyId(keyId)
+        _uiState.update { it.copy(selectedSshKeyId = keyId) }
+    }
 
     fun setTheme(mode: ThemeMode) {
         configRepo.setThemeMode(mode)
@@ -215,15 +233,35 @@ class SettingsViewModel @Inject constructor(
 
     fun testConnection() {
         val state = _uiState.value
-        if (state.sftpHost.isBlank() || state.sftpUser.isBlank() || state.sftpKeyPath.isBlank()) {
+        if (state.sftpHost.isBlank() || state.sftpUser.isBlank()) {
+            _uiState.update { it.copy(connectionTestResult = "fail") }
+            return
+        }
+
+        // Load private key bytes from vault
+        val vault = sessionHolder.vault
+        val keyEntry = vault?.sshKeyEntries?.find { it.id == state.selectedSshKeyId }
+        val keyPath = state.sftpKeyPath
+
+        if (keyEntry == null && keyPath.isBlank()) {
             _uiState.update { it.copy(connectionTestResult = "fail") }
             return
         }
 
         viewModelScope.launch(Dispatchers.IO) {
+            var keyBytes: ByteArray? = null
             val result = try {
                 val jsch = JSch()
-                jsch.addIdentity(state.sftpKeyPath)
+                if (keyEntry != null) {
+                    val privChars = keyEntry.privateKey
+                    if (privChars != null) {
+                        keyBytes = String(privChars).toByteArray(Charsets.UTF_8)
+                        com.passwordmanager.util.SecureWiper.wipe(privChars)
+                        jsch.addIdentity("vault_key", keyBytes, null, null)
+                    }
+                } else {
+                    jsch.addIdentity(keyPath)
+                }
                 val session: Session = jsch.getSession(
                     state.sftpUser,
                     state.sftpHost,
@@ -241,10 +279,13 @@ class SettingsViewModel @Inject constructor(
                 session.connect(10_000)
                 val ok = session.isConnected
                 session.disconnect()
+                jsch.removeAllIdentity()
                 if (ok) "ok" else "fail"
             } catch (e: Exception) {
                 Log.e(TAG, "SFTP connection test failed", e)
                 "fail"
+            } finally {
+                keyBytes?.fill(0)
             }
             _uiState.update { it.copy(connectionTestResult = result) }
         }

@@ -6,7 +6,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Abstract base class for all vault item types (passwords, apps, cards).
+ * Abstract base class for all vault item types (passwords, apps, SSH keys).
  * Holds common fields: id, title, notes, favorite, timestamps.
  */
 public abstract class VaultItem {

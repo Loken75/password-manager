@@ -257,21 +257,24 @@
     <string name="vault_bulk_actions">Actions</string>
     <string name="vault_toggle_favorites">Basculer favoris</string>
 
-    <!-- Champs carte bancaire -->
-    <string name="entry_cardholder_name">Nom du titulaire</string>
-    <string name="entry_card_number">Numéro de carte</string>
-    <string name="entry_expiry_date">Date d\'expiration</string>
-    <string name="entry_cvv">CVV</string>
-    <string name="entry_card_pin">Code PIN</string>
-    <string name="entry_card_type">Type de carte</string>
-    <string name="card_type_visa">Visa</string>
-    <string name="card_type_mastercard">Mastercard</string>
-    <string name="card_type_amex">American Express</string>
-    <string name="card_type_cb">CB</string>
-    <string name="card_type_other">Autre</string>
-
-    <!-- Onglets -->
-    <string name="tab_cards">Cartes</string>
+    <!-- Gestion des clés SSH -->
+    <string name="ssh_key_management_title">Clés SSH</string>
+    <string name="ssh_key_generate">Générer une clé</string>
+    <string name="ssh_key_import">Importer une clé</string>
+    <string name="ssh_key_import_hint">Sélectionnez un fichier de clé privée (format PEM)</string>
+    <string name="ssh_key_select_file">Choisir le fichier</string>
+    <string name="ssh_key_name">Nom de la clé</string>
+    <string name="ssh_key_type">Type de clé</string>
+    <string name="ssh_key_public_key">Clé publique</string>
+    <string name="ssh_key_view_public">Clé publique</string>
+    <string name="ssh_key_delete_confirm">Supprimer cette clé SSH ?</string>
+    <string name="ssh_key_name_required">Le nom de la clé est requis</string>
+    <string name="ssh_key_generate_error">Échec de la génération de la clé</string>
+    <string name="ssh_key_invalid">Fichier de clé invalide</string>
+    <string name="ssh_key_empty">Aucune clé SSH</string>
+    <string name="ssh_key_empty_subtitle">Générez ou importez une clé pour commencer</string>
+    <string name="ssh_key_manage">Gérer les clés SSH</string>
+    <string name="ssh_key_none_available">Aucune clé — ajoutez-en une d\'abord</string>
 
     <!-- Fusion de synchronisation -->
     <string name="sync_merge_conflicts">Conflits de fusion détectés</string>

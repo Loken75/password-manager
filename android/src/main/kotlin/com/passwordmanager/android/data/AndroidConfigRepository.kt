@@ -105,6 +105,12 @@ class AndroidConfigRepository(context: Context) : ConfigRepository {
         prefs.edit().putString(KEY_SFTP_REMOTE_PATH, path).apply()
     }
 
+    override fun getSftpKeyId(): String = prefs.getString(KEY_SFTP_KEY_ID, "") ?: ""
+
+    override fun setSftpKeyId(keyId: String) {
+        prefs.edit().putString(KEY_SFTP_KEY_ID, keyId).apply()
+    }
+
     // --- Biometric ---
 
     override fun isBiometricEnabled(username: String): Boolean =
@@ -161,5 +167,6 @@ class AndroidConfigRepository(context: Context) : ConfigRepository {
         private const val KEY_SFTP_USER = "sftp_user"
         private const val KEY_SFTP_KEY_PATH = "sftp_key_path"
         private const val KEY_SFTP_REMOTE_PATH = "sftp_remote_path"
+        private const val KEY_SFTP_KEY_ID = "sftp_key_id"
     }
 }

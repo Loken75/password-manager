@@ -18,6 +18,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
@@ -31,12 +33,19 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onChangeMasterPassword: () -> Unit,
     onManageCategories: () -> Unit = {},
+    onManageSshKeys: () -> Unit = {},
     showBackNavigation: Boolean = true,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+
+    // Refresh SSH key list when returning from SshKeyManagementScreen
+    LifecycleResumeEffect(Unit) {
+        viewModel.refreshSshKeys()
+        onPauseOrDispose {}
+    }
 
     val connectionOkStr = stringResource(R.string.settings_connection_ok)
     val connectionFailStr = stringResource(R.string.settings_connection_fail)
@@ -398,13 +407,50 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                OutlinedTextField(
-                    value = state.sftpKeyPath,
-                    onValueChange = { viewModel.setSftpKeyPath(it) },
-                    label = { Text(stringResource(R.string.settings_sftp_key)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
+                // SSH Key picker (from vault)
+                var sshKeyExpanded by remember { mutableStateOf(false) }
+                val selectedKeyName = state.sshKeys.find { it.id == state.selectedSshKeyId }?.name ?: ""
+                ExposedDropdownMenuBox(
+                    expanded = sshKeyExpanded,
+                    onExpandedChange = { sshKeyExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = selectedKeyName,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.settings_sftp_key)) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                        placeholder = {
+                            if (state.sshKeys.isEmpty()) {
+                                Text(stringResource(R.string.ssh_key_none_available))
+                            }
+                        }
+                    )
+                    ExposedDropdownMenu(
+                        expanded = sshKeyExpanded,
+                        onDismissRequest = { sshKeyExpanded = false }
+                    ) {
+                        state.sshKeys.forEach { key ->
+                            DropdownMenuItem(
+                                text = { Text(key.name) },
+                                onClick = {
+                                    viewModel.selectSshKey(key.id)
+                                    sshKeyExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedButton(
+                    onClick = onManageSshKeys,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.ssh_key_manage))
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 

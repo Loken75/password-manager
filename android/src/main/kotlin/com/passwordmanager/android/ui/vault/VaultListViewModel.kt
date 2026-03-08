@@ -373,9 +373,10 @@ class VaultListViewModel @Inject constructor(
                 val port = configRepo.getSftpPort()
                 val user = configRepo.getSftpUser()
                 val keyPath = configRepo.getSftpKeyPath()
+                val sshKeyId = configRepo.getSftpKeyId()
                 val remotePath = configRepo.getSftpRemotePath()
 
-                if (host.isBlank() || user.isBlank() || keyPath.isBlank()) {
+                if (host.isBlank() || user.isBlank()) {
                     _uiState.update { it.copy(message = "sync_error") }
                     return@launch
                 }
@@ -392,7 +393,22 @@ class VaultListViewModel @Inject constructor(
                 }
 
                 val jsch = JSch()
-                jsch.addIdentity(keyPath)
+                var keyBytes: ByteArray? = null
+                val vault = sessionHolder.vault
+                val keyEntry = vault?.sshKeyEntries?.find { it.id == sshKeyId }
+                if (keyEntry != null) {
+                    val privChars = keyEntry.privateKey
+                    if (privChars != null) {
+                        keyBytes = String(privChars).toByteArray(Charsets.UTF_8)
+                        SecureWiper.wipe(privChars)
+                        jsch.addIdentity("vault_key", keyBytes, null, null)
+                    }
+                } else if (keyPath.isNotBlank()) {
+                    jsch.addIdentity(keyPath)
+                } else {
+                    _uiState.update { it.copy(message = "sync_error") }
+                    return@launch
+                }
                 val sftpSession = jsch.getSession(user, host, port)
                 val knownHostsFile = java.io.File(
                     android.os.Environment.getExternalStorageDirectory(), ".ssh/known_hosts"
@@ -447,24 +463,24 @@ class VaultListViewModel @Inject constructor(
                                         val localVault = sessionHolder.vault
                                             ?: throw IllegalStateException("No local vault")
 
-                                        // Merge all 3 entry types
+                                        // Merge all 4 entry types
                                         val pwResult = EntryMerger.merge(
                                             localVault.entries, remoteVault.entries
                                         )
                                         val appResult = EntryMerger.merge(
                                             localVault.appEntries, remoteVault.appEntries
                                         )
-                                        val cardResult = EntryMerger.merge(
-                                            localVault.cardEntries, remoteVault.cardEntries
+                                        val sshKeyResult = EntryMerger.merge(
+                                            localVault.sshKeyEntries, remoteVault.sshKeyEntries
                                         )
 
-                                        // Auto-resolve app/card conflicts: keep the most recent version
+                                        // Auto-resolve app/ssh conflicts: keep the most recent version
                                         val mergedApps = autoResolveConflicts(appResult)
-                                        val mergedCards = autoResolveConflicts(cardResult)
+                                        val mergedSshKeys = autoResolveConflicts(sshKeyResult)
 
                                         // Apply non-conflicting merges immediately
                                         localVault.setAppEntries(java.util.ArrayList(mergedApps))
-                                        localVault.setCardEntries(java.util.ArrayList(mergedCards))
+                                        localVault.setSshKeyEntries(java.util.ArrayList(mergedSshKeys))
 
                                         if (pwResult.hasConflicts()) {
                                             // Apply non-conflicting password entries now;
@@ -501,6 +517,8 @@ class VaultListViewModel @Inject constructor(
                     }
                 } finally {
                     sftpSession.disconnect()
+                    jsch.removeAllIdentity()
+                    keyBytes?.fill(0)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -594,12 +612,27 @@ class VaultListViewModel @Inject constructor(
         val port = configRepo.getSftpPort()
         val user = configRepo.getSftpUser()
         val keyPath = configRepo.getSftpKeyPath()
+        val sshKeyId = configRepo.getSftpKeyId()
         val remotePath = configRepo.getSftpRemotePath()
 
         val localPath = sessionHolder.getRepository().manager.getVaultPath(username)
 
         val jsch = JSch()
-        jsch.addIdentity(keyPath)
+        var keyBytes: ByteArray? = null
+        val vault = sessionHolder.vault
+        val keyEntry = vault?.sshKeyEntries?.find { it.id == sshKeyId }
+        if (keyEntry != null) {
+            val privChars = keyEntry.privateKey
+            if (privChars != null) {
+                keyBytes = String(privChars).toByteArray(Charsets.UTF_8)
+                SecureWiper.wipe(privChars)
+                jsch.addIdentity("vault_key", keyBytes, null, null)
+            }
+        } else if (keyPath.isNotBlank()) {
+            jsch.addIdentity(keyPath)
+        } else {
+            return
+        }
         val sftpSession = jsch.getSession(user, host, port)
         val knownHostsFile = java.io.File(
             android.os.Environment.getExternalStorageDirectory(), ".ssh/known_hosts"
@@ -622,6 +655,8 @@ class VaultListViewModel @Inject constructor(
             }
         } finally {
             sftpSession.disconnect()
+            jsch.removeAllIdentity()
+            keyBytes?.fill(0)
         }
     }
 
@@ -655,8 +690,8 @@ class VaultListViewModel @Inject constructor(
                     vault.addAppEntry(entry)
                     count++
                 }
-                for (entry in sourceVault.cardEntries) {
-                    vault.addCardEntry(entry)
+                for (entry in sourceVault.sshKeyEntries) {
+                    vault.addSshKeyEntry(entry)
                     count++
                 }
                 sessionHolder.save()

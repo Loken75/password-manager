@@ -60,8 +60,6 @@ public class VaultImporter {
         int passwordIdx = -1, urlIdx = -1;
         int notesIdx = -1, categoryIdx = -1, tagsIdx = -1, favoriteIdx = -1;
         int typeIdx = -1, pinIdx = -1;
-        int cardholderNameIdx = -1, cardNumberIdx = -1, expiryDateIdx = -1;
-        int cvvIdx = -1, cardPinIdx = -1, cardTypeIdx = -1;
         boolean headerRecognized = false;
 
         for (int i = 0; i < headers.length; i++) {
@@ -83,12 +81,6 @@ public class VaultImporter {
                     case "favorite": favoriteIdx = i; break;
                     case "type": typeIdx = i; break;
                     case "pin": pinIdx = i; break;
-                    case "cardholder_name": cardholderNameIdx = i; break;
-                    case "card_number": cardNumberIdx = i; break;
-                    case "expiry_date": expiryDateIdx = i; break;
-                    case "cvv": cvvIdx = i; break;
-                    case "card_pin": cardPinIdx = i; break;
-                    case "card_type": cardTypeIdx = i; break;
                 }
             }
         }
@@ -122,37 +114,6 @@ public class VaultImporter {
                 entry.setFavorite("true".equalsIgnoreCase(favVal));
                 if (entry.getTitle() != null && !entry.getTitle().isEmpty()) {
                     vault.addAppEntry(entry);
-                    count++;
-                }
-            } else if ("CARD".equals(typeVal)) {
-                CardEntry entry = new CardEntry();
-                entry.setTitle(sanitizeField(getField(parts, titleIdx)));
-                entry.setCardholderName(sanitizeField(getField(parts, cardholderNameIdx)));
-                String cardNumStr = sanitizeField(getField(parts, cardNumberIdx));
-                if (!cardNumStr.isEmpty()) {
-                    char[] chars = cardNumStr.toCharArray();
-                    entry.setCardNumber(chars);
-                    SecureWiper.wipe(chars);
-                }
-                entry.setExpiryDate(sanitizeField(getField(parts, expiryDateIdx)));
-                String cvvStr = sanitizeField(getField(parts, cvvIdx));
-                if (!cvvStr.isEmpty()) {
-                    char[] chars = cvvStr.toCharArray();
-                    entry.setCvv(chars);
-                    SecureWiper.wipe(chars);
-                }
-                String cardPinStr = sanitizeField(getField(parts, cardPinIdx));
-                if (!cardPinStr.isEmpty()) {
-                    char[] chars = cardPinStr.toCharArray();
-                    entry.setCardPin(chars);
-                    SecureWiper.wipe(chars);
-                }
-                entry.setCardType(CardType.normalize(sanitizeField(getField(parts, cardTypeIdx))));
-                entry.setNotes(sanitizeField(getField(parts, notesIdx)));
-                String favVal = sanitizeField(getField(parts, favoriteIdx));
-                entry.setFavorite("true".equalsIgnoreCase(favVal));
-                if (entry.getTitle() != null && !entry.getTitle().isEmpty()) {
-                    vault.addCardEntry(entry);
                     count++;
                 }
             } else {
@@ -251,28 +212,16 @@ public class VaultImporter {
             }
         }
 
-        // Import card entries
-        if (!imported.getCardEntries().isEmpty()) {
-            int limit = Math.min(imported.getCardEntries().size(), MAX_IMPORT_ENTRIES - count);
+        // Import SSH key entries
+        if (!imported.getSshKeyEntries().isEmpty()) {
+            int limit = Math.min(imported.getSshKeyEntries().size(), MAX_IMPORT_ENTRIES - count);
             for (int i = 0; i < limit; i++) {
-                CardEntry entry = imported.getCardEntries().get(i);
+                SshKeyEntry entry = imported.getSshKeyEntries().get(i);
                 entry.setId(UUID.randomUUID().toString());
                 if (entry.getTitle() != null) {
                     entry.setTitle(truncateField(sanitizeField(entry.getTitle())));
                 }
-                if (entry.getCardholderName() != null) {
-                    entry.setCardholderName(truncateField(sanitizeField(entry.getCardholderName())));
-                }
-                if (entry.getExpiryDate() != null) {
-                    String expiry = sanitizeField(entry.getExpiryDate()).trim();
-                    entry.setExpiryDate(expiry.matches("\\d{2}/\\d{2}") ? expiry : "");
-                }
-                // Normalize legacy localized card type to internal key
-                entry.setCardType(CardType.normalize(entry.getCardType()));
-                if (entry.getNotes() != null) {
-                    entry.setNotes(truncateField(sanitizeField(entry.getNotes())));
-                }
-                vault.addCardEntry(entry);
+                vault.addSshKeyEntry(entry);
                 count++;
             }
         }
@@ -335,19 +284,6 @@ public class VaultImporter {
         // App fields
         for (String alias : new String[]{"pin", "code pin", "code"})
             map.put(alias, "pin");
-        // Card fields
-        for (String alias : new String[]{"cardholdername", "cardholder_name", "nom du porteur", "porteur"})
-            map.put(alias, "cardholder_name");
-        for (String alias : new String[]{"cardnumber", "card_number", "numero de carte", "numero carte"})
-            map.put(alias, "card_number");
-        for (String alias : new String[]{"expirydate", "expiry_date", "expiration", "date expiration"})
-            map.put(alias, "expiry_date");
-        for (String alias : new String[]{"cvv", "cvc", "code securite"})
-            map.put(alias, "cvv");
-        for (String alias : new String[]{"cardpin", "card_pin", "code carte", "pin carte"})
-            map.put(alias, "card_pin");
-        for (String alias : new String[]{"cardtype", "card_type", "type carte"})
-            map.put(alias, "card_type");
         return map;
     }
 

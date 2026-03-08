@@ -100,34 +100,13 @@ class VaultTest {
     }
 
     @Test
-    void addCardEntry() {
-        Vault vault = new Vault("user");
-        CardEntry entry = new CardEntry("Card", "Holder", "4111222233334444".toCharArray(),
-            "01/26", "123".toCharArray(), "0000".toCharArray(), "Visa", null);
-        vault.addCardEntry(entry);
-        assertEquals(1, vault.getCardEntries().size());
-    }
-
-    @Test
-    void removeCardEntry() {
-        Vault vault = new Vault("user");
-        CardEntry entry = new CardEntry("Card", "Holder", "4111222233334444".toCharArray(),
-            "01/26", null, null, "Visa", null);
-        vault.addCardEntry(entry);
-        assertTrue(vault.removeCardEntry(entry));
-        assertEquals(0, vault.getCardEntries().size());
-    }
-
-    @Test
-    void wipeAlsoWipesAppAndCardEntries() {
+    void wipeAlsoWipesAppEntries() {
         Vault vault = new Vault("user");
         vault.addEntry(new PasswordEntry("T", "u", "p".toCharArray(), "", "", "C", null));
         vault.addAppEntry(new AppEntry("App", "u", "1234".toCharArray(), null));
-        vault.addCardEntry(new CardEntry("Card", "H", "4111".toCharArray(), "01/26", null, null, "Visa", null));
         vault.wipe();
         assertEquals(0, vault.getEntries().size());
         assertEquals(0, vault.getAppEntries().size());
-        assertEquals(0, vault.getCardEntries().size());
     }
 
     @Test
@@ -137,14 +116,6 @@ class VaultTest {
         vault.setAppEntries(null);
         assertNotNull(vault.getAppEntries());
         assertEquals(0, vault.getAppEntries().size());
-    }
-
-    @Test
-    void getCardEntriesNullSafe() {
-        Vault vault = new Vault("user");
-        vault.setCardEntries(null);
-        assertNotNull(vault.getCardEntries());
-        assertEquals(0, vault.getCardEntries().size());
     }
 
     @Test

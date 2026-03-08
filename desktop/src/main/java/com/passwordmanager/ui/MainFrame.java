@@ -42,7 +42,6 @@ public class MainFrame extends JFrame {
     private SyncService syncService;
     private VaultPanel vaultPanel;
     private AppPanel appPanel;
-    private CardPanel cardPanel;
     private JTabbedPane tabbedPane;
     private JLabel statusLabel;
     private Thread shutdownHook;
@@ -132,15 +131,8 @@ public class MainFrame extends JFrame {
             statusLabel.setText(getStatusText());
         });
 
-        cardPanel = new CardPanel(vaultService.getCardService(), appConfig.getClipboardClearSeconds());
-        cardPanel.setOnVaultChanged(() -> {
-            saveVault();
-            statusLabel.setText(getStatusText());
-        });
-
         tabbedPane.addTab(lang.getString("tab.passwords"), vaultPanel);
         tabbedPane.addTab(lang.getString("tab.applications"), appPanel);
-        tabbedPane.addTab(lang.getString("tab.cards"), cardPanel);
 
         add(tabbedPane, BorderLayout.CENTER);
 
@@ -329,7 +321,6 @@ public class MainFrame extends JFrame {
             statusLabel.setText(getStatusText());
             vaultPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
             appPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
-            cardPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
             autoLockManager.startAutoLock();
             boolean remoteEnabled = appConfig.getStorageMode() == StorageMode.REMOTE;
             syncNowMenuItem.setEnabled(remoteEnabled);
@@ -424,7 +415,6 @@ public class MainFrame extends JFrame {
         autoLockManager.cleanup();
         vaultPanel.cancelClipboardTimer();
         appPanel.cancelClipboardTimer();
-        cardPanel.cancelClipboardTimer();
         if (updateManager != null) updateManager.stop();
     }
 
@@ -503,16 +493,13 @@ public class MainFrame extends JFrame {
                 vault.getEntriesMutable(), remoteVault.getEntriesMutable());
             EntryMerger.MergeResult<AppEntry> appMerge = syncService.mergeEntries(
                 vault.getAppEntriesMutable(), remoteVault.getAppEntriesMutable());
-            EntryMerger.MergeResult<CardEntry> cardMerge = syncService.mergeEntries(
-                vault.getCardEntriesMutable(), remoteVault.getCardEntriesMutable());
-
             boolean hasConflicts = passwordMerge.hasConflicts()
-                || appMerge.hasConflicts() || cardMerge.hasConflicts();
+                || appMerge.hasConflicts();
 
             String vaultFilename = "vault_" + username + ".enc";
             if (!hasConflicts) {
                 // Auto-merge: no conflicts, apply merged entries directly
-                applyMerge(passwordMerge, appMerge, cardMerge);
+                applyMerge(passwordMerge, appMerge);
                 SyncService.SyncResult mergeResult = syncService.syncAfterMerge(
                     vaultFilename,
                     () -> vaultManager.saveVault(vault, username, session));
@@ -524,24 +511,21 @@ public class MainFrame extends JFrame {
                     showError(mergeResult.getMessage());
                 }
             } else {
-                // Collect all conflicts (password, app, card) into a single dialog
+                // Collect all conflicts (password, app) into a single dialog
                 List<EntryMerger.Conflict<? extends VaultItem>> allConflicts = new ArrayList<>();
                 allConflicts.addAll(passwordMerge.getConflicts());
                 allConflicts.addAll(appMerge.getConflicts());
-                allConflicts.addAll(cardMerge.getConflicts());
 
                 ConflictResolutionDialog dlg = new ConflictResolutionDialog(this, allConflicts);
                 dlg.setVisible(true);
                 if (dlg.isConfirmed()) {
                     List<VaultItem> resolved = dlg.getResolvedEntries();
-                    applyMerge(passwordMerge, appMerge, cardMerge);
+                    applyMerge(passwordMerge, appMerge);
                     for (VaultItem item : resolved) {
                         if (item instanceof PasswordEntry) {
                             vault.addEntry((PasswordEntry) item);
                         } else if (item instanceof AppEntry) {
                             vault.addAppEntry((AppEntry) item);
-                        } else if (item instanceof CardEntry) {
-                            vault.addCardEntry((CardEntry) item);
                         }
                     }
                     SyncService.SyncResult mergeResult = syncService.syncAfterMerge(
@@ -589,8 +573,7 @@ public class MainFrame extends JFrame {
     }
 
     private void applyMerge(EntryMerger.MergeResult<PasswordEntry> passwordMerge,
-                            EntryMerger.MergeResult<AppEntry> appMerge,
-                            EntryMerger.MergeResult<CardEntry> cardMerge) {
+                            EntryMerger.MergeResult<AppEntry> appMerge) {
         vault.getEntriesMutable().clear();
         for (PasswordEntry e : passwordMerge.getMergedEntries()) {
             vault.addEntry(e);
@@ -599,17 +582,12 @@ public class MainFrame extends JFrame {
         for (AppEntry e : appMerge.getMergedEntries()) {
             vault.addAppEntry(e);
         }
-        vault.getCardEntriesMutable().clear();
-        for (CardEntry e : cardMerge.getMergedEntries()) {
-            vault.addCardEntry(e);
-        }
     }
 
     private void addNewEntryForActiveTab() {
         int idx = tabbedPane.getSelectedIndex();
         switch (idx) {
             case 1: appPanel.addNewEntry(); break;
-            case 2: cardPanel.addNewEntry(); break;
             default: vaultPanel.addNewEntry(); break;
         }
     }
@@ -618,7 +596,6 @@ public class MainFrame extends JFrame {
         int idx = tabbedPane.getSelectedIndex();
         switch (idx) {
             case 1: appPanel.editSelectedEntry(); break;
-            case 2: cardPanel.editSelectedEntry(); break;
             default: vaultPanel.editSelectedEntry(); break;
         }
     }
@@ -627,7 +604,6 @@ public class MainFrame extends JFrame {
         int idx = tabbedPane.getSelectedIndex();
         switch (idx) {
             case 1: appPanel.deleteSelectedEntry(); break;
-            case 2: cardPanel.deleteSelectedEntry(); break;
             default: vaultPanel.deleteSelectedEntry(); break;
         }
     }
@@ -635,7 +611,6 @@ public class MainFrame extends JFrame {
     private void refreshAllPanels() {
         vaultPanel.refreshAll();
         appPanel.refreshEntries();
-        cardPanel.refreshEntries();
     }
 
     /**
@@ -646,7 +621,6 @@ public class MainFrame extends JFrame {
      * Valid fields per panel:
      *   Passwords  (0) - TITLE, USERNAME, EMAIL, URL, DATE, CATEGORY
      *   Applications (1) - TITLE, USERNAME, DATE
-     *   Cards (2) - TITLE, CARDHOLDER_NAME, CARD_TYPE, DATE
      */
     private void setSortModeForActiveTab(SortField field) {
         int idx = tabbedPane.getSelectedIndex();
@@ -663,19 +637,6 @@ public class MainFrame extends JFrame {
                         break;
                 }
                 break;
-            case 2: // Cards
-                switch (field) {
-                    case TITLE:
-                    case CARDHOLDER_NAME:
-                    case CARD_TYPE:
-                    case DATE:
-                        cardPanel.setSortMode(field);
-                        break;
-                    default:
-                        cardPanel.setSortMode(SortField.TITLE);
-                        break;
-                }
-                break;
             default: // Passwords (index 0)
                 vaultPanel.setSortMode(field);
                 break;
@@ -686,7 +647,7 @@ public class MainFrame extends JFrame {
         String mode = appConfig.getStorageMode() == StorageMode.LOCAL
             ? lang.getString("sync.status_local")
             : syncService.getSyncStatus();
-        int total = vault.getEntries().size() + vault.getAppEntries().size() + vault.getCardEntries().size();
+        int total = vault.getEntries().size() + vault.getAppEntries().size();
         return mode + "  |  " + username + "  |  " + total + " " + lang.getString("vault.entries");
     }
 

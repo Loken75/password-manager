@@ -12,7 +12,7 @@
 -keep class com.passwordmanager.vault.Vault { *; }
 -keep class com.passwordmanager.vault.PasswordEntry { *; }
 -keep class com.passwordmanager.vault.AppEntry { *; }
--keep class com.passwordmanager.vault.CardEntry { *; }
+-keep class com.passwordmanager.vault.SshKeyEntry { *; }
 -keep class com.passwordmanager.vault.VaultItem { *; }
 -keep class com.passwordmanager.vault.VaultLoadResult { *; }
 -keep class com.passwordmanager.vault.VaultManager$CharArrayAdapter { *; }

@@ -257,21 +257,24 @@
     <string name="vault_bulk_actions">Actions</string>
     <string name="vault_toggle_favorites">Toggle favorites</string>
 
-    <!-- Card entry fields -->
-    <string name="entry_cardholder_name">Cardholder name</string>
-    <string name="entry_card_number">Card number</string>
-    <string name="entry_expiry_date">Expiry date</string>
-    <string name="entry_cvv">CVV</string>
-    <string name="entry_card_pin">Card PIN</string>
-    <string name="entry_card_type">Card type</string>
-    <string name="card_type_visa">Visa</string>
-    <string name="card_type_mastercard">Mastercard</string>
-    <string name="card_type_amex">American Express</string>
-    <string name="card_type_cb">CB</string>
-    <string name="card_type_other">Other</string>
-
-    <!-- Tabs -->
-    <string name="tab_cards">Cards</string>
+    <!-- SSH Key Management -->
+    <string name="ssh_key_management_title">SSH Keys</string>
+    <string name="ssh_key_generate">Generate key</string>
+    <string name="ssh_key_import">Import key</string>
+    <string name="ssh_key_import_hint">Select a private key file (PEM format)</string>
+    <string name="ssh_key_select_file">Select file</string>
+    <string name="ssh_key_name">Key name</string>
+    <string name="ssh_key_type">Key type</string>
+    <string name="ssh_key_public_key">Public key</string>
+    <string name="ssh_key_view_public">Public key</string>
+    <string name="ssh_key_delete_confirm">Delete this SSH key?</string>
+    <string name="ssh_key_name_required">Key name is required</string>
+    <string name="ssh_key_generate_error">Failed to generate key</string>
+    <string name="ssh_key_invalid">Invalid key file</string>
+    <string name="ssh_key_empty">No SSH keys</string>
+    <string name="ssh_key_empty_subtitle">Generate or import a key to get started</string>
+    <string name="ssh_key_manage">Manage SSH keys</string>
+    <string name="ssh_key_none_available">No keys — add one first</string>
 
     <!-- Sync Merge -->
     <string name="sync_merge_conflicts">Merge conflicts detected</string>

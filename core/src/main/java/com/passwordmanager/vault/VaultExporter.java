@@ -21,7 +21,7 @@ public class VaultExporter {
 
     public char[] exportAsCsv(Vault vault) {
         StringBuilder sb = new StringBuilder();
-        sb.append("type,title,username,email,password,url,notes,category,tags,favorite,pin,cardholderName,cardNumber,expiryDate,cvv,cardPin,cardType\n");
+        sb.append("type,title,username,email,password,url,notes,category,tags,favorite,pin\n");
 
         // Password entries
         for (PasswordEntry e : vault.getEntries()) {
@@ -38,8 +38,7 @@ public class VaultExporter {
             sb.append(csvEscape(e.getCategory())).append(",");
             sb.append(csvEscape(e.getTags() != null ? String.join(";", e.getTags()) : "")).append(",");
             sb.append(e.isFavorite() ? "true" : "false");
-            // Empty columns for app/card fields
-            sb.append(",,,,,,,\n");
+            sb.append(",\n"); // empty pin column
         }
 
         // App entries
@@ -56,39 +55,8 @@ public class VaultExporter {
             sb.append(e.isFavorite() ? "true" : "false").append(",");
             char[] pin = e.getPin();
             csvEscapeChars(sb, pin);
+            sb.append("\n");
             SecureWiper.wipe(pin);
-            // Empty columns for card fields
-            sb.append(",,,,,,\n");
-        }
-
-        // Card entries
-        for (CardEntry e : vault.getCardEntries()) {
-            sb.append("CARD,");
-            sb.append(csvEscape(e.getTitle())).append(",");
-            sb.append(","); // username
-            sb.append(","); // email
-            sb.append(","); // password
-            sb.append(","); // url
-            sb.append(csvEscape(e.getNotes())).append(",");
-            sb.append(","); // category
-            sb.append(","); // tags
-            sb.append(e.isFavorite() ? "true" : "false").append(",");
-            sb.append(","); // pin
-            sb.append(csvEscape(e.getCardholderName())).append(",");
-            char[] cardNum = e.getCardNumber();
-            csvEscapeChars(sb, cardNum);
-            sb.append(",");
-            SecureWiper.wipe(cardNum);
-            sb.append(csvEscape(e.getExpiryDate())).append(",");
-            char[] cvv = e.getCvv();
-            csvEscapeChars(sb, cvv);
-            sb.append(",");
-            SecureWiper.wipe(cvv);
-            char[] cardPin = e.getCardPin();
-            csvEscapeChars(sb, cardPin);
-            sb.append(",");
-            SecureWiper.wipe(cardPin);
-            sb.append(csvEscape(e.getCardType())).append("\n");
         }
 
         // Extract to char[] and wipe the StringBuilder

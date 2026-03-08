@@ -35,6 +35,7 @@ import com.passwordmanager.android.ui.login.LoginScreen
 import com.passwordmanager.android.ui.settings.CategoryManagementScreen
 import com.passwordmanager.android.ui.settings.ChangeMasterPasswordScreen
 import com.passwordmanager.android.ui.settings.SettingsScreen
+import com.passwordmanager.android.ui.settings.SshKeyManagementScreen
 import com.passwordmanager.android.ui.vault.*
 
 object Routes {
@@ -51,11 +52,10 @@ object Routes {
     const val ENTRY_EDIT = "entry_edit?entryId={entryId}"
     const val APP_DETAIL = "app_detail/{entryId}"
     const val APP_EDIT = "app_edit?entryId={entryId}"
-    const val CARD_DETAIL = "card_detail/{entryId}"
-    const val CARD_EDIT = "card_edit?entryId={entryId}"
     const val GENERATOR = "generator?returnPassword={returnPassword}"
     const val CHANGE_MASTER_PASSWORD = "change_master_password"
     const val CATEGORY_MANAGEMENT = "category_management"
+    const val SSH_KEY_MANAGEMENT = "ssh_key_management"
 
     fun entryDetail(entryId: String) = "entry_detail/$entryId"
     fun entryEdit(entryId: String? = null) =
@@ -63,9 +63,6 @@ object Routes {
     fun appDetail(entryId: String) = "app_detail/$entryId"
     fun appEdit(entryId: String? = null) =
         if (entryId != null) "app_edit?entryId=$entryId" else "app_edit"
-    fun cardDetail(entryId: String) = "card_detail/$entryId"
-    fun cardEdit(entryId: String? = null) =
-        if (entryId != null) "card_edit?entryId=$entryId" else "card_edit"
     fun generator(returnPassword: Boolean = false) = "generator?returnPassword=$returnPassword"
 }
 
@@ -149,8 +146,6 @@ fun AppNavigation() {
                     onNewPasswordEntry = { navController.navigate(Routes.entryEdit()) },
                     onAppEntryClick = { entryId -> navController.navigate(Routes.appDetail(entryId)) },
                     onNewAppEntry = { navController.navigate(Routes.appEdit()) },
-                    onCardEntryClick = { entryId -> navController.navigate(Routes.cardDetail(entryId)) },
-                    onNewCardEntry = { navController.navigate(Routes.cardEdit()) },
                     onLock = { SessionHolder.lock() }
                 )
             }
@@ -184,6 +179,9 @@ fun AppNavigation() {
                     },
                     onManageCategories = {
                         navController.navigate(Routes.CATEGORY_MANAGEMENT)
+                    },
+                    onManageSshKeys = {
+                        navController.navigate(Routes.SSH_KEY_MANAGEMENT)
                     },
                     showBackNavigation = false
                 )
@@ -297,55 +295,6 @@ fun AppNavigation() {
                 )
             }
 
-            // ── Modal: Card Detail ──
-            composable(
-                route = Routes.CARD_DETAIL,
-                arguments = listOf(navArgument("entryId") { type = NavType.StringType }),
-                enterTransition = {
-                    slideInVertically(initialOffsetY = { it }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
-                },
-                exitTransition = { fadeOut(animationSpec = tween(300)) },
-                popEnterTransition = { fadeIn(animationSpec = tween(300)) },
-                popExitTransition = {
-                    slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
-                }
-            ) { backStackEntry ->
-                val entryId = backStackEntry.arguments?.getString("entryId") ?: return@composable
-                CardDetailScreen(
-                    entryId = entryId,
-                    onBack = { navController.popBackStack() },
-                    onEdit = { navController.navigate(Routes.cardEdit(entryId)) },
-                    onDeleted = { navController.popBackStack() }
-                )
-            }
-
-            // ── Modal: Card Edit ──
-            composable(
-                route = Routes.CARD_EDIT,
-                arguments = listOf(
-                    navArgument("entryId") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    }
-                ),
-                enterTransition = {
-                    slideInVertically(initialOffsetY = { it }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
-                },
-                exitTransition = { fadeOut(animationSpec = tween(300)) },
-                popEnterTransition = { fadeIn(animationSpec = tween(300)) },
-                popExitTransition = {
-                    slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
-                }
-            ) { backStackEntry ->
-                val entryId = backStackEntry.arguments?.getString("entryId")
-                CardEditScreen(
-                    entryId = entryId,
-                    onBack = { navController.popBackStack() },
-                    onSaved = { navController.popBackStack() }
-                )
-            }
-
             // ── Modal: Generator (return password mode) ──
             composable(
                 route = Routes.GENERATOR,
@@ -392,6 +341,21 @@ fun AppNavigation() {
                 )
             }
 
+            // ── Modal: SSH Key Management ──
+            composable(
+                route = Routes.SSH_KEY_MANAGEMENT,
+                enterTransition = {
+                    slideInVertically(initialOffsetY = { it }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
+                },
+                popExitTransition = {
+                    slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
+                }
+            ) {
+                SshKeyManagementScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
             // ── Modal: Change Master Password ──
             composable(
                 route = Routes.CHANGE_MASTER_PASSWORD,
@@ -418,14 +382,11 @@ private fun VaultTabHost(
     onNewPasswordEntry: () -> Unit,
     onAppEntryClick: (String) -> Unit,
     onNewAppEntry: () -> Unit,
-    onCardEntryClick: (String) -> Unit,
-    onNewCardEntry: () -> Unit,
     onLock: () -> Unit
 ) {
     val tabs = listOf(
         stringResource(R.string.tab_passwords),
-        stringResource(R.string.tab_applications),
-        stringResource(R.string.tab_cards)
+        stringResource(R.string.tab_applications)
     )
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val coroutineScope = rememberCoroutineScope()
@@ -454,11 +415,6 @@ private fun VaultTabHost(
                 1 -> AppListScreen(
                     onEntryClick = onAppEntryClick,
                     onNewEntry = onNewAppEntry,
-                    onLock = onLock
-                )
-                2 -> CardListScreen(
-                    onEntryClick = onCardEntryClick,
-                    onNewEntry = onNewCardEntry,
                     onLock = onLock
                 )
             }

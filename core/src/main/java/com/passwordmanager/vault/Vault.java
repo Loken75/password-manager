@@ -21,7 +21,7 @@ public class Vault {
     private String updatedAt;
     private List<PasswordEntry> entries;
     private List<AppEntry> appEntries;
-    private List<CardEntry> cardEntries;
+    private List<SshKeyEntry> sshKeyEntries;
     private List<String> categories;
     private Map<String, Object> settings;
 
@@ -30,7 +30,7 @@ public class Vault {
     private Vault() {
         this.entries = new ArrayList<>();
         this.appEntries = new ArrayList<>();
-        this.cardEntries = new ArrayList<>();
+        this.sshKeyEntries = new ArrayList<>();
         this.categories = new ArrayList<>();
         this.settings = new HashMap<>();
     }
@@ -47,7 +47,7 @@ public class Vault {
         this.updatedAt = now;
         this.entries = new ArrayList<>();
         this.appEntries = new ArrayList<>();
-        this.cardEntries = new ArrayList<>();
+        this.sshKeyEntries = new ArrayList<>();
         this.categories = new ArrayList<>(defaultCategories);
         this.settings = new HashMap<>();
         this.settings.put("auto_lock_minutes", 15);
@@ -71,11 +71,11 @@ public class Vault {
             }
             appEntries.clear();
         }
-        if (cardEntries != null) {
-            for (CardEntry entry : cardEntries) {
+        if (sshKeyEntries != null) {
+            for (SshKeyEntry entry : sshKeyEntries) {
                 entry.wipe();
             }
-            cardEntries.clear();
+            sshKeyEntries.clear();
         }
         if (categories != null) {
             categories.clear();
@@ -129,22 +129,22 @@ public class Vault {
     }
     public void setAppEntries(List<AppEntry> appEntries) { this.appEntries = appEntries; }
 
-    /** Returns a read-only view of the card entries list. Null-safe for vaults loaded without this field. */
-    public List<CardEntry> getCardEntries() {
-        return Collections.unmodifiableList(cardEntries != null ? cardEntries : Collections.emptyList());
+    /** Returns a read-only view of the SSH key entries list. Null-safe for vaults loaded without this field. */
+    public List<SshKeyEntry> getSshKeyEntries() {
+        return Collections.unmodifiableList(sshKeyEntries != null ? sshKeyEntries : Collections.emptyList());
     }
-    public List<CardEntry> getCardEntriesMutable() {
-        if (cardEntries == null) cardEntries = new ArrayList<>();
-        return cardEntries;
+    public List<SshKeyEntry> getSshKeyEntriesMutable() {
+        if (sshKeyEntries == null) sshKeyEntries = new ArrayList<>();
+        return sshKeyEntries;
     }
-    public synchronized void addCardEntry(CardEntry entry) {
-        if (cardEntries == null) cardEntries = new ArrayList<>();
-        cardEntries.add(entry);
+    public synchronized void addSshKeyEntry(SshKeyEntry entry) {
+        if (sshKeyEntries == null) sshKeyEntries = new ArrayList<>();
+        sshKeyEntries.add(entry);
     }
-    public synchronized boolean removeCardEntry(CardEntry entry) {
-        return cardEntries != null && cardEntries.remove(entry);
+    public synchronized boolean removeSshKeyEntry(SshKeyEntry entry) {
+        return sshKeyEntries != null && sshKeyEntries.remove(entry);
     }
-    public void setCardEntries(List<CardEntry> cardEntries) { this.cardEntries = cardEntries; }
+    public void setSshKeyEntries(List<SshKeyEntry> sshKeyEntries) { this.sshKeyEntries = sshKeyEntries; }
 
     public List<String> getCategories() { return categories; }
     public void setCategories(List<String> categories) { this.categories = categories; }

@@ -28,7 +28,7 @@ class VaultExporterTest {
     @Test
     void exportCsvHeader() {
         String csv = new String(exporter.exportAsCsv(vault));
-        assertTrue(csv.startsWith("type,title,username,email,password,url,notes,category,tags,favorite,pin,cardholderName,cardNumber,expiryDate,cvv,cardPin,cardType\n"));
+        assertTrue(csv.startsWith("type,title,username,email,password,url,notes,category,tags,favorite,pin\n"));
     }
 
     @Test

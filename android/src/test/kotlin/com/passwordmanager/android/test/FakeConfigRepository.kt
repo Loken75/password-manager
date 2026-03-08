@@ -42,6 +42,9 @@ class FakeConfigRepository : ConfigRepository {
     override fun setSftpKeyPath(path: String) { this.sftpKeyPath = path }
     override fun getSftpRemotePath(): String = sftpRemotePath
     override fun setSftpRemotePath(path: String) { this.sftpRemotePath = path }
+    private var sftpKeyId = ""
+    override fun getSftpKeyId(): String = sftpKeyId
+    override fun setSftpKeyId(keyId: String) { this.sftpKeyId = keyId }
 
     // Biometric
     private val biometricEnabled = mutableMapOf<String, Boolean>()

@@ -381,46 +381,33 @@ class VaultImporterTest {
         app.setNotes("app notes");
         exportVault.addAppEntry(app);
 
-        CardEntry card = new CardEntry();
-        card.setTitle("MyCard");
-        card.setCardholderName("John Doe");
-        card.setCardNumber("4111111111111111".toCharArray());
-        card.setExpiryDate("12/25");
-        card.setCvv("123".toCharArray());
-        card.setCardPin("9999".toCharArray());
-        card.setCardType("Visa");
-        card.setNotes("card notes");
-        exportVault.addCardEntry(card);
-
         String csv = new String(exporter.exportAsCsv(exportVault));
         String[] lines = csv.split("\n");
 
-        // Header: 17 columns = 16 commas
-        assertEquals(17, countFields(lines[0]));
+        // Header: 11 columns = 10 commas
+        assertEquals(11, countFields(lines[0]));
 
-        // Each data row must also have 17 fields
+        // Each data row must also have 11 fields
         for (int i = 1; i < lines.length; i++) {
-            assertEquals(17, countFields(lines[i]),
+            assertEquals(11, countFields(lines[i]),
                     "Row " + i + " has wrong column count: " + lines[i]);
         }
 
         // Round-trip: re-import and verify
         Vault importVault = new Vault("importuser");
         int count = importer.importFromCsv(importVault, csv);
-        assertEquals(3, count);
+        assertEquals(2, count);
         assertEquals(1, importVault.getEntries().size());
         assertEquals(1, importVault.getAppEntries().size());
-        assertEquals(1, importVault.getCardEntries().size());
 
         assertEquals("MySite", importVault.getEntries().get(0).getTitle());
         assertEquals("MyApp", importVault.getAppEntries().get(0).getTitle());
-        assertEquals("MyCard", importVault.getCardEntries().get(0).getTitle());
     }
 
-    // ---- Round-trip tests covering all 3 entry types ----
+    // ---- Round-trip tests covering both entry types ----
 
     @Test
-    void csvRoundTripAllThreeEntryTypes() {
+    void csvRoundTripBothEntryTypes() {
         Vault exportVault = new Vault("testuser");
 
         // PasswordEntry with all fields
@@ -435,14 +422,6 @@ class VaultImporterTest {
         app.setFavorite(false);
         exportVault.addAppEntry(app);
 
-        // CardEntry with all card-specific fields
-        CardEntry card = new CardEntry("My Visa", "Jean Dupont",
-                "4111222233334444".toCharArray(), "12/28",
-                "321".toCharArray(), "5555".toCharArray(),
-                CardType.VISA, "Primary card");
-        card.setFavorite(true);
-        exportVault.addCardEntry(card);
-
         // Export to CSV
         String csv = new String(exporter.exportAsCsv(exportVault));
 
@@ -450,10 +429,9 @@ class VaultImporterTest {
         Vault importVault = new Vault("importuser");
         int count = importer.importFromCsv(importVault, csv);
 
-        assertEquals(3, count);
+        assertEquals(2, count);
         assertEquals(1, importVault.getEntries().size());
         assertEquals(1, importVault.getAppEntries().size());
-        assertEquals(1, importVault.getCardEntries().size());
 
         // Verify PasswordEntry fields
         PasswordEntry iPwd = importVault.getEntries().get(0);
@@ -474,22 +452,10 @@ class VaultImporterTest {
         assertArrayEquals("7890".toCharArray(), iApp.getPin());
         assertEquals("Work chat app", iApp.getNotes());
         assertFalse(iApp.isFavorite());
-
-        // Verify CardEntry fields
-        CardEntry iCard = importVault.getCardEntries().get(0);
-        assertEquals("My Visa", iCard.getTitle());
-        assertEquals("Jean Dupont", iCard.getCardholderName());
-        assertArrayEquals("4111222233334444".toCharArray(), iCard.getCardNumber());
-        assertEquals("12/28", iCard.getExpiryDate());
-        assertArrayEquals("321".toCharArray(), iCard.getCvv());
-        assertArrayEquals("5555".toCharArray(), iCard.getCardPin());
-        assertEquals(CardType.VISA, iCard.getCardType());
-        assertEquals("Primary card", iCard.getNotes());
-        assertTrue(iCard.isFavorite());
     }
 
     @Test
-    void jsonRoundTripAllThreeEntryTypes() {
+    void jsonRoundTripBothEntryTypes() {
         Vault exportVault = new Vault("testuser");
 
         // PasswordEntry with all fields
@@ -504,14 +470,6 @@ class VaultImporterTest {
         app.setFavorite(true);
         exportVault.addAppEntry(app);
 
-        // CardEntry with all card-specific fields
-        CardEntry card = new CardEntry("Mastercard Pro", "Marie Martin",
-                "5500112233445566".toCharArray(), "06/27",
-                "789".toCharArray(), "1111".toCharArray(),
-                CardType.MASTERCARD, "Business card");
-        card.setFavorite(false);
-        exportVault.addCardEntry(card);
-
         // Export to JSON
         String json = new String(exporter.exportAsJson(exportVault));
 
@@ -519,10 +477,9 @@ class VaultImporterTest {
         Vault importVault = new Vault("importuser");
         int count = importer.importFromJson(importVault, json);
 
-        assertEquals(3, count);
+        assertEquals(2, count);
         assertEquals(1, importVault.getEntries().size());
         assertEquals(1, importVault.getAppEntries().size());
-        assertEquals(1, importVault.getCardEntries().size());
 
         // Verify PasswordEntry fields
         PasswordEntry iPwd = importVault.getEntries().get(0);
@@ -543,18 +500,6 @@ class VaultImporterTest {
         assertArrayEquals("1234".toCharArray(), iApp.getPin());
         assertEquals("2FA app", iApp.getNotes());
         assertTrue(iApp.isFavorite());
-
-        // Verify CardEntry fields
-        CardEntry iCard = importVault.getCardEntries().get(0);
-        assertEquals("Mastercard Pro", iCard.getTitle());
-        assertEquals("Marie Martin", iCard.getCardholderName());
-        assertArrayEquals("5500112233445566".toCharArray(), iCard.getCardNumber());
-        assertEquals("06/27", iCard.getExpiryDate());
-        assertArrayEquals("789".toCharArray(), iCard.getCvv());
-        assertArrayEquals("1111".toCharArray(), iCard.getCardPin());
-        assertEquals(CardType.MASTERCARD, iCard.getCardType());
-        assertEquals("Business card", iCard.getNotes());
-        assertFalse(iCard.isFavorite());
     }
 
     @Test
@@ -568,10 +513,9 @@ class VaultImporterTest {
         int count = importer.importFromCsv(vault, csv);
         assertEquals(3, count);
 
-        // All entries must be PasswordEntry (no AppEntry or CardEntry)
+        // All entries must be PasswordEntry (no AppEntry)
         assertEquals(3, vault.getEntries().size());
         assertEquals(0, vault.getAppEntries().size());
-        assertEquals(0, vault.getCardEntries().size());
 
         // Verify first entry
         PasswordEntry e1 = vault.getEntries().get(0);

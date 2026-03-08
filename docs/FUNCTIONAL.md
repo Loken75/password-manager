@@ -10,7 +10,7 @@
 6. [Types d'entrees](#6-types-dentrees)
    - 6.1. [Entrees mot de passe (Mots de passe)](#61-entrees-mot-de-passe-mots-de-passe)
    - 6.2. [Entrees application (Applications)](#62-entrees-application-applications)
-   - 6.3. [Entrees carte bancaire (Cartes)](#63-entrees-carte-bancaire-cartes)
+   - 6.3. [Entrees cle SSH (Android uniquement)](#63-entrees-cle-ssh-android-uniquement)
 7. [Gestion des entrees](#7-gestion-des-entrees)
 8. [Recherche, tri et filtres](#8-recherche-tri-et-filtres)
 9. [Categories](#9-categories)
@@ -37,7 +37,7 @@ Password Manager est une application multiplateforme permettant de stocker, orga
 ### Fonctionnalites principales
 
 - Coffre-fort chiffre par utilisateur (AES-256-GCM)
-- **Trois types d'entrees** : mots de passe, applications (codes PIN) et cartes bancaires
+- **Trois types d'entrees** : mots de passe, applications (codes PIN) et cles SSH
 - Creation, modification, suppression et recherche d'entrees
 - Generateur de mots de passe cryptographiquement sur
 - Analyse de securite (mots de passe faibles, reutilises, anciens)
@@ -174,13 +174,12 @@ Acces rapide aux fonctions courantes :
 
 ### 5.3. Zone centrale (onglets + 3 colonnes)
 
-La zone centrale est organisee en un **JTabbedPane** avec trois onglets correspondant aux types d'entrees :
+La zone centrale est organisee en un **JTabbedPane** avec deux onglets correspondant aux types d'entrees :
 
 | Onglet | Contenu |
 |--------|---------|
 | **Mots de passe** | Panneau principal avec categories (gauche), tableau des entrees mot de passe (centre) et panneau de details (droite) |
 | **Applications** | Tableau des entrees application (centre) et panneau de details (droite). Pas de panneau de categories. |
-| **Cartes** | Tableau des entrees carte bancaire (centre) et panneau de details (droite). Pas de panneau de categories. |
 
 Pour l'onglet **Mots de passe**, la disposition en 3 colonnes reste inchangee :
 
@@ -190,7 +189,7 @@ Pour l'onglet **Mots de passe**, la disposition en 3 colonnes reste inchangee :
 | **Centre** | Barre de recherche + filtres avances + tableau des entrees (Favori, Titre avec favicon, Identifiant, Email, Pseudo, Categorie, Force) — tous les en-tetes cliquables pour trier (y compris Favori et Force). Menu "Actions..." en masse en bas (visible quand >1 entree selectionnee) |
 | **Droite** (300 px) | Details de l'entree selectionnee |
 
-Les onglets **Applications** et **Cartes** suivent une disposition similaire mais sans le panneau de categories a gauche, et avec des colonnes adaptees a chaque type d'entree.
+L'onglet **Applications** suit une disposition similaire mais sans le panneau de categories a gauche, et avec des colonnes adaptees a ce type d'entree.
 
 ### 5.4. Barre de statut
 
@@ -204,7 +203,7 @@ Affiche en bas de la fenetre :
 Apres connexion, l'interface Android se compose de :
 
 - **TopAppBar** avec titre, icone de recherche et menu overflow (importer..., exporter..., synchroniser (desactive en mode local), audit de securite, parametres, verrouiller)
-- **TabRow + HorizontalPager** avec trois onglets : **Mots de passe**, **Applications**, **Cartes**. L'utilisateur peut naviguer entre les onglets par swipe ou en appuyant sur les titres d'onglets.
+- **TabRow + HorizontalPager** avec deux onglets : **Mots de passe** et **Applications**. L'utilisateur peut naviguer entre les onglets par swipe ou en appuyant sur les titres d'onglets.
 - **Dropdown categorie** pour le filtrage (visible uniquement sur l'onglet Mots de passe) : liste deroulante "Toutes les categories" + categories existantes
 - **Liste scrollable** (LazyColumn) des entrees adaptee a l'onglet actif, avec favicon (ou avatar lettre), titre, et champs specifiques au type d'entree
 - **Selection multiple** : appui long sur une entree pour activer le mode selection, checkbox sur chaque entree, menu "Actions..." (changement de categorie pour les mots de passe, ajout/retrait des favoris, suppression en masse avec confirmation)
@@ -217,7 +216,7 @@ La navigation suit le pattern Android standard : appui sur le bouton retour pour
 
 ## 6. Types d'entrees
 
-Le coffre-fort gere trois types d'entrees, chacun adapte a un usage specifique. Les entrees sont reparties dans des onglets dedies (desktop : JTabbedPane, Android : TabRow + HorizontalPager).
+Le coffre-fort gere trois types d'entrees. Les mots de passe et applications sont affiches dans des onglets dedies (desktop : JTabbedPane, Android : TabRow + HorizontalPager). Les cles SSH sont gerees via un ecran dedie dans les parametres (Android uniquement).
 
 ### 6.1. Entrees mot de passe (Mots de passe)
 
@@ -254,24 +253,26 @@ Le champ **Code PIN** est masque par defaut avec un bouton **Afficher/Masquer**.
 
 Les entrees application ne supportent ni les categories, ni les tags.
 
-### 6.3. Entrees carte bancaire (Cartes)
+### 6.3. Entrees cle SSH (Android uniquement)
 
-Type dedie au stockage securise des informations de cartes bancaires.
+Type dedie au stockage des cles SSH pour l'authentification serveur.
 
 | Champ | Obligatoire | Description |
 |-------|:-----------:|-------------|
-| Titre | Oui | Nom descriptif de la carte (ex: "Visa principale") |
-| Nom du titulaire | Non | Nom tel qu'imprime sur la carte |
-| Numero de carte | Non | Numero de la carte (masque par defaut) |
-| Date d'expiration | Non | Format MM/AA |
-| CVV | Non | Code de securite a 3 ou 4 chiffres (masque par defaut) |
-| Code PIN | Non | Code PIN de la carte (masque par defaut) |
-| Type de carte | Non | Liste deroulante : Visa, Mastercard, Amex, CB, Autre |
+| Titre | Oui | Nom descriptif de la cle |
+| Cle privee | Oui | Contenu de la cle privee (char[], copie defensive, effacement securise) |
+| Cle publique | Non | Contenu de la cle publique |
+| Type de cle | Non | Type de cle (RSA, Ed25519, etc.) |
+| Empreinte | Non | Fingerprint de la cle |
 | Notes | Non | Informations complementaires |
 
-Les champs **Numero de carte**, **CVV** et **Code PIN** sont masques par defaut avec un bouton **Afficher/Masquer** pour chacun.
+**Acces** : Parametres > Gerer les cles SSH (Android uniquement)
 
-Les entrees carte bancaire ne supportent ni les categories, ni les tags.
+Les cles SSH ne sont pas affichees dans les onglets principaux. Elles sont gerees dans un ecran dedie accessible depuis les parametres Android (`SshKeyManagementScreen`). Cet ecran permet de creer, modifier et supprimer des cles SSH.
+
+Les cles SSH ne supportent ni les categories, ni les tags, ni les favoris. Elles sont incluses dans les exports JSON et les sauvegardes chiffrees (.enc), mais pas dans les exports CSV. L'import JSON et l'import .enc incluent les cles SSH.
+
+> **Note** : la gestion des cles SSH n'est disponible que sur Android. Sur desktop, les cles SSH presentes dans le coffre (importees ou synchronisees) sont conservees mais ne disposent pas d'interface de gestion.
 
 ---
 
@@ -286,7 +287,6 @@ Les operations de creation, modification et suppression s'appliquent a tous les 
 Le raccourci `Ctrl+N` cree une entree du type correspondant a l'onglet actuellement actif :
 - Sur l'onglet **Mots de passe** : cree une entree mot de passe
 - Sur l'onglet **Applications** : cree une entree application
-- Sur l'onglet **Cartes** : cree une entree carte bancaire
 
 Le formulaire affiche les champs specifiques au type d'entree (voir [section 6](#6-types-dentrees)).
 
@@ -330,8 +330,7 @@ Un clic droit sur le tableau affiche un menu contextuel avec les actions disponi
 | Copier l'email | 1 entree (mot de passe) | Copie dans le presse-papiers |
 | Copier l'URL | 1 entree (mot de passe) | Copie dans le presse-papiers |
 | Ouvrir l'URL | 1 entree (mot de passe) | Ouvre l'URL dans le navigateur par defaut |
-| Copier le PIN | 1 entree (application, carte) | Copie dans le presse-papiers |
-| Copier le numero de carte | 1 entree (carte) | Copie dans le presse-papiers |
+| Copier le PIN | 1 entree (application) | Copie dans le presse-papiers |
 | Dupliquer | 1 entree | Cree une copie de l'entree avec le prefixe "Copie de" |
 
 ### 7.6. Dupliquer une entree (Desktop)
@@ -358,12 +357,6 @@ Cliquer sur une entree dans le tableau affiche ses details dans le panneau droit
 - **Code PIN masque** par defaut avec bouton d'affichage (re-masquage automatique apres 30 secondes)
 - Bouton **Copier le PIN** pour copier le code PIN dans le presse-papiers
 
-**Entree carte bancaire** :
-- Titre (en gras, centre)
-- Grille de details : nom du titulaire, numero de carte (masque), date d'expiration, CVV (masque), code PIN (masque), type de carte, notes, dates de creation et modification
-- Les champs sensibles (numero, CVV, PIN) sont masques par defaut avec bouton d'affichage (re-masquage automatique apres 30 secondes)
-- Bouton **Copier le numero** pour copier le numero de carte dans le presse-papiers
-
 ---
 
 ## 8. Recherche, tri et filtres
@@ -376,7 +369,6 @@ La barre de recherche en haut du tableau filtre les entrees au fur et a mesure d
 |---------------|-------------------|
 | **Mots de passe** | Titre, identifiant, email, pseudo, URL, notes, categorie, tags |
 | **Applications** | Titre, identifiant, notes |
-| **Cartes bancaires** | Titre, nom du titulaire, type de carte, notes |
 
 ### 8.2. Tri
 
@@ -406,15 +398,6 @@ Les options de tri disponibles dependent du type d'entree :
 | Trier par identifiant | Ordre alphabetique sur l'identifiant |
 | Trier par date | Plus recemment modifie en premier |
 
-**Entrees carte bancaire** :
-
-| Option | Comportement |
-|--------|-------------|
-| Trier par nom | Ordre alphabetique sur le titre |
-| Trier par titulaire | Ordre alphabetique sur le nom du titulaire |
-| Trier par type de carte | Regroupement par type de carte |
-| Trier par date | Plus recemment modifie en premier |
-
 Sur le desktop, cliquer sur un en-tete de colonne du tableau applique directement le tri correspondant.
 
 ### 8.3. Filtres de securite
@@ -430,7 +413,7 @@ Ces filtres s'appliquent uniquement aux entrees mot de passe.
 
 ### 8.4. Filtrage par categorie
 
-Le filtre par categorie (panneau lateral desktop, dropdown Android) s'applique uniquement aux entrees mot de passe. Il n'est pas affiche sur les onglets Applications et Cartes.
+Le filtre par categorie (panneau lateral desktop, dropdown Android) s'applique uniquement aux entrees mot de passe. Il n'est pas affiche sur l'onglet Applications.
 
 ### 8.5. Actualiser
 
@@ -442,7 +425,7 @@ Recharge l'affichage du coffre depuis les donnees en memoire.
 
 ## 9. Categories
 
-Les categories s'appliquent exclusivement aux **entrees mot de passe**. Les entrees application et carte bancaire ne supportent pas les categories.
+Les categories s'appliquent exclusivement aux **entrees mot de passe**. Les entrees application ne supportent pas les categories.
 
 ### Categories par defaut
 
@@ -483,7 +466,7 @@ Les categories creees dans le formulaire d'edition d'entree (en saisissant un no
 
 ## 10. Favoris
 
-Les favoris fonctionnent pour les trois types d'entrees (mots de passe, applications, cartes bancaires).
+Les favoris fonctionnent pour les deux types d'entrees (mots de passe et applications).
 
 ### Marquer une entree comme favorite
 
@@ -543,7 +526,7 @@ Un indicateur de force du mot de passe est affiche en temps reel.
 
 **Acces** : Outils > Analyse de securite
 
-L'analyse de securite s'applique exclusivement aux **entrees mot de passe**. Les entrees application et carte bancaire ne sont pas evaluees par l'audit.
+L'analyse de securite s'applique exclusivement aux **entrees mot de passe**. Les entrees application ne sont pas evaluees par l'audit.
 
 L'analyse examine les entrees mot de passe du coffre et genere un rapport visuel comprenant quatre sections colorees :
 
@@ -587,7 +570,7 @@ Le resultat affiche le nombre total de problemes detectes, ou confirme qu'aucun 
 
 ## 13. Import et export
 
-L'import et l'export se font via une **popup unifiee** (desktop et Android) qui propose le choix du format : CSV, JSON ou sauvegarde chiffree (.enc). Les trois types d'entrees (mots de passe, applications, cartes) sont pris en charge.
+L'import et l'export se font via une **popup unifiee** (desktop et Android) qui propose le choix du format : CSV, JSON ou sauvegarde chiffree (.enc). Les trois types d'entrees sont pris en charge (mots de passe et applications en CSV/JSON/.enc ; cles SSH en JSON et .enc uniquement).
 
 **Acces** : Fichier > Importer... / Exporter... (desktop) | Menu overflow > Importer... / Exporter... (Android)
 
@@ -607,7 +590,6 @@ La colonne `type` determine le type d'entree a creer :
 |--------|---------------|
 | `PASSWORD` (ou absent) | Entree mot de passe |
 | `APP` | Entree application |
-| `CARD` | Entree carte bancaire |
 
 **Retrocompatibilite** : si la colonne `type` est absente, toutes les entrees sont importees comme des entrees mot de passe (comportement identique aux versions precedentes).
 
@@ -635,30 +617,7 @@ La colonne `type` determine le type d'entree a creer :
 |-------|---------------|
 | Code PIN | `pin`, `code pin`, `app_pin` |
 
-**Champs entrees carte bancaire** :
-
-| Champ | Alias acceptes |
-|-------|---------------|
-| Nom du titulaire | `cardholder`, `cardholder_name`, `card_holder`, `titulaire`, `nom du titulaire` |
-| Numero de carte | `card_number`, `numero de carte`, `card number` |
-| Date d'expiration | `expiry`, `expiry_date`, `expiration`, `date expiration` |
-| CVV | `cvv`, `cvc`, `security_code`, `code securite` |
-| Code PIN carte | `card_pin`, `pin carte`, `card pin` |
-| Type de carte | `card_type`, `type de carte`, `card type` |
-
 La detection est insensible a la casse et aux accents.
-
-#### Valeurs du type de carte
-
-Le type de carte est stocke en cle interne dans le CSV et le JSON :
-
-| Cle interne | Affichage |
-|-------------|-----------|
-| `VISA` | Visa |
-| `MASTERCARD` | Mastercard |
-| `AMEX` | Amex |
-| `CB` | CB |
-| `OTHER` | Autre |
 
 #### Repli positionnel
 
@@ -682,10 +641,9 @@ PASSWORD,Gmail,john_doe,john@example.com,JohnD,MyP@ssw0rd,https://gmail.com,Comp
 
 Format avec entrees mixtes :
 ```csv
-type,title,username,pin,cardholder_name,card_number,expiry_date,cvv,card_pin,card_type,password,email,url,notes,category,tags
-PASSWORD,Gmail,john_doe,,,,,,,,MyP@ssw0rd,john@example.com,https://gmail.com,Compte principal,Email,google;mail
-APP,Banque Mobile,user123,1234,,,,,,,,,,,,
-CARD,Visa principale,,,,Jean Dupont,4111111111111111,12/26,123,0000,VISA,,,,,,
+type,title,username,pin,password,email,url,notes,category,tags
+PASSWORD,Gmail,john_doe,,MyP@ssw0rd,john@example.com,https://gmail.com,Compte principal,Email,google;mail
+APP,Banque Mobile,user123,1234,,,,,,
 ```
 
 Format francais avec point-virgule (retrocompatible, pas de colonne type) :
@@ -696,15 +654,15 @@ Gmail;https://gmail.com;user@example.com;MyP@ssw0rd;Compte principal
 
 ### 13.2. Import JSON
 
-Importe un fichier JSON au format d'export de l'application. Le format JSON supporte automatiquement les trois types d'entrees via des listes separees (`passwords`, `apps`, `cards`). Chaque entree recoit un nouvel identifiant unique. Les champs sont assainis et tronques a 10 000 caracteres.
+Importe un fichier JSON au format d'export de l'application. Le format JSON supporte automatiquement les trois types d'entrees via des listes separees (`entries`, `appEntries`, `sshKeyEntries`). Chaque entree recoit un nouvel identifiant unique. Les champs sont assainis et tronques a 10 000 caracteres.
 
 ### 13.3. Import sauvegarde chiffree
 
-Importe les entrees depuis un fichier coffre chiffre (`.enc`) provenant d'un autre utilisateur ou d'une sauvegarde. Un champ de mot de passe (masque par defaut, avec case a cocher **Afficher**) permet de saisir le mot de passe maitre du vault source. Les entrees dechiffrees (tous types confondus) sont **ajoutees par fusion** au coffre courant (les entrees existantes ne sont pas ecrasees).
+Importe les entrees depuis un fichier coffre chiffre (`.enc`) provenant d'un autre utilisateur ou d'une sauvegarde. Un champ de mot de passe (masque par defaut, avec case a cocher **Afficher**) permet de saisir le mot de passe maitre du vault source. Les entrees dechiffrees (mots de passe, applications et cles SSH) sont **ajoutees par fusion** au coffre courant (les entrees existantes ne sont pas ecrasees).
 
 ### 13.4. Export CSV
 
-Exporte toutes les entrees avec une colonne `type` indiquant le type d'entree (`PASSWORD`, `APP`, `CARD`). Les colonnes exportees incluent l'ensemble des champs de tous les types : `type`, `title`, `username`, `email`, `pseudo`, `password`, `url`, `notes`, `category`, `tags`, `favorite`, `pin`, `cardholder_name`, `card_number`, `expiry_date`, `cvv`, `card_pin`, `card_type`. Les champs non applicables a un type donne sont laisses vides.
+Exporte les entrees mots de passe et applications avec une colonne `type` indiquant le type d'entree (`PASSWORD`, `APP`). Les colonnes exportees sont : `type`, `title`, `username`, `email`, `password`, `url`, `notes`, `category`, `tags`, `favorite`, `pin`. Les champs non applicables a un type donne sont laisses vides. Les cles SSH ne sont pas incluses dans l'export CSV (utiliser JSON ou .enc).
 
 > **Avertissement** : les donnees exportees ne sont **pas chiffrees**. Un message d'avertissement est affiche avant l'export.
 
@@ -714,11 +672,11 @@ Le fichier exporte recoit automatiquement des permissions restrictives (propriet
 
 ### 13.5. Export JSON
 
-Exporte le coffre complet au format JSON avec des listes separees par type (`passwords`, `apps`, `cards`). Les donnees ne sont pas chiffrees. Le fichier exporte recoit des permissions restrictives.
+Exporte le coffre complet au format JSON avec des listes separees par type (`entries`, `appEntries`, `sshKeyEntries`). Les donnees ne sont pas chiffrees. Le fichier exporte recoit des permissions restrictives.
 
 ### 13.6. Export sauvegarde chiffree
 
-Cree une copie du fichier coffre chiffre (`.enc`). Ce fichier ne peut etre ouvert qu'avec le mot de passe maitre correspondant. C'est le **moyen le plus sur** de sauvegarder vos donnees. Tous les types d'entrees sont inclus.
+Cree une copie du fichier coffre chiffre (`.enc`). Ce fichier ne peut etre ouvert qu'avec le mot de passe maitre correspondant. C'est le **moyen le plus sur** de sauvegarder vos donnees.
 
 ### 13.7. Specificites Android
 
@@ -728,7 +686,7 @@ Sur Android, l'import et l'export utilisent le **Storage Access Framework (SAF)*
 
 ## 14. Synchronisation distante
 
-La synchronisation SFTP est disponible sur **desktop et Android**. Elle permet de maintenir le coffre synchronise entre plusieurs appareils via un serveur SFTP. La synchronisation porte sur les trois types d'entrees (mots de passe, applications, cartes bancaires).
+La synchronisation SFTP est disponible sur **desktop et Android**. Elle permet de maintenir le coffre synchronise entre plusieurs appareils via un serveur SFTP. La synchronisation porte sur les trois types d'entrees. La fusion par entree (`EntryMerger`) est appliquee aux 3 types sur Android, et aux mots de passe et applications sur desktop.
 
 ### 14.1. Modes de stockage
 
@@ -780,7 +738,7 @@ Lorsque le coffre a ete modifie a la fois localement et sur le serveur, le syste
 
 **Si aucun conflit** : la fusion est automatique, le resultat est sauvegarde localement et uploade sur le serveur.
 
-**Si des conflits existent** : un dialogue de resolution s'affiche avec une vue cote-a-cote (local / distant) pour chaque entree en conflit. Les champs affiches dans la comparaison sont adaptes au type d'entree (champs mot de passe, champs application ou champs carte bancaire). L'utilisateur choisit la version a conserver pour chaque entree.
+**Si des conflits existent** : un dialogue de resolution s'affiche avec une vue cote-a-cote (local / distant) pour chaque entree en conflit. Les champs affiches dans la comparaison sont adaptes au type d'entree (champs mot de passe ou champs application). L'utilisateur choisit la version a conserver pour chaque entree.
 
 **Fallback** : si la fusion echoue, l'ancien mode est propose :
 
@@ -946,7 +904,7 @@ L'application verifie automatiquement la disponibilite de nouvelles versions via
 
 Android 8.0+ (API 26) propose un framework d'auto-remplissage (Autofill) que Password Manager integre pour remplir automatiquement les champs de connexion dans les applications et navigateurs.
 
-> **Note** : le service d'auto-remplissage ne recherche des correspondances que parmi les **entrees mot de passe**. Les entrees application et carte bancaire ne sont pas proposees en suggestions d'auto-remplissage.
+> **Note** : le service d'auto-remplissage ne recherche des correspondances que parmi les **entrees mot de passe**. Les entrees application ne sont pas proposees en suggestions d'auto-remplissage.
 
 ### Activation
 
@@ -1011,8 +969,8 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | Coffre-fort chiffre AES-256-GCM + AAD | Oui | Oui |
 | Entrees mot de passe | Oui (onglet Mots de passe) | Oui (onglet Mots de passe) |
 | Entrees application | Oui (onglet Applications) | Oui (onglet Applications) |
-| Entrees carte bancaire | Oui (onglet Cartes) | Oui (onglet Cartes) |
-| Navigation par onglets | JTabbedPane (3 onglets) | TabRow + HorizontalPager (3 onglets) |
+| Entrees cle SSH | Conservees dans le coffre (pas d'UI) | Oui (Parametres > Gerer les cles SSH) |
+| Navigation par onglets | JTabbedPane (2 onglets) | TabRow + HorizontalPager (2 onglets) |
 | CRUD entrees | Oui (tous types) | Oui (tous types) |
 | Favoris (etoile, tri prioritaire) | Oui (tous types) | Oui (tous types) |
 | Filtres avances (categorie, force, date, favoris) | Oui | Oui (FilterChips) |

@@ -374,7 +374,7 @@ public class VaultManager {
     /**
      * Imports entries from an encrypted vault file (.enc) into the target vault.
      * Decrypts the source file using sourcePassword and returns the source vault
-     * containing all entry types (passwords, apps, cards).
+     * containing all entry types (passwords, apps, SSH keys).
      *
      * @param sourcePassword the master password for the encrypted source file
      * @param encFilePath path to the .enc vault file

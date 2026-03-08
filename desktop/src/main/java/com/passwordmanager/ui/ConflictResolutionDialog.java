@@ -3,8 +3,6 @@ package com.passwordmanager.ui;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.sync.EntryMerger;
 import com.passwordmanager.vault.AppEntry;
-import com.passwordmanager.vault.CardEntry;
-import com.passwordmanager.vault.CardType;
 import com.passwordmanager.vault.PasswordEntry;
 import com.passwordmanager.vault.VaultItem;
 
@@ -16,7 +14,7 @@ import java.util.List;
 /**
  * Dialog for resolving entry-level sync conflicts.
  * Shows local vs remote versions side-by-side with radio button selection.
- * Supports PasswordEntry, AppEntry, and CardEntry conflicts.
+ * Supports PasswordEntry and AppEntry conflicts.
  */
 public class ConflictResolutionDialog extends JDialog {
     private final LanguageManager lang = LanguageManager.getInstance();
@@ -103,16 +101,6 @@ public class ConflictResolutionDialog extends JDialog {
             AppEntry e = (AppEntry) item;
             return (e.getUsername() != null ? e.getUsername() : "") + " — " +
                 (e.getPin() != null ? "****" : "") + " — " +
-                (e.getUpdatedAt() != null ? e.getUpdatedAt() : "");
-        } else if (item instanceof CardEntry) {
-            CardEntry e = (CardEntry) item;
-            String cardTypeDisplay = e.getCardType() != null
-                ? lang.getString(CardType.toDesktopMessageKey(e.getCardType()))
-                : "";
-            String last4 = e.getLast4Digits();
-            return (e.getCardholderName() != null ? e.getCardholderName() : "") + " — " +
-                cardTypeDisplay +
-                (last4 != null ? " ****" + last4 : "") + " — " +
                 (e.getUpdatedAt() != null ? e.getUpdatedAt() : "");
         }
         // Fallback for unknown types

@@ -5,7 +5,6 @@ import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.util.FileSecurityUtils;
 import com.passwordmanager.util.SecureWiper;
 import com.passwordmanager.vault.AppEntry;
-import com.passwordmanager.vault.CardEntry;
 import com.passwordmanager.vault.Vault;
 import com.passwordmanager.vault.PasswordEntry;
 import com.passwordmanager.vault.VaultManager;
@@ -154,8 +153,8 @@ public class ImportExportController {
                 vault.addAppEntry(entry);
                 count++;
             }
-            for (CardEntry entry : sourceVault.getCardEntries()) {
-                vault.addCardEntry(entry);
+            for (com.passwordmanager.vault.SshKeyEntry entry : sourceVault.getSshKeyEntries()) {
+                vault.addSshKeyEntry(entry);
                 count++;
             }
             saveVaultCallback.run();

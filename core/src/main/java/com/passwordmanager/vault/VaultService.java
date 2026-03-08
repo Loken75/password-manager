@@ -12,13 +12,11 @@ public class VaultService {
     private Vault vault;
     private PasswordService passwordService;
     private AppService appService;
-    private CardService cardService;
 
     public VaultService(Vault vault) {
         this.vault = vault;
         this.passwordService = new PasswordService(vault);
         this.appService = new AppService(vault);
-        this.cardService = new CardService(vault);
     }
 
     public Vault getVault() { return vault; }
@@ -27,12 +25,10 @@ public class VaultService {
         this.vault = vault;
         this.passwordService = new PasswordService(vault);
         this.appService = new AppService(vault);
-        this.cardService = new CardService(vault);
     }
 
     public PasswordService getPasswordService() { return passwordService; }
     public AppService getAppService() { return appService; }
-    public CardService getCardService() { return cardService; }
 
     // === Delegate to PasswordService for backward compatibility ===
 
