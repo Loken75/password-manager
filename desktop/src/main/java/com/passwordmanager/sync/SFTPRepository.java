@@ -3,6 +3,7 @@ package com.passwordmanager.sync;
 import com.jcraft.jsch.*;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -32,18 +33,36 @@ public class SFTPRepository implements RemoteSyncRepository {
     public void connect() throws JSchException {
         JSch jsch = new JSch();
         jsch.addIdentity(privateKeyPath);
-        // Note: if the key is passphrase-protected, JSch will throw JSchException
-        // if no passphrase is provided. Unencrypted keys work but are less secure.
-        LOGGER.fine("Using SSH key: " + privateKeyPath);
+        LOGGER.fine("Using SSH key authentication");
 
+        // SEC-01: Ensure known_hosts exists so StrictHostKeyChecking can work.
+        // Without this file, all connections are rejected with no guidance.
         String knownHostsPath = System.getProperty("user.home") + File.separator + ".ssh" + File.separator + "known_hosts";
-        if (new File(knownHostsPath).exists()) {
-            jsch.setKnownHosts(knownHostsPath);
+        File knownHostsFile = new File(knownHostsPath);
+        if (!knownHostsFile.exists()) {
+            try {
+                knownHostsFile.getParentFile().mkdirs();
+                if (!knownHostsFile.createNewFile()) {
+                    LOGGER.warning("Could not create known_hosts file");
+                }
+            } catch (IOException e) {
+                LOGGER.log(Level.WARNING, "Failed to create known_hosts file", e);
+            }
         }
+        jsch.setKnownHosts(knownHostsPath);
 
         session = jsch.getSession(user, host, port);
         session.setConfig("StrictHostKeyChecking", "yes");
-        session.connect(30000);
+        try {
+            session.connect(30000);
+        } catch (JSchException e) {
+            if (e.getMessage() != null && e.getMessage().contains("reject HostKey")) {
+                throw new JSchException(
+                    "Host key rejected for " + host + ". Add it with: ssh-keyscan -p " + port
+                    + " " + host + " >> ~/.ssh/known_hosts", e);
+            }
+            throw e;
+        }
 
         try {
             Channel channel = session.openChannel("sftp");
@@ -95,9 +114,9 @@ public class SFTPRepository implements RemoteSyncRepository {
             if (e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE) {
                 return false;
             }
-            // Permission denied or other SFTP error — log and treat as non-existent
-            LOGGER.log(Level.WARNING, "SFTP lstat failed for " + remoteFilename + ": " + e.getMessage());
-            return false;
+            // SYNC-06: Propagate permission denied and other errors instead of
+            // silently treating them as "file absent" (which could cause overwrites).
+            throw new RuntimeException("SFTP error checking " + remoteFilename + ": " + e.getMessage(), e);
         }
     }
 

@@ -74,6 +74,8 @@ public class ConfigManager {
         props.setProperty("app.theme", config.getTheme().getValue());
         props.setProperty("storage.mode", config.getStorageMode().getValue());
         props.setProperty("sftp.host", ConfigEncryptor.encrypt(config.getSftpHost()));
+        // Port is intentionally not encrypted: it's not a secret (standard 22),
+        // and keeping it readable aids debugging without reducing security.
         props.setProperty("sftp.port", String.valueOf(config.getSftpPort()));
         props.setProperty("sftp.user", ConfigEncryptor.encrypt(config.getSftpUser()));
         props.setProperty("sftp.key_path", ConfigEncryptor.encrypt(config.getSftpKeyPath()));

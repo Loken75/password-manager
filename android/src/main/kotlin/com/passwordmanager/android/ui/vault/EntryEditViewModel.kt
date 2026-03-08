@@ -34,8 +34,12 @@ class EntryEditViewModel @Inject constructor(
     val uiState: StateFlow<EntryEditUiState> = _uiState.asStateFlow()
 
     private var existingEntryId: String? = null
+    private var isLoaded = false
 
     fun loadEntry(entryId: String?) {
+        if (isLoaded) return
+        isLoaded = true
+
         val vault = sessionHolder.vault ?: return
         val categories = vault.categories.sorted()
 

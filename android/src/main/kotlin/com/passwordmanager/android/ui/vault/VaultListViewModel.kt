@@ -493,7 +493,7 @@ class VaultListViewModel @Inject constructor(
                                     }
                                 }
                             } finally {
-                                tempFile.delete()
+                                secureDelete(tempFile)
                             }
                         }
                     } finally {
@@ -675,5 +675,28 @@ class VaultListViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "VaultListViewModel"
+
+        /** Overwrites file content with zeros before deleting to prevent forensic recovery. */
+        private fun secureDelete(file: java.io.File) {
+            try {
+                if (file.exists()) {
+                    val length = file.length()
+                    if (length > 0) {
+                        java.io.RandomAccessFile(file, "rw").use { raf ->
+                            val zeros = ByteArray(4096)
+                            var remaining = length
+                            while (remaining > 0) {
+                                val toWrite = minOf(remaining, zeros.size.toLong()).toInt()
+                                raf.write(zeros, 0, toWrite)
+                                remaining -= toWrite
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // Best-effort: proceed to delete even if overwrite fails
+            }
+            file.delete()
+        }
     }
 }

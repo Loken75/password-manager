@@ -9,8 +9,8 @@ import java.util.Map;
 
 /**
  * Entry-level vault merge logic for synchronization.
- * Merges local and remote vault items by ID, with last-write-wins
- * semantics and conflict detection when timestamps differ.
+ * Merges local and remote vault items by ID, with conflict detection
+ * and tombstone support for proper deletion propagation.
  * Generic over any VaultItem subtype.
  */
 public class EntryMerger {
@@ -18,17 +18,18 @@ public class EntryMerger {
     private EntryMerger() {}
 
     /**
-     * Merges local and remote entry lists.
+     * Merges local and remote entry lists with tombstone support.
      *
      * <ul>
-     *   <li>Entries only in local: kept as-is</li>
-     *   <li>Entries only in remote: added</li>
-     *   <li>Entries in both with same updatedAt: keep local</li>
-     *   <li>Entries in both with different updatedAt: marked as conflict</li>
+     *   <li>Entries only in local: kept as-is (including tombstones for propagation)</li>
+     *   <li>Entries only in remote: added (including tombstones for propagation)</li>
+     *   <li>Entries in both with same updatedAt and same deleted state: keep local</li>
+     *   <li>Tombstone vs live entry: most recent action wins (deletedAt vs updatedAt)</li>
+     *   <li>Both non-null different updatedAt (neither deleted): marked as conflict</li>
      * </ul>
      *
-     * @param local  the local vault entries
-     * @param remote the remote vault entries
+     * @param local  the local vault entries (including tombstones)
+     * @param remote the remote vault entries (including tombstones)
      * @return the merge result containing merged entries and any conflicts
      */
     public static <T extends VaultItem> MergeResult<T> merge(List<T> local, List<T> remote) {
@@ -45,34 +46,90 @@ public class EntryMerger {
         for (T localEntry : local) {
             T remoteEntry = remoteById.remove(localEntry.getId());
             if (remoteEntry == null) {
-                // Only in local: keep
+                // Only in local: keep (tombstone or live)
                 mergedEntries.add(localEntry);
             } else {
-                // In both: compare updatedAt
-                String localUpdated = localEntry.getUpdatedAt();
-                String remoteUpdated = remoteEntry.getUpdatedAt();
-                if (nullSafeEquals(localUpdated, remoteUpdated)) {
-                    // Same timestamp (including both null): keep local
-                    mergedEntries.add(localEntry);
-                } else if (localUpdated == null) {
-                    // Local has no date, remote does: take remote (no conflict)
-                    mergedEntries.add(remoteEntry);
-                } else if (remoteUpdated == null) {
-                    // Remote has no date, local does: keep local (no conflict)
-                    mergedEntries.add(localEntry);
-                } else {
-                    // Both non-null but different: conflict
-                    conflicts.add(new Conflict<>(localEntry, remoteEntry));
-                }
+                // In both: resolve based on deleted state and timestamps
+                mergedEntries.add(resolveEntry(localEntry, remoteEntry, conflicts));
             }
         }
 
-        // Remaining remote entries (only in remote): add
+        // Remaining remote entries (only in remote): add (tombstone or live)
         for (T remoteEntry : remoteById.values()) {
             mergedEntries.add(remoteEntry);
         }
 
         return new MergeResult<>(mergedEntries, conflicts);
+    }
+
+    /**
+     * Resolves which version to keep when an entry exists in both local and remote.
+     * Handles tombstone vs live, tombstone vs tombstone, and live vs live cases.
+     */
+    private static <T extends VaultItem> T resolveEntry(
+            T localEntry, T remoteEntry, List<Conflict<T>> conflicts) {
+
+        boolean localDeleted = localEntry.isDeleted();
+        boolean remoteDeleted = remoteEntry.isDeleted();
+
+        if (localDeleted && remoteDeleted) {
+            // Both deleted: keep the most recent tombstone
+            return compareDates(localEntry.getDeletedAt(), remoteEntry.getDeletedAt()) >= 0
+                ? localEntry : remoteEntry;
+        }
+
+        if (localDeleted && !remoteDeleted) {
+            // Local deleted, remote still alive: most recent action wins
+            String deleteTime = localEntry.getDeletedAt();
+            String updateTime = remoteEntry.getUpdatedAt();
+            if (compareDates(deleteTime, updateTime) >= 0) {
+                // Deletion is newer: keep tombstone
+                return localEntry;
+            } else {
+                // Remote was modified after deletion: keep remote (user re-edited)
+                return remoteEntry;
+            }
+        }
+
+        if (!localDeleted && remoteDeleted) {
+            // Remote deleted, local still alive: most recent action wins
+            String updateTime = localEntry.getUpdatedAt();
+            String deleteTime = remoteEntry.getDeletedAt();
+            if (compareDates(deleteTime, updateTime) >= 0) {
+                // Deletion is newer: keep tombstone
+                return remoteEntry;
+            } else {
+                // Local was modified after deletion: keep local
+                return localEntry;
+            }
+        }
+
+        // Both alive: compare updatedAt
+        String localUpdated = localEntry.getUpdatedAt();
+        String remoteUpdated = remoteEntry.getUpdatedAt();
+
+        if (nullSafeEquals(localUpdated, remoteUpdated)) {
+            return localEntry;
+        } else if (localUpdated == null) {
+            return remoteEntry;
+        } else if (remoteUpdated == null) {
+            return localEntry;
+        } else {
+            // Both non-null but different: conflict
+            conflicts.add(new Conflict<>(localEntry, remoteEntry));
+            return localEntry; // placeholder; caller replaces from conflict resolution
+        }
+    }
+
+    /**
+     * Compares two ISO timestamp strings. Handles nulls (null is "oldest").
+     * Returns positive if a > b, negative if a < b, 0 if equal.
+     */
+    private static int compareDates(String a, String b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return -1;
+        if (b == null) return 1;
+        return a.compareTo(b);
     }
 
     private static boolean nullSafeEquals(String a, String b) {

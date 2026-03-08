@@ -66,6 +66,19 @@ class EntryFilterTest {
     }
 
     @Test
+    void searchQueryMatchesTags() {
+        EntryFilter filter = new EntryFilter.Builder().searchQuery("important").build();
+        PasswordEntry match = new PasswordEntry("Entry", "u", "p".toCharArray(), "", "", "Cat",
+            Arrays.asList("important", "work"));
+        PasswordEntry noMatch = new PasswordEntry("Entry", "u", "p".toCharArray(), "", "", "Cat",
+            Arrays.asList("personal"));
+        PasswordEntry noTags = new PasswordEntry("Entry", "u", "p".toCharArray(), "", "", "Cat", null);
+        assertTrue(filter.matches(match));
+        assertFalse(filter.matches(noMatch));
+        assertFalse(filter.matches(noTags));
+    }
+
+    @Test
     void filterByTags() {
         EntryFilter filter = new EntryFilter.Builder().tags(Arrays.asList("work")).build();
         PasswordEntry match = new PasswordEntry("Tagged", "u", "p".toCharArray(), "", "", "Cat",

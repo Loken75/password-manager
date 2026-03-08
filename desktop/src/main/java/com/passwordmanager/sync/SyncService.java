@@ -3,9 +3,11 @@ package com.passwordmanager.sync;
 import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.StorageMode;
 import com.passwordmanager.sync.EntryMerger;
+import com.passwordmanager.util.FileSecurityUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.logging.Level;
@@ -13,6 +15,8 @@ import java.util.logging.Logger;
 
 /**
  * Orchestrates vault synchronization between local and remote storage.
+ * Uses three-way hash comparison (local, remote, last-synced) to determine
+ * sync direction without relying on unreliable cross-system timestamps.
  */
 public class SyncService {
     private static final Logger LOGGER = Logger.getLogger(SyncService.class.getName());
@@ -26,10 +30,13 @@ public class SyncService {
 
     /** Temp suffix used when downloading remote content for hash comparison. */
     private static final String SYNC_TMP_SUFFIX = ".sync_tmp";
+    /** Maximum number of retry attempts for transient network errors. */
+    private static final int MAX_RETRIES = 1;
+    /** Delay between retries in milliseconds. */
+    private static final long RETRY_DELAY_MS = 2000;
 
     /**
      * Production constructor: builds concrete repositories from AppConfig.
-     * Existing code using {@code new SyncService(appConfig)} continues to work.
      */
     public SyncService(AppConfig config) {
         this.config = config;
@@ -40,10 +47,6 @@ public class SyncService {
 
     /**
      * Testable constructor: accepts repository abstractions directly.
-     *
-     * @param localRepo   local file operations
-     * @param remoteRepo  remote file operations (may be null for LOCAL mode)
-     * @param storageMode determines whether sync is active
      */
     public SyncService(LocalSyncRepository localRepo, RemoteSyncRepository remoteRepo, StorageMode storageMode) {
         this.localRepo = localRepo;
@@ -76,6 +79,10 @@ public class SyncService {
     public String getSyncStatus() { return syncStatus; }
     public long getLastSyncTime() { return lastSyncTime; }
 
+    /**
+     * Synchronizes the vault with the remote server.
+     * Uses three-way hash comparison and retries once on transient errors.
+     */
     public SyncResult synchronize(String vaultFilename) {
         synchronized (lock) {
             if (storageMode != StorageMode.REMOTE || remoteRepo == null) {
@@ -83,86 +90,138 @@ public class SyncService {
                 return new SyncResult(true, "local");
             }
 
+            // Apply pending changes before sync
             try {
-                remoteRepo.connect();
-                syncStatus = "syncing";
-
                 if (localRepo.hasPending(vaultFilename)) {
                     String pending = localRepo.readPending(vaultFilename);
                     localRepo.writeFile(vaultFilename, pending);
                     localRepo.clearPending(vaultFilename);
                 }
+            } catch (IOException e) {
+                LOGGER.log(Level.WARNING, "Failed to apply pending changes", e);
+            }
 
-                boolean localExists = localRepo.fileExists(vaultFilename);
-                long localTime = localRepo.getLastModified(vaultFilename);
-                boolean remoteExists = remoteRepo.remoteFileExists(vaultFilename);
-
-                if (!remoteExists) {
-                    if (localExists) {
-                        String localPath = localRepo.getFilePath(vaultFilename);
-                        remoteRepo.uploadFile(localPath, vaultFilename);
+            // SYNC-08: Retry once on transient errors
+            Exception lastError = null;
+            for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    SyncResult result = doSyncCore(vaultFilename);
+                    return result;
+                } catch (Exception e) {
+                    lastError = e;
+                    LOGGER.log(Level.WARNING, "Sync attempt " + (attempt + 1) + " failed", e);
+                    if (attempt < MAX_RETRIES) {
+                        try {
+                            Thread.sleep(RETRY_DELAY_MS);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
                     }
+                } finally {
+                    if (remoteRepo != null) remoteRepo.disconnect();
+                }
+            }
+
+            // All retries exhausted: save pending and return error
+            syncStatus = "error";
+            try {
+                if (localRepo.fileExists(vaultFilename)) {
+                    localRepo.savePending(vaultFilename, localRepo.readFile(vaultFilename));
+                }
+            } catch (IOException ioEx) {
+                LOGGER.log(Level.SEVERE, "Failed to save pending changes", ioEx);
+            }
+            return new SyncResult(false, "error: " + (lastError != null ? lastError.getMessage() : "unknown"));
+        }
+    }
+
+    /**
+     * Core sync logic using three-way hash comparison.
+     * Compares local hash, remote hash, and last-synced hash to determine direction.
+     */
+    private SyncResult doSyncCore(String vaultFilename) throws Exception {
+        remoteRepo.connect();
+        syncStatus = "syncing";
+
+        boolean localExists = localRepo.fileExists(vaultFilename);
+        boolean remoteExists = remoteRepo.remoteFileExists(vaultFilename);
+
+        // Case 1: Remote doesn't exist
+        if (!remoteExists) {
+            if (localExists) {
+                String localPath = localRepo.getFilePath(vaultFilename);
+                remoteRepo.uploadFile(localPath, vaultFilename);
+                // Save sync hash for future three-way comparison
+                String localHash = hashContent(localRepo.readFile(vaultFilename));
+                localRepo.saveSyncMeta(vaultFilename, localHash);
+            }
+            lastSyncTime = System.currentTimeMillis();
+            syncStatus = "synced";
+            return new SyncResult(true, "uploaded");
+        }
+
+        // Case 2: Remote exists — download and compare
+        String localHash = localExists ? hashContent(localRepo.readFile(vaultFilename)) : "";
+        String lastSyncHash = localRepo.readSyncMeta(vaultFilename);
+
+        String tempFilename = vaultFilename + SYNC_TMP_SUFFIX;
+        String tempPath = localRepo.getFilePath(tempFilename);
+        try {
+            remoteRepo.downloadFile(vaultFilename, tempPath);
+            // SEC-02: Restrict permissions on temp file containing encrypted vault
+            FileSecurityUtils.setOwnerOnlyPermissions(Paths.get(tempPath));
+
+            String remoteHash = hashContent(localRepo.readFile(tempFilename));
+
+            // Same content: already in sync
+            if (localHash.equals(remoteHash)) {
+                localRepo.saveSyncMeta(vaultFilename, localHash);
+                lastSyncTime = System.currentTimeMillis();
+                syncStatus = "synced";
+                return new SyncResult(true, "synced");
+            }
+
+            // SYNC-03: Three-way hash comparison instead of unreliable timestamps
+            if (lastSyncHash != null) {
+                boolean localChanged = !localHash.equals(lastSyncHash);
+                boolean remoteChanged = !remoteHash.equals(lastSyncHash);
+
+                if (localChanged && !remoteChanged) {
+                    // Only local changed: upload
+                    String localPath = localRepo.getFilePath(vaultFilename);
+                    remoteRepo.uploadFile(localPath, vaultFilename);
+                    localRepo.saveSyncMeta(vaultFilename, localHash);
                     lastSyncTime = System.currentTimeMillis();
                     syncStatus = "synced";
                     return new SyncResult(true, "uploaded");
                 }
 
-                long remoteTime = remoteRepo.getRemoteLastModified(vaultFilename);
-                String localHash = hashContent(localRepo.readFile(vaultFilename));
-
-                // Download remote to a temp file, then compare hashes.
-                String tempFilename = vaultFilename + SYNC_TMP_SUFFIX;
-                String tempPath = localRepo.getFilePath(tempFilename);
-                try {
-                    remoteRepo.downloadFile(vaultFilename, tempPath);
-                    String remoteHash = hashContent(localRepo.readFile(tempFilename));
-
-                    if (localHash.equals(remoteHash)) {
-                        lastSyncTime = System.currentTimeMillis();
-                        syncStatus = "synced";
-                        return new SyncResult(true, "synced");
-                    }
-
-                    if (localTime >= remoteTime) {
-                        String localPath = localRepo.getFilePath(vaultFilename);
-                        remoteRepo.uploadFile(localPath, vaultFilename);
-                        lastSyncTime = System.currentTimeMillis();
-                        syncStatus = "synced";
-                        return new SyncResult(true, "uploaded");
-                    } else {
-                        syncStatus = "conflict";
-                        return new SyncResult(false, "CONFLICT");
-                    }
-                } finally {
-                    try {
-                        if (localRepo.fileExists(tempFilename)) {
-                            // Best-effort cleanup of temp file via writeFile + deleteFile
-                            // In production, Files.deleteIfExists handles this;
-                            // through the interface we rely on the implementation.
-                            cleanupTempFile(tempPath);
-                        }
-                    } catch (Exception e) {
-                        LOGGER.log(Level.WARNING, "Failed to clean up temp file", e);
-                    }
+                if (!localChanged && remoteChanged) {
+                    // Only remote changed: download via repo abstraction
+                    localRepo.createBackup(vaultFilename);
+                    String remoteContent = localRepo.readFile(tempFilename);
+                    localRepo.writeFile(vaultFilename, remoteContent);
+                    localRepo.saveSyncMeta(vaultFilename, remoteHash);
+                    lastSyncTime = System.currentTimeMillis();
+                    syncStatus = "synced";
+                    return new SyncResult(true, "downloaded");
                 }
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Sync failed", e);
-                syncStatus = "error";
-                try {
-                    if (localRepo.fileExists(vaultFilename)) {
-                        localRepo.savePending(vaultFilename, localRepo.readFile(vaultFilename));
-                    }
-                } catch (IOException ioEx) {
-                    LOGGER.log(Level.SEVERE, "Failed to save pending changes", ioEx);
-                }
-                return new SyncResult(false, "error: " + e.getMessage());
-            } finally {
-                if (remoteRepo != null) remoteRepo.disconnect();
+
+                // Both changed: conflict (entry-level merge needed)
+                syncStatus = "conflict";
+                return new SyncResult(false, "CONFLICT");
             }
+
+            // No sync meta (first sync with existing remote): conflict
+            syncStatus = "conflict";
+            return new SyncResult(false, "CONFLICT");
+        } finally {
+            cleanupTempFile(tempPath);
         }
     }
 
-    public SyncResult resolveConflict(String vaultFilename, ConflictResolver resolution) {
+    public SyncResult resolveConflict(String vaultFilename, ConflictStrategy resolution) {
         synchronized (lock) {
             if (remoteRepo == null) {
                 return new SyncResult(false, "error: no remote configured");
@@ -184,6 +243,9 @@ public class SyncService {
                         verifyDownload(vaultFilename);
                         break;
                 }
+                // Update sync hash after resolution
+                String hash = hashContent(localRepo.readFile(vaultFilename));
+                localRepo.saveSyncMeta(vaultFilename, hash);
                 lastSyncTime = System.currentTimeMillis();
                 syncStatus = "synced";
                 return new SyncResult(true, "resolved");
@@ -199,8 +261,6 @@ public class SyncService {
 
     /**
      * Returns the merge result when local and remote vaults differ.
-     * The caller must handle decryption/re-encryption externally.
-     * Package-private so the UI layer (MainFrame) can call it after decrypting both vaults.
      */
     public <T extends com.passwordmanager.vault.VaultItem> EntryMerger.MergeResult<T> mergeEntries(
             java.util.List<T> local,
@@ -210,16 +270,7 @@ public class SyncService {
 
     /**
      * Saves the merged vault to disk and then uploads it to the remote server.
-     * <p>
-     * This method enforces the correct ordering after a merge: the vault must be
-     * persisted to disk <em>before</em> the file is uploaded. If the save action
-     * fails, the upload is skipped so that a stale pre-merge file is never pushed
-     * to the remote.
-     *
-     * @param vaultFilename the vault file name (e.g. "vault_user.enc")
-     * @param saveAction    callback that persists the merged vault to disk;
-     *                      must throw on failure so the upload is skipped
-     * @return sync result indicating success or the reason for failure
+     * Enforces correct ordering: persist to disk before upload.
      */
     public SyncResult syncAfterMerge(String vaultFilename, VaultSaveAction saveAction) {
         synchronized (lock) {
@@ -240,6 +291,9 @@ public class SyncService {
                 remoteRepo.connect();
                 String localPath = localRepo.getFilePath(vaultFilename);
                 remoteRepo.uploadFile(localPath, vaultFilename);
+                // Update sync hash after successful merge + upload
+                String hash = hashContent(localRepo.readFile(vaultFilename));
+                localRepo.saveSyncMeta(vaultFilename, hash);
                 lastSyncTime = System.currentTimeMillis();
                 syncStatus = "synced";
                 return new SyncResult(true, "merged");
@@ -253,12 +307,6 @@ public class SyncService {
         }
     }
 
-    /**
-     * Functional interface for the vault save operation passed to
-     * {@link #syncAfterMerge(String, VaultSaveAction)}.
-     * Declared as a checked-exception interface so callers can propagate
-     * {@link IOException} or encryption errors without wrapping.
-     */
     @FunctionalInterface
     public interface VaultSaveAction {
         void save() throws Exception;
@@ -291,26 +339,27 @@ public class SyncService {
     }
 
     /**
-     * Verifies a downloaded file is valid (non-empty, valid JSON structure).
-     * Reads through the local repository abstraction.
+     * SYNC-09: Verifies a downloaded file has valid vault structure.
+     * Checks non-empty, valid JSON, and contains expected vault fields.
      */
     private void verifyDownload(String filename) throws IOException {
         String content = localRepo.readFile(filename);
         if (content == null || content.isEmpty()) {
             throw new IOException("Downloaded file is empty");
         }
-        if (!content.trim().startsWith("{")) {
-            throw new IOException("Downloaded file is not a valid vault");
+        String trimmed = content.trim();
+        if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+            throw new IOException("Downloaded file is not a valid vault (not JSON object)");
+        }
+        // Verify presence of essential vault envelope fields
+        if (!trimmed.contains("\"version\"") || !trimmed.contains("\"salt\"")) {
+            throw new IOException("Downloaded file is missing required vault fields");
         }
     }
 
-    /**
-     * Cleans up a temporary file. Uses java.nio for deletion (works in production);
-     * in tests, the temp file lives in the in-memory store and is cleaned up naturally.
-     */
     private static void cleanupTempFile(String path) {
         try {
-            java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(path));
+            java.nio.file.Files.deleteIfExists(Paths.get(path));
         } catch (IOException e) {
             LOGGER.log(Level.WARNING, "Failed to delete temp file: " + path, e);
         }

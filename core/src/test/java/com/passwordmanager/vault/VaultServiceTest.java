@@ -54,7 +54,10 @@ class VaultServiceTest {
 
         boolean deleted = service.deleteEntry(entry.getId());
         assertTrue(deleted);
-        assertEquals(0, vault.getEntries().size());
+        // Soft-delete: entry is still in mutable list as tombstone, but hidden from active list
+        assertEquals(1, vault.getEntriesMutable().size());
+        assertTrue(vault.getEntriesMutable().get(0).isDeleted());
+        assertEquals(0, service.getPasswordService().getActiveList().size());
     }
 
     @Test

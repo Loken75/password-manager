@@ -82,7 +82,15 @@ fun VaultListScreen(
         if (uri != null && pwd != null) {
             viewModel.importEncryptedVault(uri, pwd)
             pendingEncImportUri = null
+            // pwd is wiped inside importEncryptedVault; clear the reference
             pendingEncPassword = null
+        }
+    }
+
+    // Wipe password if import is cancelled (URI never picked)
+    DisposableEffect(Unit) {
+        onDispose {
+            pendingEncPassword?.let { com.passwordmanager.util.SecureWiper.wipe(it) }
         }
     }
 

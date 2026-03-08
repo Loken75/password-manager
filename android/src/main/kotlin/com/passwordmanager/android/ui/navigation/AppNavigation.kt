@@ -233,6 +233,10 @@ fun AppNavigation() {
                 val entryId = backStackEntry.arguments?.getString("entryId")
                 val generatedPassword = backStackEntry.savedStateHandle
                     ?.get<String>("generated_password")
+                // Clear immediately to avoid disk persistence of sensitive data
+                if (generatedPassword != null) {
+                    backStackEntry.savedStateHandle?.remove<String>("generated_password")
+                }
                 EntryEditScreen(
                     entryId = entryId,
                     onBack = { navController.popBackStack() },

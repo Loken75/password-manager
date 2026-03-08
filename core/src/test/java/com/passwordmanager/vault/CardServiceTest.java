@@ -32,7 +32,10 @@ class CardServiceTest {
             "4111".toCharArray(), "01/26", null, null, CardType.VISA, null);
         service.addEntry(entry);
         assertTrue(service.deleteEntry(entry.getId()));
-        assertEquals(0, vault.getCardEntries().size());
+        // Soft-delete: tombstone remains in mutable list, hidden from active list
+        assertEquals(1, vault.getCardEntriesMutable().size());
+        assertTrue(vault.getCardEntriesMutable().get(0).isDeleted());
+        assertEquals(0, service.getActiveList().size());
     }
 
     @Test

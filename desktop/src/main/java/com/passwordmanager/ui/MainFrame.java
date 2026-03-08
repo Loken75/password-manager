@@ -471,6 +471,16 @@ public class MainFrame extends JFrame {
                     statusLabel.setText(getStatusText());
                     if (!result.isSuccess() && "CONFLICT".equals(result.getMessage())) {
                         handleConflict();
+                    } else if (result.isSuccess() && "downloaded".equals(result.getMessage())) {
+                        // Remote was newer: reload vault from disk
+                        try {
+                            Vault reloaded = vaultManager.reloadVault(username, session);
+                            vault = reloaded;
+                            vaultService.setVault(vault);
+                            refreshAllPanels();
+                        } catch (Exception reloadEx) {
+                            showError(reloadEx.getMessage());
+                        }
                     } else if (!result.isSuccess()) {
                         JOptionPane.showMessageDialog(MainFrame.this, result.getMessage(),
                             lang.getString("sync.status_error"), JOptionPane.WARNING_MESSAGE);
@@ -488,13 +498,13 @@ public class MainFrame extends JFrame {
         try {
             Vault remoteVault = vaultManager.reloadVault(username, session);
 
-            // Merge all three entry lists
+            // Merge all three entry lists (including tombstones for deletion propagation)
             EntryMerger.MergeResult<PasswordEntry> passwordMerge = syncService.mergeEntries(
-                vault.getEntries(), remoteVault.getEntries());
+                vault.getEntriesMutable(), remoteVault.getEntriesMutable());
             EntryMerger.MergeResult<AppEntry> appMerge = syncService.mergeEntries(
-                vault.getAppEntries(), remoteVault.getAppEntries());
+                vault.getAppEntriesMutable(), remoteVault.getAppEntriesMutable());
             EntryMerger.MergeResult<CardEntry> cardMerge = syncService.mergeEntries(
-                vault.getCardEntries(), remoteVault.getCardEntries());
+                vault.getCardEntriesMutable(), remoteVault.getCardEntriesMutable());
 
             boolean hasConflicts = passwordMerge.hasConflicts()
                 || appMerge.hasConflicts() || cardMerge.hasConflicts();
@@ -556,15 +566,15 @@ public class MainFrame extends JFrame {
                 lang.getString("sync.conflict_title"),
                 JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, options, options[0]);
 
-            com.passwordmanager.sync.ConflictResolver resolution;
+            com.passwordmanager.sync.ConflictStrategy resolution;
             switch (choice) {
-                case 1: resolution = com.passwordmanager.sync.ConflictResolver.KEEP_REMOTE; break;
-                case 2: resolution = com.passwordmanager.sync.ConflictResolver.KEEP_BOTH; break;
-                default: resolution = com.passwordmanager.sync.ConflictResolver.KEEP_LOCAL;
+                case 1: resolution = com.passwordmanager.sync.ConflictStrategy.KEEP_REMOTE; break;
+                case 2: resolution = com.passwordmanager.sync.ConflictStrategy.KEEP_BOTH; break;
+                default: resolution = com.passwordmanager.sync.ConflictStrategy.KEEP_LOCAL;
             }
 
             syncService.resolveConflict("vault_" + username + ".enc", resolution);
-            if (resolution != com.passwordmanager.sync.ConflictResolver.KEEP_LOCAL) {
+            if (resolution != com.passwordmanager.sync.ConflictStrategy.KEEP_LOCAL) {
                 try {
                     Vault reloaded = vaultManager.reloadVault(username, session);
                     vault = reloaded;

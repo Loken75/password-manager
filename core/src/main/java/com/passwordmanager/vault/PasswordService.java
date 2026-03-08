@@ -40,11 +40,11 @@ public class PasswordService extends BaseVaultService<PasswordEntry> {
 
     public synchronized List<PasswordEntry> getByCategory(String category) {
         if (category == null || category.isEmpty()) {
-            return new ArrayList<>(getReadOnlyList());
+            return getActiveList();
         }
         List<PasswordEntry> results = new ArrayList<>();
         for (PasswordEntry e : getReadOnlyList()) {
-            if (category.equals(e.getCategory())) results.add(e);
+            if (!e.isDeleted() && category.equals(e.getCategory())) results.add(e);
         }
         return results;
     }
@@ -117,7 +117,7 @@ public class PasswordService extends BaseVaultService<PasswordEntry> {
 
     public synchronized Map<String, List<PasswordEntry>> findDuplicatePasswords() {
         Map<String, List<PasswordEntry>> map = new HashMap<>();
-        for (PasswordEntry e : getReadOnlyList()) {
+        for (PasswordEntry e : getActiveList()) {
             char[] pw = e.getPassword();
             if (pw != null && pw.length > 0) {
                 try {
@@ -158,7 +158,7 @@ public class PasswordService extends BaseVaultService<PasswordEntry> {
     public synchronized List<PasswordEntry> findOldPasswords(int days) {
         List<PasswordEntry> old = new ArrayList<>();
         long threshold = System.currentTimeMillis() - ((long) days * 24 * 60 * 60 * 1000);
-        for (PasswordEntry e : getReadOnlyList()) {
+        for (PasswordEntry e : getActiveList()) {
             try {
                 java.util.Date d = DateUtils.parseTimestamp(e.getUpdatedAt());
                 if (d.getTime() < threshold) old.add(e);

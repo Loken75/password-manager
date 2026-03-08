@@ -71,7 +71,8 @@ public class EntryFilter {
                     && !containsIC(entry.getEmail(), q)
                     && !containsIC(entry.getUrl(), q)
                     && !containsIC(entry.getNotes(), q)
-                    && !containsIC(entry.getCategory(), q)) {
+                    && !containsIC(entry.getCategory(), q)
+                    && !tagsContain(entry.getTags(), q)) {
                 return false;
             }
         }
@@ -92,6 +93,14 @@ public class EntryFilter {
 
     private static boolean containsIC(String str, String q) {
         return str != null && str.toLowerCase().contains(q);
+    }
+
+    private static boolean tagsContain(List<String> tags, String q) {
+        if (tags == null) return false;
+        for (String tag : tags) {
+            if (tag != null && tag.toLowerCase().contains(q)) return true;
+        }
+        return false;
     }
 
     public static class Builder {

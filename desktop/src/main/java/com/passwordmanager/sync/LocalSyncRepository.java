@@ -37,4 +37,25 @@ public interface LocalSyncRepository {
 
     /** Creates a timestamped backup of the file. */
     void createBackup(String filename) throws IOException;
+
+    /**
+     * Saves the hash of the last successfully synced version.
+     * Used for three-way merge to determine which side changed.
+     */
+    default void saveSyncMeta(String filename, String hash) throws IOException {
+        writeFile(filename + ".sync_meta", hash);
+    }
+
+    /**
+     * Reads the hash of the last successfully synced version.
+     * Returns null if no sync has occurred yet.
+     */
+    default String readSyncMeta(String filename) {
+        try {
+            String meta = readFile(filename + ".sync_meta");
+            return (meta != null && !meta.isEmpty()) ? meta.trim() : null;
+        } catch (IOException e) {
+            return null;
+        }
+    }
 }

@@ -158,6 +158,9 @@ public class VaultManager {
         } finally {
             SecureWiper.wipe(vaultJsonBytes);
         }
+        if (vault == null) {
+            throw new IOException("Corrupted vault file: deserialization returned null");
+        }
 
         // If migrated from v1.0, save in v2.0 format immediately
         if (!"2.0".equals(version)) {

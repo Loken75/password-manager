@@ -11,10 +11,16 @@
 # --- Core module data classes (serialized by Gson) ---
 -keep class com.passwordmanager.vault.Vault { *; }
 -keep class com.passwordmanager.vault.PasswordEntry { *; }
+-keep class com.passwordmanager.vault.AppEntry { *; }
+-keep class com.passwordmanager.vault.CardEntry { *; }
+-keep class com.passwordmanager.vault.VaultItem { *; }
 -keep class com.passwordmanager.vault.VaultLoadResult { *; }
 -keep class com.passwordmanager.vault.VaultManager$CharArrayAdapter { *; }
 -keep class com.passwordmanager.config.** { *; }
 -keep class com.passwordmanager.crypto.EncryptedPayload { *; }
+
+# --- Security-critical: prevent R8 from stripping wipe() as dead code ---
+-keep class com.passwordmanager.util.SecureWiper { *; }
 
 # --- AndroidX Security / Google Tink (EncryptedSharedPreferences) ---
 -keep class androidx.security.crypto.** { *; }

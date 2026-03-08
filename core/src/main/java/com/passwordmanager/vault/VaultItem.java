@@ -16,6 +16,9 @@ public abstract class VaultItem {
     protected boolean favorite;
     protected String createdAt;
     protected String updatedAt;
+    /** Soft-delete flag for tombstone-based sync. Gson defaults to false for old vaults. */
+    protected boolean deleted;
+    protected String deletedAt;
 
     /** No-arg constructor for Gson deserialization. */
     protected VaultItem() {
@@ -49,6 +52,15 @@ public abstract class VaultItem {
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
     public String getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
+    public String getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(String deletedAt) { this.deletedAt = deletedAt; }
+    /** Marks this item as soft-deleted for tombstone-based sync propagation. */
+    public void markDeleted() {
+        this.deleted = true;
+        this.deletedAt = DateUtils.getCurrentTimestamp();
+    }
 
     @Override
     public boolean equals(Object o) {

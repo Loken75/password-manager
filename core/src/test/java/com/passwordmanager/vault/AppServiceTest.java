@@ -39,7 +39,10 @@ class AppServiceTest {
         AppEntry entry = new AppEntry("MyApp", "user1", "1234".toCharArray(), null);
         service.addEntry(entry);
         assertTrue(service.deleteEntry(entry.getId()));
-        assertEquals(0, vault.getAppEntries().size());
+        // Soft-delete: tombstone remains in mutable list, hidden from active list
+        assertEquals(1, vault.getAppEntriesMutable().size());
+        assertTrue(vault.getAppEntriesMutable().get(0).isDeleted());
+        assertEquals(0, service.getActiveList().size());
     }
 
     @Test

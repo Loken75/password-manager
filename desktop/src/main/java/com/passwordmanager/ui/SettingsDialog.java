@@ -227,23 +227,37 @@ public class SettingsDialog extends JDialog {
     }
 
     private void doSave() {
-        // Validate SSH key file exists when remote mode is selected
+        // SYNC-04: Validate all required SFTP fields when remote mode is selected
         if (remoteRadio.isSelected()) {
+            if (hostField.getText().trim().isEmpty()) {
+                showValidationError(lang.getString("settings.host"));
+                return;
+            }
+            if (userField.getText().trim().isEmpty()) {
+                showValidationError(lang.getString("settings.user"));
+                return;
+            }
             String keyPath = keyPathField.getText().trim();
-            if (!keyPath.isEmpty()) {
-                File keyFile = new File(keyPath);
-                if (!keyFile.exists() || !keyFile.isFile()) {
-                    JOptionPane.showMessageDialog(this,
-                        lang.getString("settings.ssh_key") + ": " + lang.getString("error.file_not_found"),
-                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                if (!keyFile.canRead()) {
-                    JOptionPane.showMessageDialog(this,
-                        lang.getString("settings.ssh_key") + ": " + lang.getString("error.file_not_readable"),
-                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
+            if (keyPath.isEmpty()) {
+                showValidationError(lang.getString("settings.ssh_key"));
+                return;
+            }
+            File keyFile = new File(keyPath);
+            if (!keyFile.exists() || !keyFile.isFile()) {
+                JOptionPane.showMessageDialog(this,
+                    lang.getString("settings.ssh_key") + ": " + lang.getString("error.file_not_found"),
+                    lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            if (!keyFile.canRead()) {
+                JOptionPane.showMessageDialog(this,
+                    lang.getString("settings.ssh_key") + ": " + lang.getString("error.file_not_readable"),
+                    lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            if (remotePathField.getText().trim().isEmpty()) {
+                showValidationError(lang.getString("settings.remote_path"));
+                return;
             }
         }
 
@@ -262,6 +276,12 @@ public class SettingsDialog extends JDialog {
         configManager.saveConfig(config);
         saved = true;
         dispose();
+    }
+
+    private void showValidationError(String fieldLabel) {
+        JOptionPane.showMessageDialog(this,
+            fieldLabel + " " + lang.getString("error.field_required"),
+            lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
     }
 
     public boolean isSaved() { return saved; }

@@ -11,8 +11,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for {@link SyncService} using in-memory test doubles.
- * No mocking framework required: {@link InMemoryLocalRepo} and
- * {@link InMemoryRemoteRepo} provide full control over local/remote state.
  */
 class SyncServiceTest {
 
@@ -68,6 +66,8 @@ class SyncServiceTest {
         assertTrue(remoteRepo.files.containsKey(VAULT), "File should have been uploaded");
         assertEquals("synced", service.getSyncStatus());
         assertTrue(service.getLastSyncTime() > 0);
+        // Sync meta should be saved
+        assertNotNull(localRepo.readSyncMeta(VAULT));
     }
 
     @Test
@@ -97,44 +97,93 @@ class SyncServiceTest {
     }
 
     // ---------------------------------------------------------------
-    // synchronize() - local is newer (uploads)
+    // synchronize() - three-way hash: only local changed (uploads)
     // ---------------------------------------------------------------
 
     @Test
-    void synchronize_localNewer_uploads() throws IOException {
-        String localContent = "{\"entries\":[{\"id\":1},{\"id\":2}]}";
-        String remoteContent = "{\"entries\":[{\"id\":1}]}";
+    void synchronize_onlyLocalChanged_uploads() throws IOException {
+        String originalContent = "{\"entries\":[{\"id\":1}]}";
+        localRepo.writeFile(VAULT, originalContent);
+        remoteRepo.putRemoteFile(VAULT, originalContent, System.currentTimeMillis());
+        // Establish sync baseline
+        String baseHash = SyncService.hashContent(originalContent);
+        localRepo.saveSyncMeta(VAULT, baseHash);
 
+        // Now modify local only
+        String localContent = "{\"entries\":[{\"id\":1},{\"id\":2}]}";
         localRepo.writeFile(VAULT, localContent);
-        // Remote is older
-        remoteRepo.putRemoteFile(VAULT, remoteContent, localRepo.getLastModified(VAULT) - 5000);
 
         SyncService.SyncResult result = service.synchronize(VAULT);
 
         assertTrue(result.isSuccess());
         assertEquals("uploaded", result.getMessage());
-        // Verify the upload happened (remote should have been given the local path)
         assertTrue(remoteRepo.uploadCalled);
     }
 
     // ---------------------------------------------------------------
-    // synchronize() - remote is newer and different (conflict)
+    // synchronize() - three-way hash: only remote changed (downloads)
     // ---------------------------------------------------------------
 
     @Test
-    void synchronize_remoteNewer_differentContent_conflict() throws IOException {
-        String localContent = "{\"entries\":[{\"id\":1}]}";
-        String remoteContent = "{\"entries\":[{\"id\":1},{\"id\":99}]}";
+    void synchronize_onlyRemoteChanged_downloads() throws IOException {
+        String originalContent = "{\"entries\":[{\"id\":1}]}";
+        localRepo.writeFile(VAULT, originalContent);
+        // Establish sync baseline
+        String baseHash = SyncService.hashContent(originalContent);
+        localRepo.saveSyncMeta(VAULT, baseHash);
 
+        // Remote changed
+        String remoteContent = "{\"entries\":[{\"id\":1},{\"id\":99}]}";
+        remoteRepo.putRemoteFile(VAULT, remoteContent, System.currentTimeMillis());
+
+        SyncService.SyncResult result = service.synchronize(VAULT);
+
+        assertTrue(result.isSuccess());
+        assertEquals("downloaded", result.getMessage());
+        // Local should now contain remote content
+        assertEquals(remoteContent, localRepo.readFile(VAULT));
+    }
+
+    // ---------------------------------------------------------------
+    // synchronize() - three-way hash: both changed (conflict)
+    // ---------------------------------------------------------------
+
+    @Test
+    void synchronize_bothChanged_conflict() throws IOException {
+        String originalContent = "{\"entries\":[{\"id\":1}]}";
+        localRepo.writeFile(VAULT, originalContent);
+        String baseHash = SyncService.hashContent(originalContent);
+        localRepo.saveSyncMeta(VAULT, baseHash);
+
+        // Both sides changed
+        String localContent = "{\"entries\":[{\"id\":1},{\"id\":2}]}";
         localRepo.writeFile(VAULT, localContent);
-        // Remote is newer
-        remoteRepo.putRemoteFile(VAULT, remoteContent, localRepo.getLastModified(VAULT) + 5000);
+        String remoteContent = "{\"entries\":[{\"id\":1},{\"id\":99}]}";
+        remoteRepo.putRemoteFile(VAULT, remoteContent, System.currentTimeMillis());
 
         SyncService.SyncResult result = service.synchronize(VAULT);
 
         assertFalse(result.isSuccess());
         assertEquals("CONFLICT", result.getMessage());
         assertEquals("conflict", service.getSyncStatus());
+    }
+
+    // ---------------------------------------------------------------
+    // synchronize() - no sync meta (first sync with existing remote)
+    // ---------------------------------------------------------------
+
+    @Test
+    void synchronize_noSyncMeta_differentContent_conflict() throws IOException {
+        String localContent = "{\"entries\":[{\"id\":1}]}";
+        String remoteContent = "{\"entries\":[{\"id\":1},{\"id\":99}]}";
+        localRepo.writeFile(VAULT, localContent);
+        remoteRepo.putRemoteFile(VAULT, remoteContent, System.currentTimeMillis());
+        // No sync meta set
+
+        SyncService.SyncResult result = service.synchronize(VAULT);
+
+        assertFalse(result.isSuccess());
+        assertEquals("CONFLICT", result.getMessage());
     }
 
     // ---------------------------------------------------------------
@@ -145,15 +194,12 @@ class SyncServiceTest {
     void synchronize_withPending_appliesPendingFirst() throws IOException {
         String pendingContent = "{\"entries\":[{\"id\":42}]}";
         localRepo.savePending(VAULT, pendingContent);
-        // Remote does not exist, so after applying pending the file should be uploaded
+
         SyncService.SyncResult result = service.synchronize(VAULT);
 
         assertTrue(result.isSuccess());
-        // Pending should have been written to the main file
         assertEquals(pendingContent, localRepo.readFile(VAULT));
-        // Pending should be cleared
         assertFalse(localRepo.hasPending(VAULT));
-        // File should have been uploaded
         assertTrue(remoteRepo.files.containsKey(VAULT));
     }
 
@@ -161,7 +207,6 @@ class SyncServiceTest {
     void synchronize_withPending_matchesRemote_synced() throws IOException {
         String content = "{\"entries\":[{\"id\":42}]}";
         localRepo.savePending(VAULT, content);
-        // Remote has the same content
         remoteRepo.putRemoteFile(VAULT, content, System.currentTimeMillis());
 
         SyncService.SyncResult result = service.synchronize(VAULT);
@@ -186,7 +231,6 @@ class SyncServiceTest {
         assertFalse(result.isSuccess());
         assertTrue(result.getMessage().startsWith("error:"));
         assertEquals("error", service.getSyncStatus());
-        // Pending should have been saved
         assertTrue(localRepo.hasPending(VAULT));
         assertEquals(content, localRepo.readPending(VAULT));
     }
@@ -211,12 +255,14 @@ class SyncServiceTest {
         String localContent = "{\"entries\":[{\"local\":true}]}";
         localRepo.writeFile(VAULT, localContent);
 
-        SyncService.SyncResult result = service.resolveConflict(VAULT, ConflictResolver.KEEP_LOCAL);
+        SyncService.SyncResult result = service.resolveConflict(VAULT, ConflictStrategy.KEEP_LOCAL);
 
         assertTrue(result.isSuccess());
         assertEquals("resolved", result.getMessage());
         assertTrue(remoteRepo.uploadCalled);
         assertEquals("synced", service.getSyncStatus());
+        // Sync meta should be updated
+        assertNotNull(localRepo.readSyncMeta(VAULT));
     }
 
     // ---------------------------------------------------------------
@@ -225,16 +271,15 @@ class SyncServiceTest {
 
     @Test
     void resolveConflict_keepRemote_downloadsFromRemote() throws IOException {
-        String localContent = "{\"entries\":[{\"local\":true}]}";
-        String remoteContent = "{\"entries\":[{\"remote\":true}]}";
+        String localContent = "{\"version\":\"2.0\",\"salt\":\"x\",\"entries\":[{\"local\":true}]}";
+        String remoteContent = "{\"version\":\"2.0\",\"salt\":\"x\",\"entries\":[{\"remote\":true}]}";
         localRepo.writeFile(VAULT, localContent);
         remoteRepo.putRemoteFile(VAULT, remoteContent, System.currentTimeMillis());
 
-        SyncService.SyncResult result = service.resolveConflict(VAULT, ConflictResolver.KEEP_REMOTE);
+        SyncService.SyncResult result = service.resolveConflict(VAULT, ConflictStrategy.KEEP_REMOTE);
 
         assertTrue(result.isSuccess());
         assertEquals("resolved", result.getMessage());
-        // Local should now contain remote content (download overwrites local path)
         assertEquals(remoteContent, localRepo.readFile(VAULT));
     }
 
@@ -244,18 +289,16 @@ class SyncServiceTest {
 
     @Test
     void resolveConflict_keepBoth_backsUpThenDownloads() throws IOException {
-        String localContent = "{\"entries\":[{\"local\":true}]}";
-        String remoteContent = "{\"entries\":[{\"remote\":true}]}";
+        String localContent = "{\"version\":\"2.0\",\"salt\":\"x\",\"entries\":[{\"local\":true}]}";
+        String remoteContent = "{\"version\":\"2.0\",\"salt\":\"x\",\"entries\":[{\"remote\":true}]}";
         localRepo.writeFile(VAULT, localContent);
         remoteRepo.putRemoteFile(VAULT, remoteContent, System.currentTimeMillis());
 
-        SyncService.SyncResult result = service.resolveConflict(VAULT, ConflictResolver.KEEP_BOTH);
+        SyncService.SyncResult result = service.resolveConflict(VAULT, ConflictStrategy.KEEP_BOTH);
 
         assertTrue(result.isSuccess());
         assertEquals("resolved", result.getMessage());
-        // Backup should have been created
         assertTrue(localRepo.backupCreated, "Backup should have been created before overwriting");
-        // Local should now contain remote content
         assertEquals(remoteContent, localRepo.readFile(VAULT));
     }
 
@@ -266,7 +309,7 @@ class SyncServiceTest {
     @Test
     void resolveConflict_noRemote_returnsError() {
         SyncService localOnly = new SyncService(localRepo, null, StorageMode.REMOTE);
-        SyncService.SyncResult result = localOnly.resolveConflict(VAULT, ConflictResolver.KEEP_LOCAL);
+        SyncService.SyncResult result = localOnly.resolveConflict(VAULT, ConflictStrategy.KEEP_LOCAL);
 
         assertFalse(result.isSuccess());
         assertTrue(result.getMessage().contains("no remote configured"));
@@ -279,7 +322,7 @@ class SyncServiceTest {
     @Test
     void resolveConflict_connectionFails_returnsError() {
         remoteRepo.failOnConnect = true;
-        SyncService.SyncResult result = service.resolveConflict(VAULT, ConflictResolver.KEEP_LOCAL);
+        SyncService.SyncResult result = service.resolveConflict(VAULT, ConflictStrategy.KEEP_LOCAL);
 
         assertFalse(result.isSuccess());
         assertTrue(result.getMessage().startsWith("error:"));
@@ -304,6 +347,8 @@ class SyncServiceTest {
             "Remote should contain the merged content");
         assertEquals("synced", service.getSyncStatus());
         assertTrue(service.getLastSyncTime() > 0);
+        // Sync meta should be updated
+        assertNotNull(localRepo.readSyncMeta(VAULT));
     }
 
     @Test
@@ -327,7 +372,6 @@ class SyncServiceTest {
 
         assertFalse(result.isSuccess());
         assertTrue(result.getMessage().startsWith("error:"));
-        // The merged vault should still be saved locally even though upload failed
         assertEquals(mergedContent, localRepo.readFile(VAULT));
         assertEquals("error", service.getSyncStatus());
     }
@@ -344,11 +388,9 @@ class SyncServiceTest {
 
     @Test
     void syncAfterMerge_uploadsCurrentContent_notStaleFile() throws IOException {
-        // Simulate stale file on disk
         String staleContent = "{\"entries\":[{\"stale\":true}]}";
         localRepo.writeFile(VAULT, staleContent);
 
-        // Merge produces new content
         String mergedContent = "{\"entries\":[{\"stale\":true},{\"new\":true}]}";
 
         SyncService.SyncResult result = service.syncAfterMerge(VAULT,
@@ -416,23 +458,42 @@ class SyncServiceTest {
         assertTrue(remoteRepo.disconnectCalled, "disconnect() should be called even on error");
     }
 
+    // ---------------------------------------------------------------
+    // synchronize() - sync meta is persisted across syncs
+    // ---------------------------------------------------------------
+
+    @Test
+    void synchronize_syncMetaPersistsAcrossSyncs() throws IOException {
+        String content = "{\"entries\":[{\"id\":1}]}";
+        localRepo.writeFile(VAULT, content);
+
+        // First sync: uploads and saves meta
+        service.synchronize(VAULT);
+        String meta1 = localRepo.readSyncMeta(VAULT);
+        assertNotNull(meta1);
+
+        // Set remote to same content (simulating successful previous upload)
+        remoteRepo.putRemoteFile(VAULT, content, System.currentTimeMillis());
+
+        // Second sync: hashes match, synced
+        SyncService.SyncResult result2 = service.synchronize(VAULT);
+        assertTrue(result2.isSuccess());
+        assertEquals("synced", result2.getMessage());
+    }
+
     // ===================================================================
     // In-memory test doubles
     // ===================================================================
 
-    /**
-     * In-memory implementation of {@link LocalSyncRepository}.
-     * Stores file contents and metadata in HashMaps.
-     */
     static class InMemoryLocalRepo implements LocalSyncRepository {
         final Map<String, String> files = new LinkedHashMap<>();
         final Map<String, Long> timestamps = new LinkedHashMap<>();
         final Map<String, String> pending = new LinkedHashMap<>();
+        final Map<String, String> syncMeta = new LinkedHashMap<>();
         boolean backupCreated = false;
 
         @Override
         public String getFilePath(String filename) {
-            // Return a synthetic path that is predictable in tests
             return "/test-vault/" + filename;
         }
 
@@ -491,18 +552,17 @@ class SyncServiceTest {
             }
         }
 
-        /** Sets a specific timestamp for a file (for testing time comparisons). */
-        void setLastModified(String filename, long time) {
-            timestamps.put(filename, time);
+        @Override
+        public void saveSyncMeta(String filename, String hash) {
+            syncMeta.put(filename, hash);
+        }
+
+        @Override
+        public String readSyncMeta(String filename) {
+            return syncMeta.get(filename);
         }
     }
 
-    /**
-     * In-memory implementation of {@link RemoteSyncRepository}.
-     * Holds a reference to the local repo so that {@link #downloadFile}
-     * can "write" content where the local repo can read it (mirroring
-     * how SFTP writes to the local filesystem in production).
-     */
     static class InMemoryRemoteRepo implements RemoteSyncRepository {
         final Map<String, String> files = new LinkedHashMap<>();
         final Map<String, Long> timestamps = new LinkedHashMap<>();
@@ -517,7 +577,6 @@ class SyncServiceTest {
             this.localRepo = localRepo;
         }
 
-        /** Pre-populates a remote file for test setup. */
         void putRemoteFile(String filename, String content, long lastModified) {
             files.put(filename, content);
             timestamps.put(filename, lastModified);
@@ -549,9 +608,6 @@ class SyncServiceTest {
         @Override
         public void uploadFile(String localPath, String remoteFilename) {
             uploadCalled = true;
-            // In a real scenario, this reads from localPath on disk.
-            // Here we record that the upload was requested.
-            // Find the content from the local repo by matching the path.
             for (Map.Entry<String, String> entry : localRepo.files.entrySet()) {
                 if (localRepo.getFilePath(entry.getKey()).equals(localPath)) {
                     files.put(remoteFilename, entry.getValue());
@@ -569,8 +625,6 @@ class SyncServiceTest {
                 throw new IOException("Remote file not found: " + remoteFilename);
             }
             String content = files.get(remoteFilename);
-            // Write to local repo at the filename that maps to localPath.
-            // The localPath is "/test-vault/<filename>", so extract the filename.
             String filename = localPath.replace("/test-vault/", "");
             localRepo.writeFile(filename, content);
         }

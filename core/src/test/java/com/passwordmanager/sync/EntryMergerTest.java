@@ -86,4 +86,118 @@ class EntryMergerTest {
         assertEquals(3, result.getMergedEntries().size());
         assertFalse(result.hasConflicts());
     }
+
+    // ---------------------------------------------------------------
+    // Tombstone tests (SYNC-02)
+    // ---------------------------------------------------------------
+
+    @Test
+    void localTombstone_remoteAbsent_keepsTombstone() {
+        PasswordEntry local = new PasswordEntry("Deleted", "u", "p".toCharArray(), "", "", "Cat", null);
+        local.markDeleted();
+
+        List<PasswordEntry> localList = new ArrayList<>(List.of(local));
+        List<PasswordEntry> remoteList = new ArrayList<>();
+
+        EntryMerger.MergeResult<PasswordEntry> result = EntryMerger.merge(localList, remoteList);
+        assertEquals(1, result.getMergedEntries().size());
+        assertTrue(result.getMergedEntries().get(0).isDeleted());
+        assertFalse(result.hasConflicts());
+    }
+
+    @Test
+    void remoteTombstone_localAbsent_keepsTombstone() {
+        PasswordEntry remote = new PasswordEntry("Deleted", "u", "p".toCharArray(), "", "", "Cat", null);
+        remote.markDeleted();
+
+        List<PasswordEntry> localList = new ArrayList<>();
+        List<PasswordEntry> remoteList = new ArrayList<>(List.of(remote));
+
+        EntryMerger.MergeResult<PasswordEntry> result = EntryMerger.merge(localList, remoteList);
+        assertEquals(1, result.getMergedEntries().size());
+        assertTrue(result.getMergedEntries().get(0).isDeleted());
+        assertFalse(result.hasConflicts());
+    }
+
+    @Test
+    void localTombstone_remoteAlive_deletionNewer_keepsTombstone() {
+        PasswordEntry local = new PasswordEntry("Entry", "u", "p".toCharArray(), "", "", "Cat", null);
+        local.setUpdatedAt("2024-06-01T00:00:00Z");
+        local.setDeleted(true);
+        local.setDeletedAt("2024-06-03T00:00:00Z");
+
+        PasswordEntry remote = new PasswordEntry("Entry", "u", "p".toCharArray(), "", "", "Cat", null);
+        remote.setId(local.getId());
+        remote.setUpdatedAt("2024-06-02T00:00:00Z");
+
+        List<PasswordEntry> localList = new ArrayList<>(List.of(local));
+        List<PasswordEntry> remoteList = new ArrayList<>(List.of(remote));
+
+        EntryMerger.MergeResult<PasswordEntry> result = EntryMerger.merge(localList, remoteList);
+        assertEquals(1, result.getMergedEntries().size());
+        assertTrue(result.getMergedEntries().get(0).isDeleted(), "Newer deletion should win");
+        assertFalse(result.hasConflicts());
+    }
+
+    @Test
+    void localTombstone_remoteAlive_modificationNewer_keepsRemote() {
+        PasswordEntry local = new PasswordEntry("Entry", "u", "p".toCharArray(), "", "", "Cat", null);
+        local.setUpdatedAt("2024-06-01T00:00:00Z");
+        local.setDeleted(true);
+        local.setDeletedAt("2024-06-02T00:00:00Z");
+
+        PasswordEntry remote = new PasswordEntry("Entry", "u_modified", "p".toCharArray(), "", "", "Cat", null);
+        remote.setId(local.getId());
+        remote.setUpdatedAt("2024-06-03T00:00:00Z");
+
+        List<PasswordEntry> localList = new ArrayList<>(List.of(local));
+        List<PasswordEntry> remoteList = new ArrayList<>(List.of(remote));
+
+        EntryMerger.MergeResult<PasswordEntry> result = EntryMerger.merge(localList, remoteList);
+        assertEquals(1, result.getMergedEntries().size());
+        assertFalse(result.getMergedEntries().get(0).isDeleted(), "Newer modification should win over deletion");
+        assertEquals("u_modified", result.getMergedEntries().get(0).getUsername());
+        assertFalse(result.hasConflicts());
+    }
+
+    @Test
+    void remoteDeleted_localAlive_deletionNewer_keepsTombstone() {
+        PasswordEntry local = new PasswordEntry("Entry", "u", "p".toCharArray(), "", "", "Cat", null);
+        local.setUpdatedAt("2024-06-01T00:00:00Z");
+
+        PasswordEntry remote = new PasswordEntry("Entry", "u", "p".toCharArray(), "", "", "Cat", null);
+        remote.setId(local.getId());
+        remote.setUpdatedAt("2024-06-01T00:00:00Z");
+        remote.setDeleted(true);
+        remote.setDeletedAt("2024-06-03T00:00:00Z");
+
+        List<PasswordEntry> localList = new ArrayList<>(List.of(local));
+        List<PasswordEntry> remoteList = new ArrayList<>(List.of(remote));
+
+        EntryMerger.MergeResult<PasswordEntry> result = EntryMerger.merge(localList, remoteList);
+        assertEquals(1, result.getMergedEntries().size());
+        assertTrue(result.getMergedEntries().get(0).isDeleted(), "Newer deletion should win");
+        assertFalse(result.hasConflicts());
+    }
+
+    @Test
+    void bothDeleted_keepsMoreRecent() {
+        PasswordEntry local = new PasswordEntry("Entry", "u", "p".toCharArray(), "", "", "Cat", null);
+        local.setDeleted(true);
+        local.setDeletedAt("2024-06-01T00:00:00Z");
+
+        PasswordEntry remote = new PasswordEntry("Entry", "u", "p".toCharArray(), "", "", "Cat", null);
+        remote.setId(local.getId());
+        remote.setDeleted(true);
+        remote.setDeletedAt("2024-06-03T00:00:00Z");
+
+        List<PasswordEntry> localList = new ArrayList<>(List.of(local));
+        List<PasswordEntry> remoteList = new ArrayList<>(List.of(remote));
+
+        EntryMerger.MergeResult<PasswordEntry> result = EntryMerger.merge(localList, remoteList);
+        assertEquals(1, result.getMergedEntries().size());
+        assertTrue(result.getMergedEntries().get(0).isDeleted());
+        assertEquals("2024-06-03T00:00:00Z", result.getMergedEntries().get(0).getDeletedAt());
+        assertFalse(result.hasConflicts());
+    }
 }

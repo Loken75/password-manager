@@ -49,13 +49,17 @@ public abstract class BaseVaultService<T extends VaultItem> {
         return false;
     }
 
+    /**
+     * Soft-deletes an entry by marking it as a tombstone.
+     * The entry remains in the list for sync propagation but is hidden from UI.
+     * Tombstones are purged after sync merge via {@link #purgeTombstones(int)}.
+     */
     public synchronized boolean deleteEntry(String entryId) {
-        Iterator<T> it = getMutableList().iterator();
-        while (it.hasNext()) {
-            T entry = it.next();
-            if (entry.getId().equals(entryId)) {
+        if (entryId == null) return false;
+        for (T entry : getMutableList()) {
+            if (entryId.equals(entry.getId())) {
                 entry.wipe();
-                it.remove();
+                entry.markDeleted();
                 vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
                 return true;
             }
@@ -64,16 +68,56 @@ public abstract class BaseVaultService<T extends VaultItem> {
     }
 
     /**
+     * Permanently removes tombstones older than the specified number of days.
+     * Should be called after a successful sync merge.
+     */
+    public synchronized int purgeTombstones(int maxAgeDays) {
+        long threshold = System.currentTimeMillis() - ((long) maxAgeDays * 24 * 60 * 60 * 1000);
+        int count = 0;
+        Iterator<T> it = getMutableList().iterator();
+        while (it.hasNext()) {
+            T entry = it.next();
+            if (entry.isDeleted() && entry.getDeletedAt() != null) {
+                try {
+                    java.util.Date d = DateUtils.parseTimestamp(entry.getDeletedAt());
+                    if (d.getTime() < threshold) {
+                        it.remove();
+                        count++;
+                    }
+                } catch (Exception ignored) {
+                    // Unparseable date: remove stale tombstone
+                    it.remove();
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Returns active (non-deleted) entries for UI display and operations.
+     * Subclasses' getReadOnlyList() may include tombstones; this filters them.
+     */
+    public synchronized List<T> getActiveList() {
+        List<T> active = new ArrayList<>();
+        for (T e : getReadOnlyList()) {
+            if (!e.isDeleted()) active.add(e);
+        }
+        return active;
+    }
+
+    /**
      * Searches entries by title and notes. Subclasses override to add type-specific fields.
+     * Excludes soft-deleted entries.
      */
     public synchronized List<T> search(String query) {
         if (query == null || query.trim().isEmpty()) {
-            return new ArrayList<>(getReadOnlyList());
+            return getActiveList();
         }
         String q = query.toLowerCase();
         List<T> results = new ArrayList<>();
         for (T e : getReadOnlyList()) {
-            if (matchesBase(e, q)) results.add(e);
+            if (!e.isDeleted() && matchesBase(e, q)) results.add(e);
         }
         return results;
     }
@@ -99,9 +143,10 @@ public abstract class BaseVaultService<T extends VaultItem> {
     }
 
     public synchronized int bulkSetFavorite(List<String> entryIds, boolean favorite) {
+        java.util.Set<String> idSet = new java.util.HashSet<>(entryIds);
         int count = 0;
         for (T entry : getMutableList()) {
-            if (entryIds.contains(entry.getId())) {
+            if (idSet.contains(entry.getId())) {
                 entry.setFavorite(favorite);
                 entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
                 count++;
