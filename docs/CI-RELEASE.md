@@ -37,8 +37,9 @@ Les deux jobs s'executent **en parallele** et sont independants.
 1. Checkout du code
 2. Setup JDK 21 (Temurin) + Gradle
 3. `./gradlew :core:test` — execute tous les tests unitaires du module core
-4. `./gradlew :desktop:compileJava` — verifie que le desktop compile
-5. `./gradlew :desktop:test` — execute les tests du module desktop
+4. `./gradlew :core:jacocoTestCoverageVerification` — **porte de couverture** : echoue si la couverture LINE de `:core` passe sous 70 % (actuellement ~75 %)
+5. `./gradlew :desktop:compileJava` — verifie que le desktop compile
+6. `./gradlew :desktop:test` — execute les tests du module desktop
 
 ### Job : test-android
 
@@ -46,6 +47,11 @@ Les deux jobs s'executent **en parallele** et sont independants.
 2. Setup JDK 17 (Temurin) + Android SDK + Gradle
 3. `./gradlew :android:compileDebugKotlin` — verifie la compilation Kotlin Android
 4. `./gradlew :android:testDebugUnitTest` — execute les tests unitaires Android
+5. `./gradlew :android:lintDebug` — **Android Lint** : echoue sur tout nouveau probleme par rapport a `android/lint-baseline.xml` (les problemes existants sont grandfathered)
+
+### Mises a jour de dependances (Dependabot)
+
+`.github/dependabot.yml` ouvre des PRs hebdomadaires pour les dependances Gradle (`:core`/`:desktop`/`:android`) et les actions GitHub, alimentant aussi les alertes de securite (CVE) du depot.
 
 ### Permissions
 
@@ -188,6 +194,23 @@ garantit une distribution native pour chaque plateforme.
 - uses: actions/checkout@v4
 ```
 
+#### 1b. Extraction et injection de la version
+
+```yaml
+- name: Extract version
+  id: version
+  shell: bash
+  run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+- name: Inject version into build
+  shell: bash
+  run: |
+    sed -i.bak "s/^appVersion=.*/appVersion=${{ steps.version.outputs.VERSION }}/" gradle.properties
+    rm -f gradle.properties.bak
+```
+
+La version est derivee du tag (`v1.4.2` -> `1.4.2`) puis injectee dans `gradle.properties` (`appVersion`). Cette etape est presente dans les trois jobs (`build-desktop`, `build-android`, `release`) et sert a nommer les artefacts et a versionner le build. Pour `build-desktop` et `build-android`, l'injection met aussi a jour `appVersion` avant compilation.
+
 #### 2. Installation du JDK + Gradle
 
 ```yaml
@@ -208,7 +231,7 @@ Temurin JDK 21 (Eclipse Adoptium). Le JDK (pas le JRE) est necessaire car
 - run: ./gradlew :core:test :desktop:test
 ```
 
-Execute les 259 tests unitaires et d'integration (core + desktop). Si les tests echouent,
+Execute les ~390 tests unitaires et d'integration (core + desktop, dont l'integration SFTP reelle). Si les tests echouent,
 le build s'arrete et la release n'est pas creee.
 
 > **Note** : on specifie `:core:test :desktop:test` et non `test` pour eviter
@@ -227,7 +250,7 @@ Produit `desktop/build/libs/password-manager.jar` — fat JAR avec toutes les de
 ```yaml
 - run: |
     jlink \
-      --add-modules java.base,java.desktop,java.logging,java.naming,java.security.jgss,java.sql,java.xml \
+      --add-modules java.base,java.desktop,java.logging,java.naming,java.security.jgss,java.sql,java.xml,jdk.crypto.ec \
       --strip-debug \
       --no-man-pages \
       --no-header-files \
@@ -248,24 +271,50 @@ Produit `desktop/build/libs/password-manager.jar` — fat JAR avec toutes les de
 | `java.security.jgss`    | Kerberos/GSSAPI (dependance SSH)              |
 | `java.sql`              | Dependance transitive                         |
 | `java.xml`              | Parsing XML (dependance transitive)           |
+| `jdk.crypto.ec`         | Cryptographie sur courbes elliptiques (EC/ECDSA) |
 
-#### 6. Assemblage et archivage
+> **Note** : le script local `scripts/build-dist.sh` utilise une liste de modules plus courte (sans `jdk.crypto.ec`). La liste de reference pour les artefacts publies est celle du workflow `release.yml`.
+
+#### 6. Assemblage de la distribution
 
 ```yaml
-- run: |
+- name: Assemble distribution
+  shell: bash
+  run: |
     cp desktop/build/libs/password-manager.jar dist/
-    cp scripts/run.sh dist/
-    cp scripts/run.bat dist/
+    cp README.md dist/
+    if [ "${{ runner.os }}" = "Windows" ]; then
+      cp scripts/run.bat dist/
+    else
+      cp scripts/run.sh dist/
+      chmod +x dist/run.sh
+    fi
+    chmod +x dist/runtime/bin/*
 ```
 
-La distribution finale contient :
+Le script de lancement copie est **conditionnel a l'OS** du runner (`run.bat` sous Windows, `run.sh` sinon). Le `README.md` est egalement inclus. La distribution finale contient :
 ```
 dist/
   password-manager.jar    # Fat JAR avec toutes les dependances
   runtime/                # JRE minimal (jlink)
-  run.sh                  # Script de lancement (Linux/macOS)
-  run.bat                 # Script de lancement (Windows)
+  run.sh OU run.bat       # Script de lancement (selon l'OS du runner)
+  README.md               # Documentation
 ```
+
+#### 6b. Packaging de l'archive (conditionnel a l'OS)
+
+```yaml
+- name: Package archive (Linux/macOS)
+  if: runner.os != 'Windows'
+  run: tar -czf password-manager-<version>-<label>.tar.gz -C dist .
+
+- name: Package archive (Windows)
+  if: runner.os == 'Windows'
+  shell: pwsh
+  run: Compress-Archive -Path dist\* -DestinationPath password-manager-<version>-<label>.zip
+```
+
+L'archive est produite nativement par OS : `tar -czf` (Linux/macOS) ou `Compress-Archive` PowerShell (Windows).
 
 #### 7. Upload de l'artifact
 
@@ -285,6 +334,8 @@ Ce job s'execute en parallele du build desktop, sur `ubuntu-latest`.
 
 ### Etapes
 
+Le job commence par le **Checkout** puis les memes etapes **Extract version** / **Inject version** que `build-desktop` (voir Job 1, etape 1b).
+
 #### 1. Setup JDK 17 + Android SDK + Gradle
 
 ```yaml
@@ -302,11 +353,21 @@ Le JDK 17 est suffisant pour la compilation Android (AGP 8.7.3 le requiert).
 L'action `android-actions/setup-android@v3` installe le SDK Android et les
 build tools necessaires.
 
-#### 2. Decodage du keystore et build APK signe
+#### 2. Tests (core + android)
+
+```yaml
+- run: ./gradlew :core:test :android:testDebugUnitTest
+```
+
+Execute les tests `:core` et les tests unitaires Android (JVM locale) avant de construire l'APK. Si les tests echouent, l'APK n'est pas produit et la release n'est pas creee.
+
+#### 3. Decodage du keystore et build APK signe
 
 ```yaml
 - name: Decode keystore
-  run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/build/keystore.p12
+  run: |
+    mkdir -p android/build
+    echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/build/keystore.p12
 
 - name: Build signed release APK
   env:
@@ -320,7 +381,7 @@ Le keystore est decode depuis un secret GitHub (base64). L'APK release est signe
 
 Produit `android/build/outputs/apk/release/android-release.apk`.
 
-#### 3. Renommage et upload
+#### 4. Renommage et upload
 
 ```yaml
 - run: mv android/build/outputs/apk/release/android-release.apk password-manager-<version>-android.apk
@@ -339,6 +400,8 @@ Produit `android/build/outputs/apk/release/android-release.apk`.
 Ce job s'execute sur `ubuntu-latest` apres que les 4 builds (3 desktop + 1 Android) aient reussi.
 
 ### Etapes
+
+Le job demarre par l'etape **Extract version** (meme logique que les autres jobs) pour nommer les fichiers d'assets a attacher.
 
 #### 1. Telechargement des artifacts
 
@@ -436,7 +499,7 @@ Aucune installation de Java n'est requise : le JRE est embarque.
 | **JDK desktop**     | Temurin 21 (build + jlink)                                   |
 | **JDK Android**     | Temurin 17 (AGP 8.7.3)                                       |
 | **Build system**    | Gradle 8.11 (wrapper), multi-module `:core`/`:desktop`/`:android` |
-| **Tests desktop**   | `:core:test` + `:desktop:test` sur chaque OS desktop (259 tests) |
+| **Tests desktop**   | `:core:test` + `:desktop:test` sur chaque OS desktop (~390 tests) |
 | **Taille desktop**  | ~20-25 Mo (JAR 2 Mo + JRE compresse ~57 Mo / par OS)        |
 | **Taille APK**      | ~5-10 Mo (release, signe)                                    |
 | **Checksums**       | SHA256SUMS.txt genere et publie avec chaque release          |

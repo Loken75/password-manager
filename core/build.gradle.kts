@@ -1,5 +1,6 @@
 plugins {
     `java-library`
+    jacoco
 }
 
 val appVersion: String by project
@@ -28,4 +29,28 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.14.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.named<JacocoReport>("jacocoTestReport") {
+    dependsOn(tasks.named("test"))
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+// Coverage gate: fails the build if :core line coverage regresses below the floor.
+// Calibrated below current coverage so it guards against regressions without
+// blocking on the existing baseline.
+tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
+    dependsOn(tasks.named("jacocoTestReport"))
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.70".toBigDecimal()
+            }
+        }
+    }
 }

@@ -10,6 +10,7 @@ import com.passwordmanager.config.StorageMode;
 import com.passwordmanager.config.ThemeMode;
 import com.passwordmanager.crypto.VaultSession;
 import com.passwordmanager.i18n.LanguageManager;
+import com.passwordmanager.sync.DesktopSyncFactory;
 import com.passwordmanager.sync.SyncService;
 import com.passwordmanager.util.PasswordValidator;
 import com.passwordmanager.update.DesktopUpdateManager;
@@ -43,6 +44,8 @@ public class MainFrame extends JFrame {
     private AppConfig appConfig;
     private ConfigManager configManager;
     private SyncService syncService;
+    /** Cached SSH key material (vault-key auth) used when (re)building the sync service. */
+    private byte[] vaultKeyBytes;
     private VaultPanel vaultPanel;
     private AppPanel appPanel;
     private SshKeyPanel sshKeyPanel;
@@ -69,7 +72,7 @@ public class MainFrame extends JFrame {
         this.appConfig = appConfig;
         this.configManager = configManager;
         this.vaultService = new VaultService(vault);
-        this.syncService = new SyncService(appConfig);
+        this.syncService = DesktopSyncFactory.create(appConfig, null);
 
         // Initialize controllers
         this.importExportController = new ImportExportController(
@@ -322,15 +325,15 @@ public class MainFrame extends JFrame {
                 if (pk != null) {
                     byte[] bytes = new String(pk).getBytes(java.nio.charset.StandardCharsets.UTF_8);
                     com.passwordmanager.util.SecureWiper.wipe(pk);
-                    syncService.setVaultKeyBytes(bytes);
+                    this.vaultKeyBytes = bytes;
                 } else {
-                    syncService.setVaultKeyBytes(null);
+                    this.vaultKeyBytes = null;
                 }
             } else {
-                syncService.setVaultKeyBytes(null);
+                this.vaultKeyBytes = null;
             }
         } else {
-            syncService.setVaultKeyBytes(null);
+            this.vaultKeyBytes = null;
         }
     }
 
@@ -354,7 +357,7 @@ public class MainFrame extends JFrame {
         } else {
             // Apply live on current frame
             updateSyncVaultKey();
-            syncService.refreshConfig(appConfig);
+            syncService = DesktopSyncFactory.create(appConfig, vaultKeyBytes);
             statusLabel.setText(getStatusText());
             vaultPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
             appPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
@@ -500,13 +503,16 @@ public class MainFrame extends JFrame {
                     SyncService.SyncResult result = get();
                     statusLabel.setText(getStatusText());
                     if (!result.isSuccess() && "CONFLICT".equals(result.getMessage())) {
-                        handleConflict();
+                        handleConflict(result.getRemoteTempPath());
                     } else if (result.isSuccess() && "downloaded".equals(result.getMessage())) {
                         // Remote was newer: reload vault from disk
                         try {
                             Vault reloaded = vaultManager.reloadVault(username, session);
                             vault = reloaded;
                             vaultService.setVault(vault);
+                            // R4: adopt the downloaded envelope so a master-password change
+                            // made on another device is reflected for future saves.
+                            vaultManager.adoptEnvelopeFromFile(session, vaultManager.getVaultPath(username));
                             refreshAllPanels();
                         } catch (Exception reloadEx) {
                             showError(reloadEx.getMessage());
@@ -523,10 +529,14 @@ public class MainFrame extends JFrame {
         }.execute();
     }
 
-    private void handleConflict() {
-        // Try entry-level merge: load the remote vault and compare entry-by-entry
+    private void handleConflict(String remoteTempPath) {
+        // Entry-level merge: decrypt the DOWNLOADED REMOTE vault (not a re-read of the
+        // local file) and compare entry-by-entry. R-merge fix.
         try {
-            Vault remoteVault = vaultManager.reloadVault(username, session);
+            Vault remoteVault = vaultManager.decryptVaultFile(remoteTempPath, session);
+            // R4: adopt the remote envelope so a master-password change made on another
+            // device is preserved when we save+upload the merged vault (not reverted).
+            vaultManager.adoptEnvelopeFromFile(session, remoteTempPath);
 
             // Merge all three entry lists (including tombstones for deletion propagation)
             EntryMerger.MergeResult<PasswordEntry> passwordMerge = syncService.mergeEntries(
@@ -562,18 +572,40 @@ public class MainFrame extends JFrame {
 
                 ConflictResolutionDialog dlg = new ConflictResolutionDialog(this, allConflicts);
                 dlg.setVisible(true);
+
+                // Apply the non-conflicting merged entries first. By contract,
+                // mergedEntries excludes conflicts, so this never introduces duplicates.
+                applyMerge(passwordMerge, appMerge, sshKeyMerge);
+
+                // Resolve each conflict: the user's choice if confirmed, otherwise keep
+                // the local version (Option A: dismissing keeps local state as-is).
+                List<VaultItem> resolved;
                 if (dlg.isConfirmed()) {
-                    List<VaultItem> resolved = dlg.getResolvedEntries();
-                    applyMerge(passwordMerge, appMerge, sshKeyMerge);
-                    for (VaultItem item : resolved) {
-                        if (item instanceof PasswordEntry) {
-                            vault.addEntry((PasswordEntry) item);
-                        } else if (item instanceof AppEntry) {
-                            vault.addAppEntry((AppEntry) item);
-                        } else if (item instanceof SshKeyEntry) {
-                            vault.addSshKeyEntry((SshKeyEntry) item);
-                        }
+                    resolved = dlg.getResolvedEntries();
+                } else {
+                    resolved = new ArrayList<>();
+                    for (EntryMerger.Conflict<PasswordEntry> c : passwordMerge.getConflicts()) {
+                        resolved.add(c.getLocalEntry());
                     }
+                    for (EntryMerger.Conflict<AppEntry> c : appMerge.getConflicts()) {
+                        resolved.add(c.getLocalEntry());
+                    }
+                    for (EntryMerger.Conflict<SshKeyEntry> c : sshKeyMerge.getConflicts()) {
+                        resolved.add(c.getLocalEntry());
+                    }
+                }
+                for (VaultItem item : resolved) {
+                    if (item instanceof PasswordEntry) {
+                        vault.addEntry((PasswordEntry) item);
+                    } else if (item instanceof AppEntry) {
+                        vault.addAppEntry((AppEntry) item);
+                    } else if (item instanceof SshKeyEntry) {
+                        vault.addSshKeyEntry((SshKeyEntry) item);
+                    }
+                }
+
+                if (dlg.isConfirmed()) {
+                    // User resolved: persist and upload the merged result.
                     SyncService.SyncResult mergeResult = syncService.syncAfterMerge(
                         vaultFilename,
                         () -> vaultManager.saveVault(vault, username, session));
@@ -581,6 +613,14 @@ public class MainFrame extends JFrame {
                     if (!mergeResult.isSuccess()) {
                         showError(mergeResult.getMessage());
                     }
+                } else {
+                    // Dismissed: keep local, persist locally only (no upload until resolved).
+                    try {
+                        vaultManager.saveVault(vault, username, session);
+                    } catch (Exception saveEx) {
+                        showError(saveEx.getMessage());
+                    }
+                    refreshAllPanels();
                 }
             }
             remoteVault.wipe();
@@ -612,6 +652,14 @@ public class MainFrame extends JFrame {
                     refreshAllPanels();
                 } catch (Exception reloadEx) {
                     showError(reloadEx.getMessage());
+                }
+            }
+        } finally {
+            if (remoteTempPath != null) {
+                try {
+                    java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(remoteTempPath));
+                } catch (Exception ignore) {
+                    // best-effort cleanup of the downloaded remote temp
                 }
             }
         }

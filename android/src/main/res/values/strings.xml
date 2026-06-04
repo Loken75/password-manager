@@ -197,6 +197,12 @@
     <string name="settings_test_connection">Test connection</string>
     <string name="settings_connection_ok">Connection successful</string>
     <string name="settings_connection_fail">Connection failed</string>
+    <string name="sftp_hostkey_title">Confirm server identity</string>
+    <string name="sftp_hostkey_message">First connection to %1$s.\n\nKey type: %2$s\nFingerprint:\n%3$s\n\nVerify this fingerprint matches your server before trusting it.</string>
+    <string name="sftp_hostkey_trust">Trust</string>
+    <string name="sftp_hostkey_changed_title">Warning: server key changed</string>
+    <string name="sftp_hostkey_changed_message">The host key for %1$s has CHANGED since you last trusted it.\n\nKey type: %2$s\nNew fingerprint:\n%3$s\n\nThis may mean the server was reinstalled — or that someone is intercepting your connection. Only trust the new key if you are certain.</string>
+    <string name="sftp_hostkey_trust_changed">Trust new key</string>
     <string name="settings_local_only">Local only</string>
     <string name="settings_remote_server">Remote server</string>
     <string name="sync_now">Sync now</string>

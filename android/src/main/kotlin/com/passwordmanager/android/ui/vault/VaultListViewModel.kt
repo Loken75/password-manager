@@ -11,7 +11,12 @@ import com.jcraft.jsch.JSch
 import android.graphics.Bitmap
 import com.passwordmanager.android.data.ConfigRepository
 import com.passwordmanager.android.data.FaviconRepository
+import com.passwordmanager.android.data.HostKeyChangedException
+import com.passwordmanager.android.data.HostKeyPrompt
 import com.passwordmanager.android.data.SessionHolder
+import com.passwordmanager.android.data.SftpHostKeyVerifier
+import com.passwordmanager.android.data.SshHostKeyStore
+import com.passwordmanager.android.data.UnknownHostKeyException
 import com.passwordmanager.config.StorageMode
 import com.passwordmanager.sync.EntryMerger
 import com.passwordmanager.util.SecureWiper
@@ -49,7 +54,9 @@ data class VaultListUiState(
     val favicons: Map<String, Bitmap> = emptyMap(),
     val isSyncEnabled: Boolean = false,
     /** Non-empty when sync found password conflicts that need manual resolution. */
-    val passwordConflicts: List<EntryMerger.Conflict<PasswordEntry>> = emptyList()
+    val passwordConflicts: List<EntryMerger.Conflict<PasswordEntry>> = emptyList(),
+    /** Non-null when a host key needs user confirmation (first use or changed). */
+    val hostKeyPrompt: HostKeyPrompt? = null
 )
 
 @HiltViewModel
@@ -57,6 +64,7 @@ class VaultListViewModel @Inject constructor(
     private val sessionHolder: SessionHolder,
     private val configRepo: ConfigRepository,
     private val faviconRepository: FaviconRepository,
+    private val hostKeyStore: SshHostKeyStore,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -431,17 +439,9 @@ class VaultListViewModel @Inject constructor(
                     _uiState.update { it.copy(message = "sync_error") }
                     return@launch
                 }
-                val sftpSession = jsch.getSession(user, host, port)
-                val knownHostsFile = java.io.File(
-                    android.os.Environment.getExternalStorageDirectory(), ".ssh/known_hosts"
+                val sftpSession = SftpHostKeyVerifier.connect(
+                    jsch, host, port, user, hostKeyStore, 15_000
                 )
-                if (knownHostsFile.exists()) {
-                    jsch.setKnownHosts(knownHostsFile.absolutePath)
-                    sftpSession.setConfig("StrictHostKeyChecking", "yes")
-                } else {
-                    sftpSession.setConfig("StrictHostKeyChecking", "accept-new")
-                }
-                sftpSession.connect(15_000)
 
                 try {
                     val channel = sftpSession.openChannel("sftp") as ChannelSftp
@@ -480,6 +480,10 @@ class VaultListViewModel @Inject constructor(
                                     val remoteVault = vaultManager.decryptVaultFile(
                                         tempFile.absolutePath, vaultSession
                                     )
+                                    // R4: adopt the remote envelope so a master-password change
+                                    // made on another device is preserved when we save+upload
+                                    // (not reverted by this device's stale envelope).
+                                    vaultManager.adoptEnvelopeFromFile(vaultSession, tempFile.absolutePath)
 
                                     try {
                                         val localVault = sessionHolder.vault
@@ -505,9 +509,16 @@ class VaultListViewModel @Inject constructor(
                                         localVault.setSshKeyEntries(java.util.ArrayList(mergedSshKeys))
 
                                         if (pwResult.hasConflicts()) {
-                                            // Apply non-conflicting password entries now;
-                                            // conflicts will be resolved by the user
-                                            localVault.setEntries(java.util.ArrayList(pwResult.mergedEntries))
+                                            // Persist non-conflicting merges plus the LOCAL version of
+                                            // each conflict, so local data survives until resolution and a
+                                            // dismissal keeps local state as-is (Option A). Resolution
+                                            // replaces these by id via Vault.addEntry.
+                                            val withLocalConflicts =
+                                                java.util.ArrayList(pwResult.mergedEntries)
+                                            for (conflict in pwResult.conflicts) {
+                                                withLocalConflicts.add(conflict.localEntry)
+                                            }
+                                            localVault.setEntries(withLocalConflicts)
                                             sessionHolder.save()
 
                                             // Store pending conflicts for the UI
@@ -544,11 +555,64 @@ class VaultListViewModel @Inject constructor(
                 }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: UnknownHostKeyException) {
+                stashPendingHostKey(e.host, e.port, e.blob)
+                _uiState.update {
+                    it.copy(hostKeyPrompt = HostKeyPrompt(e.host, e.port, e.fingerprint, e.keyType, changed = false))
+                }
+            } catch (e: HostKeyChangedException) {
+                stashPendingHostKey(e.host, e.port, e.blob)
+                _uiState.update {
+                    it.copy(hostKeyPrompt = HostKeyPrompt(e.host, e.port, e.fingerprint, e.keyType, changed = true))
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "SFTP sync failed", e)
                 _uiState.update { it.copy(message = "sync_error") }
             }
         }
+    }
+
+    // Host key awaiting user confirmation (kept out of UI state -- raw bytes).
+    @Volatile
+    private var pendingHostKeyBlob: ByteArray? = null
+    @Volatile
+    private var pendingHostKeyHost: String? = null
+    @Volatile
+    private var pendingHostKeyPort: Int = 22
+
+    private fun stashPendingHostKey(host: String, port: Int, blob: ByteArray) {
+        pendingHostKeyHost = host
+        pendingHostKeyPort = port
+        pendingHostKeyBlob = blob
+    }
+
+    /** User confirmed the presented host key: pin it and resume the sync. */
+    fun confirmHostKey() {
+        val blob = pendingHostKeyBlob
+        val host = pendingHostKeyHost
+        if (blob == null || host == null) {
+            dismissHostKeyPrompt()
+            return
+        }
+        val port = pendingHostKeyPort
+        clearPendingHostKey()
+        _uiState.update { it.copy(hostKeyPrompt = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            hostKeyStore.pin(host, port, blob)
+            syncNow()
+        }
+    }
+
+    /** User declined the host key: abort without pinning. */
+    fun dismissHostKeyPrompt() {
+        clearPendingHostKey()
+        _uiState.update { it.copy(hostKeyPrompt = null) }
+    }
+
+    private fun clearPendingHostKey() {
+        pendingHostKeyBlob = null
+        pendingHostKeyHost = null
+        pendingHostKeyPort = 22
     }
 
     // Pending password conflicts awaiting user resolution
@@ -571,14 +635,14 @@ class VaultListViewModel @Inject constructor(
                 val username = sessionHolder.username ?: return@launch
                 val vaultFilename = "vault_${username}.enc"
 
-                // Build the resolved entries and add them to the existing merged list
-                val currentEntries = java.util.ArrayList(localVault.entries)
+                // Replace each conflicting entry by id with the chosen version.
+                // Vault.addEntry replaces any existing entry with the same id, so the
+                // local version persisted during merge is overwritten (no duplicates).
                 for (conflict in conflicts) {
                     val keepLocal = resolutions[conflict.localEntry.id] ?: true
                     val chosen = if (keepLocal) conflict.localEntry else conflict.remoteEntry
-                    currentEntries.add(chosen)
+                    localVault.addEntry(chosen)
                 }
-                localVault.setEntries(currentEntries)
                 pendingPasswordConflicts = emptyList()
 
                 // Save locally
@@ -601,7 +665,11 @@ class VaultListViewModel @Inject constructor(
         }
     }
 
-    /** Dismiss conflict resolution without resolving (keeps local state as-is). */
+    /**
+     * Dismiss conflict resolution without choosing (Option A: keep local).
+     * The local version of each conflict was already persisted during the merge
+     * step, so there is nothing to re-apply -- we simply clear the pending state.
+     */
     fun dismissConflicts() {
         pendingPasswordConflicts = emptyList()
         _uiState.update { it.copy(passwordConflicts = emptyList()) }
@@ -656,17 +724,9 @@ class VaultListViewModel @Inject constructor(
         } else {
             return
         }
-        val sftpSession = jsch.getSession(user, host, port)
-        val knownHostsFile = java.io.File(
-            android.os.Environment.getExternalStorageDirectory(), ".ssh/known_hosts"
+        val sftpSession = SftpHostKeyVerifier.connect(
+            jsch, host, port, user, hostKeyStore, 15_000
         )
-        if (knownHostsFile.exists()) {
-            jsch.setKnownHosts(knownHostsFile.absolutePath)
-            sftpSession.setConfig("StrictHostKeyChecking", "yes")
-        } else {
-            sftpSession.setConfig("StrictHostKeyChecking", "accept-new")
-        }
-        sftpSession.connect(15_000)
         try {
             val channel = sftpSession.openChannel("sftp") as ChannelSftp
             channel.connect(10_000)

@@ -115,7 +115,7 @@ Au premier lancement, aucun utilisateur n'existe. Vous devez en creer un :
    - Au moins **1 minuscule** (a-z)
    - Au moins **1 chiffre** (0-9)
    - Au moins **1 caractere special** (!@#$%...)
-   - Ne doit pas etre un mot de passe courant (44 mots de passe connus rejetes, ex: "password", "letmein", "motdepasse")
+   - Ne doit pas etre un mot de passe courant (93 mots de passe connus rejetes, ex: "password", "letmein", "motdepasse")
 4. Confirmez le mot de passe
 5. Validez la creation
 
@@ -157,7 +157,7 @@ Apres connexion, l'interface desktop se compose de quatre zones :
 |------|-----------|
 | **Fichier** | Importer..., Exporter..., --- , Parametres, --- , Verrouiller, Quitter |
 | **Edition** | Nouvelle entree, Modifier l'entree, Supprimer l'entree, --- , Changer mot de passe maitre |
-| **Affichage** | Actualiser, --- , Trier par nom, Trier par identifiant, Trier par email, Trier par pseudo, Trier par site, Trier par date, Trier par categorie, --- , Mots de passe faibles, Mots de passe reutilises |
+| **Affichage** | Actualiser, --- , Trier par nom, Trier par identifiant, Trier par email, Trier par site, Trier par date, Trier par categorie, --- , Mots de passe faibles, Mots de passe reutilises |
 | **Outils** | Generateur de mots de passe, Analyse de securite, --- , Synchroniser maintenant |
 | **Aide** | A propos |
 
@@ -187,7 +187,7 @@ Pour l'onglet **Mots de passe**, la disposition en 3 colonnes reste inchangee :
 | Colonne | Contenu |
 |---------|---------|
 | **Gauche** (180 px) | Liste des categories avec bouton d'ajout (visible uniquement sur l'onglet Mots de passe) |
-| **Centre** | Barre de recherche + filtres avances + tableau des entrees (Favori, Titre avec favicon, Identifiant, Email, Pseudo, Categorie, Force) — tous les en-tetes cliquables pour trier (y compris Favori et Force). Menu "Actions..." en masse en bas (visible quand >1 entree selectionnee) |
+| **Centre** | Barre de recherche + filtres avances + tableau des entrees (Favori, Titre avec favicon, Identifiant, Email, Categorie, Force) — tous les en-tetes cliquables pour trier (y compris Favori et Force). Menu "Actions..." en masse en bas (visible quand >1 entree selectionnee) |
 | **Droite** (300 px) | Details de l'entree selectionnee |
 
 L'onglet **Applications** suit une disposition similaire mais sans le panneau de categories a gauche, et avec des colonnes adaptees a ce type d'entree.
@@ -228,7 +228,6 @@ Type principal pour stocker les identifiants de connexion aux sites et services 
 | Titre | Oui | Nom du service ou du site |
 | Identifiant | Non | Nom d'utilisateur |
 | Email | Non | Adresse email |
-| Pseudo | Non | Pseudo / surnom / display name |
 | Mot de passe | Oui | Mot de passe du compte |
 | URL du site | Non | Adresse web du service (cliquable dans le detail) |
 | Notes | Non | Informations complementaires |
@@ -269,7 +268,7 @@ Type dedie au stockage des cles SSH pour l'authentification serveur.
 
 **Acces** : Onglet Cles SSH (desktop) | Parametres > Gerer les cles SSH (Android)
 
-Sur desktop, les cles SSH sont gerees dans un onglet dedie (`SshKeyPanel`) avec table, panneau de details et formulaire d'edition. Sur Android, elles sont gerees dans un ecran dedie accessible depuis les parametres (`SshKeyManagementScreen`). Les deux plateformes permettent de creer, modifier et supprimer des cles SSH.
+Sur desktop, les cles SSH sont gerees dans un onglet dedie (`SshKeyPanel`) avec table, panneau de details et formulaire d'edition : on peut **creer, modifier, supprimer et marquer en favori**. Sur Android, elles sont gerees dans un ecran dedie accessible depuis les parametres (`SshKeyManagementScreen`) : on peut **creer (generation/import), consulter et supprimer** — l'edition et les favoris ne sont pas disponibles pour les cles SSH sur Android.
 
 Les cles SSH ne supportent ni les categories, ni les tags. Elles supportent les **favoris** (etoile, tri prioritaire, operations en masse). Elles sont incluses dans les exports JSON et les sauvegardes chiffrees (.enc), mais pas dans les exports CSV. L'import JSON et l'import .enc incluent les cles SSH.
 
@@ -338,7 +337,7 @@ Un clic droit sur le tableau affiche un menu contextuel avec les actions disponi
 
 **Acces** : Clic droit > Dupliquer (desktop) | Bouton Dupliquer dans la barre d'actions (Android)
 
-Cree une nouvelle entree identique a l'entree selectionnee avec le titre prefixe par "Copie de". Tous les champs specifiques au type sont copies. Disponible pour les trois types d'entrees (mots de passe, applications, cles SSH sur desktop ; mots de passe et applications sur Android).
+Cree une nouvelle entree identique a l'entree selectionnee avec le titre prefixe par "Copie de". Tous les champs specifiques au type sont copies. Disponible pour les entrees **mot de passe** et **application** (desktop et Android). Les cles SSH ne sont pas dupliquables.
 
 ### 7.7. Consulter les details
 
@@ -346,7 +345,7 @@ Cliquer sur une entree dans le tableau affiche ses details dans le panneau droit
 
 **Entree mot de passe** :
 - Titre (en gras, centre)
-- Grille de details : identifiant, email, pseudo, mot de passe, URL (cliquable — ouvre le navigateur), categorie, notes, dates de creation et modification
+- Grille de details : identifiant, email, mot de passe, URL (cliquable — ouvre le navigateur), categorie, notes, dates de creation et modification
 - **Mot de passe masque** par defaut (case a cocher **Afficher le mot de passe** pour le reveler)
 - Le mot de passe se re-masque automatiquement apres **30 secondes**
 - Bouton **Copier l'identifiant** pour copier le nom d'utilisateur dans le presse-papiers
@@ -368,7 +367,7 @@ La barre de recherche en haut du tableau filtre les entrees au fur et a mesure d
 
 | Type d'entree | Champs recherches |
 |---------------|-------------------|
-| **Mots de passe** | Titre, identifiant, email, pseudo, URL, notes, categorie, tags |
+| **Mots de passe** | Titre, identifiant, email, URL, notes, categorie, tags |
 | **Applications** | Titre, identifiant, notes |
 
 ### 8.2. Tri
@@ -377,14 +376,13 @@ La barre de recherche en haut du tableau filtre les entrees au fur et a mesure d
 
 Les options de tri disponibles dependent du type d'entree :
 
-**Entrees mot de passe** (9 criteres) :
+**Entrees mot de passe** (8 criteres) :
 
 | Option | Comportement |
 |--------|-------------|
 | Trier par nom | Ordre alphabetique sur le titre |
 | Trier par identifiant | Ordre alphabetique sur l'identifiant |
 | Trier par email | Ordre alphabetique sur l'email |
-| Trier par pseudo | Ordre alphabetique sur le pseudo |
 | Trier par site | Ordre alphabetique sur l'URL |
 | Trier par date | Plus recemment modifie en premier |
 | Trier par categorie | Regroupement alphabetique par categorie |
@@ -507,7 +505,7 @@ Le statut favori est sauvegarde dans le coffre et exporte/importe via les format
 | Minuscules (a-z) | Inclure des lettres minuscules | Active |
 | Chiffres (0-9) | Inclure des chiffres | Active |
 | Caracteres speciaux | Inclure `!@#$%^&*()-_=+[]{}|;:',.<>?/` | Active |
-| Exclure caracteres ambigus | Retirer 0/O/o, 1/l/I | Desactive |
+| Exclure caracteres ambigus | Retirer 0/O, 1/l/I | Desactive |
 
 Le generateur garantit qu'au moins un caractere de chaque type active est present dans le mot de passe.
 
@@ -604,7 +602,6 @@ La colonne `type` determine le type d'entree a creer :
 | Type | `type`, `entry_type` |
 | Identifiant | `username`, `identifiant`, `login`, `adresse mail / identifiant` |
 | Email | `email`, `mail`, `adresse mail`, `e-mail`, `courriel` |
-| Pseudo | `pseudo`, `nickname`, `alias`, `surnom`, `display name` |
 | Mot de passe | `password`, `mdp`, `mot de passe`, `pass` |
 | URL | `url`, `site`, `website`, `lien` |
 | Notes | `notes`, `description`, `commentaire` |
@@ -620,9 +617,11 @@ La colonne `type` determine le type d'entree a creer :
 
 La detection est insensible a la casse et aux accents.
 
+> **Note** : une colonne `pseudo` / `nickname` / `alias` / `surnom` / `display name` est reconnue a l'import et mappee sur l'**identifiant** (si celui-ci n'est pas deja fourni par une autre colonne). Il n'existe pas de champ « pseudo » distinct dans les entrees.
+
 #### Repli positionnel
 
-Si aucun en-tete n'est reconnu, les colonnes sont interpretees dans l'ordre : titre, identifiant, email, pseudo, mot de passe, URL, notes, categorie, tags (compatibilite avec les fichiers existants, import en tant qu'entrees mot de passe).
+Si aucun en-tete n'est reconnu, les colonnes sont interpretees dans l'ordre : titre, identifiant, mot de passe, URL, notes, categorie, tags (compatibilite avec les fichiers existants, import en tant qu'entrees mot de passe).
 
 #### Limites
 
@@ -636,8 +635,8 @@ Si aucun en-tete n'est reconnu, les colonnes sont interpretees dans l'ordre : ti
 
 Format standard avec virgule (entrees mot de passe) :
 ```csv
-type,title,username,email,pseudo,password,url,notes,category,tags
-PASSWORD,Gmail,john_doe,john@example.com,JohnD,MyP@ssw0rd,https://gmail.com,Compte principal,Email,google;mail
+type,title,username,email,password,url,notes,category,tags
+PASSWORD,Gmail,john_doe,john@example.com,MyP@ssw0rd,https://gmail.com,Compte principal,Email,google;mail
 ```
 
 Format avec entrees mixtes :
@@ -720,10 +719,11 @@ Le bouton **Tester la connexion** permet de verifier la configuration.
 
 **Acces** : Outils > Synchroniser maintenant | Barre d'outils
 
-La synchronisation compare le coffre local et le coffre distant via leurs empreintes SHA-256 :
-- Si identiques : aucune action
-- Si differents et le local est plus recent : envoi du local vers le serveur
-- Si differents et le distant est plus recent : notification de conflit
+La synchronisation compare le coffre local, le coffre distant et le dernier etat synchronise via leurs empreintes SHA-256 (comparaison a **trois voies**, sans dependre d'horodatages) :
+- Empreintes locale et distante identiques : aucune action
+- Seul le local a change depuis la derniere synchro : envoi vers le serveur
+- Seul le distant a change : recuperation depuis le serveur
+- Les deux ont change : fusion par entree (voir 14.5), avec resolution de conflit si necessaire
 
 ### 14.4. Mode hors-ligne
 
@@ -811,7 +811,9 @@ Voir la section [Synchronisation distante](#14-synchronisation-distante).
 
 ### Fonctionnement interne
 
-Le changement de mot de passe ne re-chiffre **pas** l'ensemble des donnees. Seule la cle de donnees (DEK) est re-chiffree avec la nouvelle cle derivee du nouveau mot de passe. L'operation est donc quasi instantanee, quelle que soit la taille du coffre.
+Le changement de mot de passe ne re-chiffre **pas** l'ensemble des donnees : seule la cle de donnees (DEK) est re-encapsulee (re-chiffree par la cle derivee du nouveau mot de passe). L'operation est donc quasi instantanee, quelle que soit la taille du coffre.
+
+**Propagation multi-appareils** : apres un changement de mot de passe sur un appareil, les autres appareils adoptent automatiquement la nouvelle enveloppe lors de la synchronisation suivante (le DEK etant inchange et partage). Un appareil avec une session plus ancienne n'annule donc plus le changement en re-televersant son ancienne enveloppe.
 
 ---
 
@@ -825,7 +827,7 @@ Le changement de mot de passe ne re-chiffre **pas** l'ensemble des donnees. Seul
 
 ### 17.2. Protection du mot de passe maitre
 
-- Politique stricte : minimum 12 caracteres, 4 types requis, rejet des mots de passe courants (44 mots de passe connus incluant des variantes francaises comme "motdepasse")
+- Politique stricte : minimum 12 caracteres, 4 types requis, rejet des mots de passe courants (93 mots de passe connus incluant des variantes francaises comme "motdepasse")
 - Le mot de passe n'est **jamais conserve en memoire** apres l'authentification
 - Manipulation en `char[]` (pas en `String`) pour permettre l'effacement explicite
 - Comparaison a temps constant contre la liste de mots de passe courants (empeche les attaques par canal auxiliaire de timing)
@@ -971,11 +973,11 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | Coffre-fort chiffre AES-256-GCM + AAD | Oui | Oui |
 | Entrees mot de passe | Oui (onglet Mots de passe) | Oui (onglet Mots de passe) |
 | Entrees application | Oui (onglet Applications) | Oui (onglet Applications) |
-| Entrees cle SSH (CRUD, favoris, generation, import) | Oui (onglet dedie) | Oui (Parametres > Gerer les cles SSH) |
+| Entrees cle SSH | Oui (CRUD complet, favoris, generation, import fichier/texte — onglet dedie) | Oui (creation, generation, import fichier/texte, suppression — Parametres > Gerer les cles SSH ; pas d'edition ni de favoris) |
 | Navigation par onglets | JTabbedPane (3 onglets) | TabRow + HorizontalPager (2 onglets) + ecran dedie SSH |
 | CRUD entrees | Oui (tous types) | Oui (tous types) |
-| Dupliquer une entree | Oui (clic droit, 3 types) | Oui (bouton, mots de passe et applications) |
-| Favoris (etoile, tri prioritaire) | Oui (tous types) | Oui (tous types) |
+| Dupliquer une entree | Oui (clic droit, mots de passe et applications) | Oui (bouton, mots de passe et applications) |
+| Favoris (etoile, tri prioritaire) | Oui (tous types) | Oui (mots de passe et applications ; pas les cles SSH) |
 | Filtres avances (categorie, force, date, favoris) | Oui | Oui (FilterChips) |
 | Favicons des sites web | Oui (dans la colonne Titre) | Oui (avatar dans la carte d'entree) |
 | Generateur de mots de passe | Oui | Oui |

@@ -10,6 +10,8 @@ import com.passwordmanager.util.FileSecurityUtils;
 import com.passwordmanager.util.SecureWiper;
 
 import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
@@ -152,11 +154,13 @@ public class VaultManager {
             session = cryptoService.createSession(masterPassword);
         }
 
+        char[] vaultChars = decodeUtf8(vaultJsonBytes);
+        SecureWiper.wipe(vaultJsonBytes);
         Vault vault;
         try {
-            vault = gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
+            vault = VaultJsonCodec.decode(vaultChars);
         } finally {
-            SecureWiper.wipe(vaultJsonBytes);
+            SecureWiper.wipe(vaultChars);
         }
         if (vault == null) {
             throw new IOException("Corrupted vault file: deserialization returned null");
@@ -179,8 +183,10 @@ public class VaultManager {
             throws VaultEncryptionException, IOException {
         vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
 
-        // Serialize vault to bytes and wipe after encryption
-        byte[] vaultBytes = gson.toJson(vault).getBytes(StandardCharsets.UTF_8);
+        // Serialize vault to a char[] (secrets never become a String), then UTF-8 encode.
+        char[] vaultChars = VaultJsonCodec.encode(vault);
+        byte[] vaultBytes = encodeUtf8(vaultChars);
+        SecureWiper.wipe(vaultChars);
         String envelopeJson;
         try {
             EncryptedPayload encData = cryptoService.encryptData(vaultBytes, session.getDataKey(), VAULT_AAD);
@@ -297,11 +303,13 @@ public class VaultManager {
         } catch (VaultDecryptionException e) {
             vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
         }
+        char[] vaultChars = decodeUtf8(vaultJsonBytes);
+        SecureWiper.wipe(vaultJsonBytes);
         Vault vault;
         try {
-            vault = gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
+            vault = VaultJsonCodec.decode(vaultChars);
         } finally {
-            SecureWiper.wipe(vaultJsonBytes);
+            SecureWiper.wipe(vaultChars);
         }
         if (vault != null) vault.ensureInitialized();
         return vault;
@@ -341,18 +349,22 @@ public class VaultManager {
         } catch (VaultDecryptionException e) {
             vaultJsonBytes = cryptoService.decryptData(dataIv, ciphertext, session.getDataKey());
         }
+        char[] vaultChars = decodeUtf8(vaultJsonBytes);
+        SecureWiper.wipe(vaultJsonBytes);
         Vault vault;
         try {
-            vault = gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
+            vault = VaultJsonCodec.decode(vaultChars);
         } finally {
-            SecureWiper.wipe(vaultJsonBytes);
+            SecureWiper.wipe(vaultChars);
         }
         if (vault != null) vault.ensureInitialized();
         return vault;
     }
 
     /**
-     * Exports an encrypted backup. Verifies the vault can be loaded first.
+     * Exports an encrypted backup by copying the user's encrypted vault file
+     * (.enc) byte-for-byte to {@code exportPath} and restricting its permissions.
+     * Does not decrypt or validate the contents; {@code session} is currently unused.
      */
     public void exportBackup(String username, VaultSession session, String exportPath) throws IOException {
         String sourcePath = getVaultPath(username);
@@ -430,11 +442,13 @@ public class VaultManager {
             vaultJsonBytes = cryptoService.decryptLegacy(salt, iv, ciphertext, sourcePassword);
         }
 
+        char[] vaultChars = decodeUtf8(vaultJsonBytes);
+        SecureWiper.wipe(vaultJsonBytes);
         Vault sourceVault;
         try {
-            sourceVault = gson.fromJson(new String(vaultJsonBytes, StandardCharsets.UTF_8), Vault.class);
+            sourceVault = VaultJsonCodec.decode(vaultChars);
         } finally {
-            SecureWiper.wipe(vaultJsonBytes);
+            SecureWiper.wipe(vaultChars);
         }
 
         if (sourceVault == null) {
@@ -442,6 +456,31 @@ public class VaultManager {
         }
         sourceVault.ensureInitialized();
         return sourceVault;
+    }
+
+    /**
+     * Adopts the envelope (password-derived key material) from an external vault
+     * file into the session, so a master-password change made on another device is
+     * preserved when this device next saves/uploads (R4). Requires the file to be a
+     * synced copy of the same vault (shared DEK). No-op for legacy/non-enveloped files.
+     */
+    public void adoptEnvelopeFromFile(VaultSession session, String encFilePath) throws IOException {
+        byte[] fileBytes = Files.readAllBytes(Paths.get(encFilePath));
+        JsonObject json;
+        try {
+            json = JsonParser.parseString(new String(fileBytes, StandardCharsets.UTF_8)).getAsJsonObject();
+        } finally {
+            SecureWiper.wipe(fileBytes);
+        }
+        if (!json.has("salt") || !json.has("kek_iv") || !json.has("encrypted_dek")
+                || !json.has("kdf_iterations")) {
+            return; // not a v2.0 enveloped vault -- nothing to adopt
+        }
+        byte[] salt = Base64.getDecoder().decode(json.get("salt").getAsString());
+        byte[] kekIv = Base64.getDecoder().decode(json.get("kek_iv").getAsString());
+        byte[] encryptedDek = Base64.getDecoder().decode(json.get("encrypted_dek").getAsString());
+        int iterations = json.get("kdf_iterations").getAsInt();
+        cryptoService.adoptEnvelope(session, salt, kekIv, encryptedDek, iterations);
     }
 
     /**
@@ -468,6 +507,30 @@ public class VaultManager {
         for (int i = 3; i < backups.length; i++) {
             backups[i].delete();
         }
+    }
+
+    /**
+     * UTF-8 encodes a char[] to a byte[] without creating a String. Wipes the
+     * transient encoder buffer (which held the secret characters).
+     */
+    private static byte[] encodeUtf8(char[] chars) {
+        ByteBuffer bb = StandardCharsets.UTF_8.encode(CharBuffer.wrap(chars));
+        byte[] out = new byte[bb.remaining()];
+        bb.get(out);
+        if (bb.hasArray()) Arrays.fill(bb.array(), (byte) 0);
+        return out;
+    }
+
+    /**
+     * UTF-8 decodes a byte[] to a char[] without creating a String. Wipes the
+     * transient decoder buffer (which held the secret characters).
+     */
+    private static char[] decodeUtf8(byte[] bytes) {
+        CharBuffer cb = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(bytes));
+        char[] out = new char[cb.remaining()];
+        cb.get(out);
+        if (cb.hasArray()) Arrays.fill(cb.array(), '\0');
+        return out;
     }
 
     /**

@@ -115,14 +115,9 @@ class PasswordManagerAutofillService : AutofillService() {
     private fun matchesEntry(entry: PasswordEntry, domain: String): Boolean {
         if (domain.isBlank()) return false
         val entryUrl = entry.url?.lowercase() ?: return false
-        val domainLower = domain.lowercase()
         val entryDomain = extractDomain(entryUrl)
         if (entryDomain.isBlank()) return false
-        // Exact match or proper suffix match (prevents evilgoogle.com matching google.com)
-        return domainLower == entryDomain ||
-            domainLower.endsWith(".$entryDomain") ||
-            entryDomain == domainLower ||
-            entryDomain.endsWith(".$domainLower")
+        return AutofillDomainMatcher.matches(entryDomain, domain.lowercase())
     }
 
     private fun extractDomain(url: String): String {
@@ -204,5 +199,26 @@ class PasswordManagerAutofillService : AutofillService() {
         for (i in 0 until node.childCount) {
             traverseNode(node.getChildAt(i), visitor)
         }
+    }
+}
+
+/**
+ * Conservative domain matching for autofill suggestions (R10).
+ *
+ * A stored credential is offered only when its domain equals the requested domain,
+ * or the request is a sub-domain of the stored domain (e.g. a credential stored for
+ * `example.com` is offered on `login.example.com`). It is intentionally NOT offered
+ * to a parent or sibling: a credential stored for `mail.example.com` is never
+ * suggested on `example.com`. The leading-dot boundary also rejects look-alikes
+ * (`evil-example.com` does not match `example.com`).
+ *
+ * This does not consult the Public Suffix List, so registrable boundaries
+ * (e.g. `example.co.uk`) are not treated specially — a PSL-based match is a
+ * possible future refinement.
+ */
+internal object AutofillDomainMatcher {
+    fun matches(entryDomain: String, requestDomain: String): Boolean {
+        if (entryDomain.isBlank() || requestDomain.isBlank()) return false
+        return requestDomain == entryDomain || requestDomain.endsWith(".$entryDomain")
     }
 }

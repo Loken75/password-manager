@@ -119,7 +119,8 @@ public class Vault {
      * when iterating or modifying. Used by Gson deserialization and bulk operations.
      */
     public List<PasswordEntry> getEntriesMutable() { return entries; }
-    public synchronized void addEntry(PasswordEntry entry) { entries.add(entry); }
+    /** Adds an entry, replacing any existing entry with the same id (equals is id-based). */
+    public synchronized void addEntry(PasswordEntry entry) { entries.remove(entry); entries.add(entry); }
     public synchronized boolean removeEntry(PasswordEntry entry) { return entries.remove(entry); }
     public void setEntries(List<PasswordEntry> entries) { this.entries = entries; }
 
@@ -131,8 +132,10 @@ public class Vault {
         if (appEntries == null) appEntries = new ArrayList<>();
         return appEntries;
     }
+    /** Adds an app entry, replacing any existing entry with the same id (equals is id-based). */
     public synchronized void addAppEntry(AppEntry entry) {
         if (appEntries == null) appEntries = new ArrayList<>();
+        appEntries.remove(entry);
         appEntries.add(entry);
     }
     public synchronized boolean removeAppEntry(AppEntry entry) {
@@ -148,8 +151,10 @@ public class Vault {
         if (sshKeyEntries == null) sshKeyEntries = new ArrayList<>();
         return sshKeyEntries;
     }
+    /** Adds an SSH key entry, replacing any existing entry with the same id (equals is id-based). */
     public synchronized void addSshKeyEntry(SshKeyEntry entry) {
         if (sshKeyEntries == null) sshKeyEntries = new ArrayList<>();
+        sshKeyEntries.remove(entry);
         sshKeyEntries.add(entry);
     }
     public synchronized boolean removeSshKeyEntry(SshKeyEntry entry) {

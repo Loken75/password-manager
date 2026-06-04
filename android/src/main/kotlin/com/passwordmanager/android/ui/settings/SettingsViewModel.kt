@@ -6,11 +6,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.passwordmanager.android.data.BiometricHelper
 import com.passwordmanager.android.data.ConfigRepository
+import com.passwordmanager.android.data.HostKeyChangedException
+import com.passwordmanager.android.data.HostKeyPrompt
 import com.passwordmanager.android.data.SessionHolder
+import com.passwordmanager.android.data.SftpHostKeyVerifier
+import com.passwordmanager.android.data.SshHostKeyStore
+import com.passwordmanager.android.data.UnknownHostKeyException
 import com.passwordmanager.config.StorageMode
 import com.passwordmanager.config.ThemeMode
 import com.jcraft.jsch.JSch
-import com.jcraft.jsch.Session
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,14 +46,17 @@ data class SettingsUiState(
     val sftpRemotePath: String = "",
     val sshKeys: List<SshKeyOption> = emptyList(),
     val selectedSshKeyId: String = "",
-    val connectionTestResult: String? = null
+    val connectionTestResult: String? = null,
+    /** Non-null when a host key needs user confirmation (first use or changed). */
+    val hostKeyPrompt: HostKeyPrompt? = null
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val configRepo: ConfigRepository,
     private val biometricHelper: BiometricHelper,
-    private val sessionHolder: SessionHolder
+    private val sessionHolder: SessionHolder,
+    private val hostKeyStore: SshHostKeyStore
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -248,9 +255,10 @@ class SettingsViewModel @Inject constructor(
             return
         }
 
+        val port = state.sftpPort.toIntOrNull() ?: 22
         viewModelScope.launch(Dispatchers.IO) {
             var keyBytes: ByteArray? = null
-            val result = try {
+            try {
                 val jsch = JSch()
                 if (keyEntry != null) {
                     val privChars = keyEntry.privateKey
@@ -262,37 +270,77 @@ class SettingsViewModel @Inject constructor(
                 } else {
                     jsch.addIdentity(keyPath)
                 }
-                val session: Session = jsch.getSession(
-                    state.sftpUser,
-                    state.sftpHost,
-                    state.sftpPort.toIntOrNull() ?: 22
+                val session = SftpHostKeyVerifier.connect(
+                    jsch, state.sftpHost, port, state.sftpUser, hostKeyStore, 10_000
                 )
-                val knownHostsFile = java.io.File(
-                    android.os.Environment.getExternalStorageDirectory(), ".ssh/known_hosts"
-                )
-                if (knownHostsFile.exists()) {
-                    jsch.setKnownHosts(knownHostsFile.absolutePath)
-                    session.setConfig("StrictHostKeyChecking", "yes")
-                } else {
-                    session.setConfig("StrictHostKeyChecking", "accept-new")
-                }
-                session.connect(10_000)
                 val ok = session.isConnected
                 session.disconnect()
                 jsch.removeAllIdentity()
-                if (ok) "ok" else "fail"
+                _uiState.update { it.copy(connectionTestResult = if (ok) "ok" else "fail") }
+            } catch (e: UnknownHostKeyException) {
+                stashPendingHostKey(e.host, e.port, e.blob)
+                _uiState.update {
+                    it.copy(hostKeyPrompt = HostKeyPrompt(e.host, e.port, e.fingerprint, e.keyType, changed = false))
+                }
+            } catch (e: HostKeyChangedException) {
+                stashPendingHostKey(e.host, e.port, e.blob)
+                _uiState.update {
+                    it.copy(hostKeyPrompt = HostKeyPrompt(e.host, e.port, e.fingerprint, e.keyType, changed = true))
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "SFTP connection test failed", e)
-                "fail"
+                _uiState.update { it.copy(connectionTestResult = "fail") }
             } finally {
                 keyBytes?.fill(0)
             }
-            _uiState.update { it.copy(connectionTestResult = result) }
         }
     }
 
     fun clearConnectionTestResult() {
         _uiState.update { it.copy(connectionTestResult = null) }
+    }
+
+    // Host key awaiting user confirmation (raw bytes kept out of UI state).
+    @Volatile
+    private var pendingHostKeyBlob: ByteArray? = null
+    @Volatile
+    private var pendingHostKeyHost: String? = null
+    @Volatile
+    private var pendingHostKeyPort: Int = 22
+
+    private fun stashPendingHostKey(host: String, port: Int, blob: ByteArray) {
+        pendingHostKeyHost = host
+        pendingHostKeyPort = port
+        pendingHostKeyBlob = blob
+    }
+
+    /** User confirmed the presented host key: pin it and retry the connection test. */
+    fun confirmHostKey() {
+        val blob = pendingHostKeyBlob
+        val host = pendingHostKeyHost
+        if (blob == null || host == null) {
+            dismissHostKeyPrompt()
+            return
+        }
+        val port = pendingHostKeyPort
+        clearPendingHostKey()
+        _uiState.update { it.copy(hostKeyPrompt = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            hostKeyStore.pin(host, port, blob)
+            testConnection()
+        }
+    }
+
+    /** User declined the host key: abort without pinning. */
+    fun dismissHostKeyPrompt() {
+        clearPendingHostKey()
+        _uiState.update { it.copy(hostKeyPrompt = null) }
+    }
+
+    private fun clearPendingHostKey() {
+        pendingHostKeyBlob = null
+        pendingHostKeyHost = null
+        pendingHostKeyPort = 22
     }
 
     override fun onCleared() {

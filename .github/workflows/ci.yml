@@ -30,6 +30,9 @@ jobs:
       - name: Run core tests
         run: ./gradlew :core:test
 
+      - name: Verify core coverage (JaCoCo gate)
+        run: ./gradlew :core:jacocoTestCoverageVerification
+
       - name: Compile desktop
         run: ./gradlew :desktop:compileJava
 
@@ -61,3 +64,6 @@ jobs:
 
       - name: Run Android unit tests
         run: ./gradlew :android:testDebugUnitTest
+
+      - name: Android Lint (gates new issues vs baseline)
+        run: ./gradlew :android:lintDebug

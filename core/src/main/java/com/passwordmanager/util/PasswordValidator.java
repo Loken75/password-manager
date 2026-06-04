@@ -20,7 +20,16 @@ public class PasswordValidator {
         "starwars", "654321", "batman", "access", "hello", "passw0rd",
         "pass1234", "1234567890", "superman", "qazwsx", "default",
         "password1234", "changeme", "p@ssw0rd", "p@ssword", "password!",
-        "azerty", "azertyuiop", "motdepasse"
+        "azerty", "azertyuiop", "motdepasse",
+        // Expanded set: common keyboard walks, sequences, and frequent words (EN + FR)
+        "qwertyuiop", "asdfghjkl", "zxcvbnm", "1q2w3e4r", "1qaz2wsx", "qwe123",
+        "admin123", "root", "toor", "secret", "whatever", "freedom", "ninja",
+        "mustang", "jordan", "harley", "ranger", "hunter", "buster", "soccer",
+        "hockey", "killer", "george", "thomas", "computer", "jessica", "pepper",
+        "welcome1", "iloveyou1", "000000", "121212", "123123", "123321",
+        "555555", "666666", "777777", "888888", "999999", "12345", "123456789",
+        "abcd1234", "soleil", "bonjour", "coucou", "doudou", "jetaime", "loulou",
+        "camille", "nicolas"
     ));
 
     public static boolean validate(char[] password) {

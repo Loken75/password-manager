@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
+import com.passwordmanager.android.ui.components.ConfirmDialog
 import com.passwordmanager.android.ui.components.PasswordField
 import com.passwordmanager.config.StorageMode
 import com.passwordmanager.config.ThemeMode
@@ -56,6 +57,24 @@ fun SettingsScreen(
             snackbarHostState.showSnackbar(text)
             viewModel.clearConnectionTestResult()
         }
+    }
+
+    // SFTP host-key confirmation (first use or changed key)
+    state.hostKeyPrompt?.let { prompt ->
+        ConfirmDialog(
+            title = stringResource(
+                if (prompt.changed) R.string.sftp_hostkey_changed_title else R.string.sftp_hostkey_title
+            ),
+            message = stringResource(
+                if (prompt.changed) R.string.sftp_hostkey_changed_message else R.string.sftp_hostkey_message,
+                "${prompt.host}:${prompt.port}", prompt.keyType, prompt.fingerprint
+            ),
+            confirmText = stringResource(
+                if (prompt.changed) R.string.sftp_hostkey_trust_changed else R.string.sftp_hostkey_trust
+            ),
+            onConfirm = { viewModel.confirmHostKey() },
+            onDismiss = { viewModel.dismissHostKeyPrompt() }
+        )
     }
 
     Scaffold(

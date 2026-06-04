@@ -53,6 +53,61 @@ class VaultTest {
         assertFalse(vault.removeEntry(entry));
     }
 
+    // ---------------------------------------------------------------
+    // Dedup-by-id (R1 defensive layer): add* replaces any existing
+    // entry with the same id instead of appending a duplicate.
+    // ---------------------------------------------------------------
+
+    @Test
+    void addEntry_sameId_replacesInsteadOfDuplicating() {
+        Vault vault = new Vault("user");
+        PasswordEntry first = new PasswordEntry("Title", "old", "pass".toCharArray(), "", "", "Cat", null);
+        vault.addEntry(first);
+        PasswordEntry updated = new PasswordEntry("Title", "new", "pass".toCharArray(), "", "", "Cat", null);
+        updated.setId(first.getId());
+
+        vault.addEntry(updated);
+
+        assertEquals(1, vault.getEntries().size(), "Same id must not create a duplicate");
+        assertEquals("new", vault.getEntries().get(0).getUsername(), "Latest version wins");
+    }
+
+    @Test
+    void addAppEntry_sameId_replacesInsteadOfDuplicating() {
+        Vault vault = new Vault("user");
+        AppEntry first = new AppEntry("MyApp", "old", "1234".toCharArray(), "notes");
+        vault.addAppEntry(first);
+        AppEntry updated = new AppEntry("MyApp", "new", "5678".toCharArray(), "notes");
+        updated.setId(first.getId());
+
+        vault.addAppEntry(updated);
+
+        assertEquals(1, vault.getAppEntries().size());
+        assertEquals("new", vault.getAppEntries().get(0).getUsername());
+    }
+
+    @Test
+    void addSshKeyEntry_sameId_replacesInsteadOfDuplicating() {
+        Vault vault = new Vault("user");
+        SshKeyEntry first = new SshKeyEntry("key", "k1".toCharArray(), "pub", "RSA", "fp1");
+        vault.addSshKeyEntry(first);
+        SshKeyEntry updated = new SshKeyEntry("key", "k2".toCharArray(), "pub", "ED25519", "fp2");
+        updated.setId(first.getId());
+
+        vault.addSshKeyEntry(updated);
+
+        assertEquals(1, vault.getSshKeyEntries().size());
+        assertEquals("ED25519", vault.getSshKeyEntries().get(0).getKeyType());
+    }
+
+    @Test
+    void addEntry_distinctIds_bothKept() {
+        Vault vault = new Vault("user");
+        vault.addEntry(new PasswordEntry("A", "a", "p".toCharArray(), "", "", "Cat", null));
+        vault.addEntry(new PasswordEntry("B", "b", "p".toCharArray(), "", "", "Cat", null));
+        assertEquals(2, vault.getEntries().size());
+    }
+
     @Test
     void getEntriesIsUnmodifiable() {
         Vault vault = new Vault("user");

@@ -25,8 +25,13 @@ public class EntryMerger {
      *   <li>Entries only in remote: added (including tombstones for propagation)</li>
      *   <li>Entries in both with same updatedAt and same deleted state: keep local</li>
      *   <li>Tombstone vs live entry: most recent action wins (deletedAt vs updatedAt)</li>
-     *   <li>Both non-null different updatedAt (neither deleted): marked as conflict</li>
+     *   <li>Both non-null different updatedAt (neither deleted): marked as conflict and
+     *       <b>excluded from the merged list</b></li>
      * </ul>
+     *
+     * <p><b>Contract:</b> conflicting entries are returned only in {@link MergeResult#getConflicts()},
+     * never in {@link MergeResult#getMergedEntries()}. The caller MUST add exactly one resolved
+     * entry (local or remote) per conflict, so the final entry set never contains duplicate IDs.
      *
      * @param local  the local vault entries (including tombstones)
      * @param remote the remote vault entries (including tombstones)
@@ -49,8 +54,13 @@ public class EntryMerger {
                 // Only in local: keep (tombstone or live)
                 mergedEntries.add(localEntry);
             } else {
-                // In both: resolve based on deleted state and timestamps
-                mergedEntries.add(resolveEntry(localEntry, remoteEntry, conflicts));
+                // In both: resolve based on deleted state and timestamps.
+                // Conflicts return null and are intentionally NOT added here --
+                // the caller adds exactly one resolved entry per conflict.
+                T resolved = resolveEntry(localEntry, remoteEntry, conflicts);
+                if (resolved != null) {
+                    mergedEntries.add(resolved);
+                }
             }
         }
 
@@ -115,9 +125,11 @@ public class EntryMerger {
         } else if (remoteUpdated == null) {
             return localEntry;
         } else {
-            // Both non-null but different: conflict
+            // Both non-null but different: conflict. The entry is intentionally
+            // excluded from mergedEntries (return null); the caller MUST add exactly
+            // one resolved entry (local or remote) per conflict.
             conflicts.add(new Conflict<>(localEntry, remoteEntry));
-            return localEntry; // placeholder; caller replaces from conflict resolution
+            return null;
         }
     }
 

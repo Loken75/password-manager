@@ -66,9 +66,18 @@ android {
         }
     }
 
+    lint {
+        // Grandfather existing issues so CI gates only NEW lint problems.
+        baseline = file("lint-baseline.xml")
+        abortOnError = true
+        warningsAsErrors = false
+        checkReleaseBuilds = false
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+            isDebuggable = false
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

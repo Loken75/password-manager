@@ -1,8 +1,6 @@
 package com.passwordmanager.sync;
 
-import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.StorageMode;
-import com.passwordmanager.sync.EntryMerger;
 import com.passwordmanager.util.FileSecurityUtils;
 
 import java.io.IOException;
@@ -21,13 +19,11 @@ import java.util.logging.Logger;
 public class SyncService {
     private static final Logger LOGGER = Logger.getLogger(SyncService.class.getName());
     private final LocalSyncRepository localRepo;
-    private RemoteSyncRepository remoteRepo;
-    private StorageMode storageMode;
-    private AppConfig config;
+    private final RemoteSyncRepository remoteRepo;
+    private final StorageMode storageMode;
     private final Object lock = new Object();
     private long lastSyncTime = 0;
     private volatile String syncStatus = "offline";
-    private byte[] vaultKeyBytes;
 
     /** Temp suffix used when downloading remote content for hash comparison. */
     private static final String SYNC_TMP_SUFFIX = ".sync_tmp";
@@ -37,57 +33,15 @@ public class SyncService {
     private static final long RETRY_DELAY_MS = 2000;
 
     /**
-     * Production constructor: builds concrete repositories from AppConfig.
-     */
-    public SyncService(AppConfig config) {
-        this.config = config;
-        this.storageMode = config.getStorageMode();
-        this.localRepo = new LocalRepository(config.getLocalVaultDirectory());
-        buildSftpRepo();
-    }
-
-    /**
-     * Testable constructor: accepts repository abstractions directly.
+     * Constructs the sync engine from repository abstractions. Concrete
+     * repositories (local file store, SFTP client) are built per-platform
+     * by the caller and injected here, keeping this engine UI- and
+     * transport-agnostic so it can live in {@code :core}.
      */
     public SyncService(LocalSyncRepository localRepo, RemoteSyncRepository remoteRepo, StorageMode storageMode) {
         this.localRepo = localRepo;
         this.remoteRepo = remoteRepo;
         this.storageMode = storageMode;
-        this.config = null;
-    }
-
-    private void buildSftpRepo() {
-        if (config != null && config.getStorageMode() == StorageMode.REMOTE) {
-            if (config.isUsingVaultKey() && vaultKeyBytes != null) {
-                this.remoteRepo = new SFTPRepository(
-                    config.getSftpHost(), config.getSftpPort(),
-                    config.getSftpUser(), vaultKeyBytes,
-                    config.getSftpRemotePath()
-                );
-            } else {
-                this.remoteRepo = new SFTPRepository(
-                    config.getSftpHost(), config.getSftpPort(),
-                    config.getSftpUser(), config.getSftpKeyPath(),
-                    config.getSftpRemotePath()
-                );
-            }
-        } else {
-            this.remoteRepo = null;
-        }
-    }
-
-    public void setVaultKeyBytes(byte[] vaultKeyBytes) {
-        synchronized (lock) {
-            this.vaultKeyBytes = vaultKeyBytes;
-        }
-    }
-
-    public void refreshConfig(AppConfig config) {
-        synchronized (lock) {
-            this.config = config;
-            this.storageMode = config.getStorageMode();
-            buildSftpRepo();
-        }
     }
 
     public LocalSyncRepository getLocalRepo() { return localRepo; }
@@ -182,6 +136,7 @@ public class SyncService {
 
         String tempFilename = vaultFilename + SYNC_TMP_SUFFIX;
         String tempPath = localRepo.getFilePath(tempFilename);
+        boolean keepTemp = false; // on CONFLICT, keep the downloaded remote for the caller's merge
         try {
             remoteRepo.downloadFile(vaultFilename, tempPath);
             // SEC-02: Restrict permissions on temp file containing encrypted vault
@@ -223,16 +178,19 @@ public class SyncService {
                     return new SyncResult(true, "downloaded");
                 }
 
-                // Both changed: conflict (entry-level merge needed)
+                // Both changed: conflict. Preserve the downloaded remote vault so the
+                // caller can merge against the REAL remote (not a re-read of local).
                 syncStatus = "conflict";
-                return new SyncResult(false, "CONFLICT");
+                keepTemp = true;
+                return new SyncResult(false, "CONFLICT", tempPath);
             }
 
             // No sync meta (first sync with existing remote): conflict
             syncStatus = "conflict";
-            return new SyncResult(false, "CONFLICT");
+            keepTemp = true;
+            return new SyncResult(false, "CONFLICT", tempPath);
         } finally {
-            cleanupTempFile(tempPath);
+            if (!keepTemp) cleanupTempFile(tempPath);
         }
     }
 
@@ -383,13 +341,21 @@ public class SyncService {
     public static class SyncResult {
         private final boolean success;
         private final String message;
+        /** On a "CONFLICT" result: local path to the downloaded remote .enc to merge against. */
+        private final String remoteTempPath;
 
         public SyncResult(boolean success, String message) {
+            this(success, message, null);
+        }
+
+        public SyncResult(boolean success, String message, String remoteTempPath) {
             this.success = success;
             this.message = message;
+            this.remoteTempPath = remoteTempPath;
         }
 
         public boolean isSuccess() { return success; }
         public String getMessage() { return message; }
+        public String getRemoteTempPath() { return remoteTempPath; }
     }
 }

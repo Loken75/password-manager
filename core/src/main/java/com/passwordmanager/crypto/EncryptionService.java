@@ -57,4 +57,21 @@ public interface EncryptionService {
      */
     byte[] decryptLegacy(byte[] salt, byte[] iv, byte[] ciphertext,
                          char[] masterPassword) throws VaultDecryptionException;
+
+    /**
+     * Adopts an envelope (password-derived key material) from another copy of the
+     * SAME vault into this session, keeping the existing DEK. Used to propagate a
+     * master-password change made on another device without knowing the new password:
+     * because synced copies share the DEK, the foreign envelope still wraps it (R4).
+     *
+     * <p>Only safe between copies of the same vault (the shared-DEK invariant of sync).
+     */
+    default void adoptEnvelope(VaultSession session, byte[] salt, byte[] kekIv,
+                               byte[] encryptedDek, int kdfIterations) {
+        session.updateEnvelope(
+            java.util.Arrays.copyOf(salt, salt.length),
+            java.util.Arrays.copyOf(kekIv, kekIv.length),
+            java.util.Arrays.copyOf(encryptedDek, encryptedDek.length),
+            kdfIterations);
+    }
 }

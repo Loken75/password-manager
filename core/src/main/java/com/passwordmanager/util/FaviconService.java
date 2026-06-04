@@ -12,13 +12,18 @@ import java.security.MessageDigest;
 
 /**
  * Service for fetching and caching website favicons.
- * Uses the Google favicon API and a disk-based cache with 7-day expiry.
+ *
+ * <p>Privacy: favicons are fetched DIRECTLY from each site's own
+ * {@code /favicon.ico} over HTTPS, never via a third-party favicon resolver.
+ * This avoids disclosing the user's stored domains to any party other than the
+ * site they already use. A disk-based cache with 7-day expiry limits requests.
  */
 public class FaviconService {
 
-    private static final String FAVICON_API = "https://www.google.com/s2/favicons?sz=32&domain_url=";
     private static final int TIMEOUT_MS = 5000;
     private static final long CACHE_MAX_AGE_MS = 7L * 24 * 60 * 60 * 1000; // 7 days
+    /** Cap on favicon download size to avoid caching oversized/garbage responses. */
+    private static final int MAX_FAVICON_BYTES = 256 * 1024;
 
     private final String cacheDirectory;
 
@@ -46,38 +51,66 @@ public class FaviconService {
         byte[] cached = getCachedFavicon(url);
         if (cached != null) return cached;
 
-        // Fetch from network
+        // Fetch directly from the site's own favicon over HTTPS (no third party).
         try {
-            URL apiUrl = new URL(FAVICON_API + domain);
-            HttpURLConnection conn = (HttpURLConnection) apiUrl.openConnection();
+            URL favicon = new URL("https://" + domain + "/favicon.ico");
+            HttpURLConnection conn = (HttpURLConnection) favicon.openConnection();
             conn.setRequestMethod("GET");
             conn.setConnectTimeout(TIMEOUT_MS);
             conn.setReadTimeout(TIMEOUT_MS);
+            conn.setRequestProperty("User-Agent", "PasswordManager-favicon");
+            // HttpURLConnection refuses https->http redirects by default, so a
+            // redirect cannot silently downgrade to an insecure transport.
 
             try {
-                int responseCode = conn.getResponseCode();
-                if (responseCode != 200) return null;
+                if (conn.getResponseCode() != 200) return null;
 
-                try (InputStream in = conn.getInputStream();
-                     ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                    byte[] buffer = new byte[4096];
-                    int bytesRead;
-                    while ((bytesRead = in.read(buffer)) != -1) {
-                        out.write(buffer, 0, bytesRead);
-                    }
-                    byte[] data = out.toByteArray();
+                byte[] data = readCapped(conn.getInputStream(), MAX_FAVICON_BYTES);
+                if (data == null || !isLikelyImage(data)) return null;
 
-                    // Save to cache
-                    saveToCacheFile(domain, data);
-
-                    return data;
-                }
+                saveToCacheFile(domain, data);
+                return data;
             } finally {
                 conn.disconnect();
             }
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Reads up to {@code maxBytes} from the stream; returns null if the content
+     * exceeds the cap (an oversized response is treated as invalid).
+     */
+    private static byte[] readCapped(InputStream in, int maxBytes) throws java.io.IOException {
+        try (InputStream stream = in; ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            int total = 0;
+            while ((bytesRead = stream.read(buffer)) != -1) {
+                total += bytesRead;
+                if (total > maxBytes) return null;
+                out.write(buffer, 0, bytesRead);
+            }
+            return out.toByteArray();
+        }
+    }
+
+    /**
+     * Heuristically validates that the bytes are a known image format
+     * (ICO/CUR, PNG, GIF, JPEG, BMP, WEBP) so that HTML error pages served at
+     * {@code /favicon.ico} are not cached as icons. Package-private for testing.
+     */
+    static boolean isLikelyImage(byte[] d) {
+        if (d == null || d.length < 4) return false;
+        int b0 = d[0] & 0xFF, b1 = d[1] & 0xFF, b2 = d[2] & 0xFF, b3 = d[3] & 0xFF;
+        if (b0 == 0x00 && b1 == 0x00 && (b2 == 0x01 || b2 == 0x02) && b3 == 0x00) return true; // ICO/CUR
+        if (b0 == 0x89 && b1 == 0x50 && b2 == 0x4E && b3 == 0x47) return true;                 // PNG
+        if (b0 == 'G' && b1 == 'I' && b2 == 'F') return true;                                  // GIF
+        if (b0 == 0xFF && b1 == 0xD8) return true;                                              // JPEG
+        if (b0 == 'B' && b1 == 'M') return true;                                               // BMP
+        if (b0 == 'R' && b1 == 'I' && b2 == 'F' && b3 == 'F') return true;                     // RIFF/WEBP
+        return false;
     }
 
     /**

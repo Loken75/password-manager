@@ -197,6 +197,12 @@
     <string name="settings_test_connection">Tester la connexion</string>
     <string name="settings_connection_ok">Connexion réussie</string>
     <string name="settings_connection_fail">Échec de connexion</string>
+    <string name="sftp_hostkey_title">Confirmer l\'identité du serveur</string>
+    <string name="sftp_hostkey_message">Première connexion à %1$s.\n\nType de clé : %2$s\nEmpreinte :\n%3$s\n\nVérifiez que cette empreinte correspond à votre serveur avant de l\'approuver.</string>
+    <string name="sftp_hostkey_trust">Approuver</string>
+    <string name="sftp_hostkey_changed_title">Attention : la clé du serveur a changé</string>
+    <string name="sftp_hostkey_changed_message">La clé d\'hôte de %1$s a CHANGÉ depuis votre dernière approbation.\n\nType de clé : %2$s\nNouvelle empreinte :\n%3$s\n\nCela peut signifier que le serveur a été réinstallé — ou que quelqu\'un intercepte votre connexion. N\'approuvez la nouvelle clé que si vous en êtes certain.</string>
+    <string name="sftp_hostkey_trust_changed">Approuver la nouvelle clé</string>
     <string name="settings_local_only">Local uniquement</string>
     <string name="settings_remote_server">Serveur distant</string>
     <string name="sync_now">Synchroniser maintenant</string>

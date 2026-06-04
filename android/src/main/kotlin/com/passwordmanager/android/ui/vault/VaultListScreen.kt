@@ -593,6 +593,24 @@ fun VaultListScreen(
             onBack = { viewModel.dismissConflicts() }
         )
     }
+
+    // SFTP host-key confirmation (first use or changed key)
+    state.hostKeyPrompt?.let { prompt ->
+        ConfirmDialog(
+            title = stringResource(
+                if (prompt.changed) R.string.sftp_hostkey_changed_title else R.string.sftp_hostkey_title
+            ),
+            message = stringResource(
+                if (prompt.changed) R.string.sftp_hostkey_changed_message else R.string.sftp_hostkey_message,
+                "${prompt.host}:${prompt.port}", prompt.keyType, prompt.fingerprint
+            ),
+            confirmText = stringResource(
+                if (prompt.changed) R.string.sftp_hostkey_trust_changed else R.string.sftp_hostkey_trust
+            ),
+            onConfirm = { viewModel.confirmHostKey() },
+            onDismiss = { viewModel.dismissHostKeyPrompt() }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

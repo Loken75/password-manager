@@ -15,8 +15,8 @@ public class VaultExporter {
     }
 
     public char[] exportAsJson(Vault vault) {
-        String json = gson.toJson(vault);
-        return json.toCharArray();
+        // Use the secret-safe codec: never materializes the vault as a String.
+        return VaultJsonCodec.encode(vault);
     }
 
     public char[] exportAsCsv(Vault vault) {

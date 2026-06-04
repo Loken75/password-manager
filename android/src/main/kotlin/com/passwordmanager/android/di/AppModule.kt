@@ -42,6 +42,11 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideSshHostKeyStore(@ApplicationContext context: Context): com.passwordmanager.android.data.SshHostKeyStore =
+        com.passwordmanager.android.data.SshHostKeyStore(java.io.File(context.filesDir, "ssh/known_hosts"))
+
+    @Provides
+    @Singleton
     fun provideFaviconService(@ApplicationContext context: Context): com.passwordmanager.util.FaviconService =
         com.passwordmanager.util.FaviconService(context.cacheDir.absolutePath + "/favicons")
 
