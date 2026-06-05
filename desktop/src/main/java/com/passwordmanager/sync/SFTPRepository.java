@@ -22,6 +22,8 @@ public class SFTPRepository implements RemoteSyncRepository {
     private final String privateKeyPath;
     private final byte[] privateKeyBytes;
     private final String remotePath;
+    /** Directory the local vault file must reside in (anti-traversal guard). Null = legacy default. */
+    private volatile String allowedLocalDir;
 
     public SFTPRepository(String host, int port, String user, String privateKeyPath, String remotePath) {
         this.host = host;
@@ -158,14 +160,25 @@ public class SFTPRepository implements RemoteSyncRepository {
         }
     }
 
-    private static void validateLocalPath(String localPath) {
+    /**
+     * Restricts which local directory the vault file may be uploaded from.
+     * When set, the upload anti-traversal guard validates against this directory
+     * (the configured workspace) instead of the legacy {@code ~/.passwordmanager} default.
+     */
+    public void setAllowedLocalDir(String dir) {
+        this.allowedLocalDir = dir;
+    }
+
+    private void validateLocalPath(String localPath) {
         if (localPath == null || localPath.isEmpty()) {
             throw new IllegalArgumentException("Local path must not be empty");
         }
         try {
             File localFile = new File(localPath).getCanonicalFile();
-            String vaultDir = new File(System.getProperty("user.home"), ".passwordmanager")
-                    .getCanonicalPath();
+            File baseDir = (allowedLocalDir != null && !allowedLocalDir.isEmpty())
+                    ? new File(allowedLocalDir)
+                    : new File(System.getProperty("user.home"), ".passwordmanager");
+            String vaultDir = baseDir.getCanonicalPath();
             if (!localFile.getPath().startsWith(vaultDir + File.separator) &&
                     !localFile.getPath().equals(vaultDir)) {
                 throw new IllegalArgumentException("Local path escapes vault directory: " + localPath);

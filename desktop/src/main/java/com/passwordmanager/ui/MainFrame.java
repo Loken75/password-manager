@@ -344,6 +344,14 @@ public class MainFrame extends JFrame {
         SettingsDialog dlg = new SettingsDialog(this, appConfig, configManager,
             vaultService.getSshKeyService().getActiveList());
         dlg.setVisible(true);
+
+        // Changing the working folder requires a clean re-login: save+wipe the current
+        // session and return to the login screen, where the new folder is chosen. Checked
+        // before isSaved() because this path intentionally discards other dialog edits.
+        if (dlg.isWorkspaceChangeRequested()) {
+            doLock();
+            return;
+        }
         if (!dlg.isSaved()) return;
 
         boolean langChanged = !oldLang.equals(appConfig.getLanguage());

@@ -111,6 +111,17 @@ class AndroidConfigRepository(context: Context) : ConfigRepository {
         prefs.edit().putString(KEY_SFTP_KEY_ID, keyId).apply()
     }
 
+    // --- Vault workspace ---
+
+    override fun getVaultWorkspace(): String? = prefs.getString(KEY_VAULT_WORKSPACE, null)
+
+    override fun setVaultWorkspace(spec: String?) {
+        val editor = prefs.edit()
+        if (spec != null) editor.putString(KEY_VAULT_WORKSPACE, spec)
+        else editor.remove(KEY_VAULT_WORKSPACE)
+        editor.apply()
+    }
+
     // --- Biometric ---
 
     override fun isBiometricEnabled(username: String): Boolean =
@@ -168,5 +179,6 @@ class AndroidConfigRepository(context: Context) : ConfigRepository {
         private const val KEY_SFTP_KEY_PATH = "sftp_key_path"
         private const val KEY_SFTP_REMOTE_PATH = "sftp_remote_path"
         private const val KEY_SFTP_KEY_ID = "sftp_key_id"
+        private const val KEY_VAULT_WORKSPACE = "vault_workspace"
     }
 }

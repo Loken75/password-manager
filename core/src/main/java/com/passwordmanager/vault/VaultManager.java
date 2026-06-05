@@ -8,6 +8,8 @@ import com.passwordmanager.crypto.*;
 import com.passwordmanager.util.DateUtils;
 import com.passwordmanager.util.FileSecurityUtils;
 import com.passwordmanager.util.SecureWiper;
+import com.passwordmanager.vault.store.FileVaultStore;
+import com.passwordmanager.vault.store.VaultStore;
 
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -24,18 +26,30 @@ public class VaultManager {
     private static final String VAULT_VERSION = "2.0";
     /** AAD binds the vault version to the GCM ciphertext, preventing parameter substitution. */
     private static final byte[] VAULT_AAD = VAULT_VERSION.getBytes(StandardCharsets.UTF_8);
+    /** Filename scheme for vault files: {@code vault_<username>.enc} (+ {@code .bak}/{@code .sync_meta}/{@code .pending} sidecars). */
+    public static final String VAULT_FILE_PREFIX = "vault_";
+    public static final String VAULT_FILE_SUFFIX = ".enc";
+    public static final String VAULT_BACKUP_SUFFIX = ".bak";
     private final Gson gson;
     private final EncryptionService cryptoService;
     private final VaultImporter importer;
     private final VaultExporter exporter;
-    private final String vaultDirectory;
+    private final VaultStore store;
 
     public VaultManager(String vaultDirectory) {
-        this(vaultDirectory, new CryptoService());
+        this(new FileVaultStore(vaultDirectory), new CryptoService());
     }
 
     public VaultManager(String vaultDirectory, EncryptionService cryptoService) {
-        this.vaultDirectory = vaultDirectory;
+        this(new FileVaultStore(vaultDirectory), cryptoService);
+    }
+
+    public VaultManager(VaultStore store) {
+        this(store, new CryptoService());
+    }
+
+    public VaultManager(VaultStore store, EncryptionService cryptoService) {
+        this.store = store;
         this.cryptoService = cryptoService;
         this.gson = new GsonBuilder()
             .setPrettyPrinting()
@@ -43,20 +57,31 @@ public class VaultManager {
             .create();
         this.importer = new VaultImporter(gson);
         this.exporter = new VaultExporter(gson);
-        File dir = new File(vaultDirectory);
-        if (!dir.exists()) {
-            dir.mkdirs();
-            FileSecurityUtils.setOwnerOnlyPermissions(dir.toPath());
-        }
     }
 
-    public String getVaultDirectory() { return vaultDirectory; }
+    public VaultStore getStore() { return store; }
+    public String getVaultDirectory() { return store.describe(); }
     public VaultImporter getImporter() { return importer; }
     public VaultExporter getExporter() { return exporter; }
 
-    public String getVaultPath(String username) {
+    /** Returns the bare vault filename for a user (e.g. {@code "vault_alice.enc"}). */
+    public String vaultFilename(String username) {
         validateUsername(username);
-        return vaultDirectory + File.separator + "vault_" + username + ".enc";
+        return VAULT_FILE_PREFIX + username + VAULT_FILE_SUFFIX;
+    }
+
+    /**
+     * Returns a real filesystem path for the user's vault file.
+     * Only valid for file-backed stores; SAF-backed stores throw
+     * {@link UnsupportedOperationException} (use {@link #readVaultBytes} instead).
+     */
+    public String getVaultPath(String username) {
+        return store.pathOf(vaultFilename(username));
+    }
+
+    /** Reads the raw encrypted bytes of the user's vault file (store-backed, SAF-safe). */
+    public byte[] readVaultBytes(String username) throws IOException {
+        return store.read(vaultFilename(username));
     }
 
     /**
@@ -73,7 +98,7 @@ public class VaultManager {
     }
 
     public boolean vaultExists(String username) {
-        return new File(getVaultPath(username)).exists();
+        return store.exists(vaultFilename(username));
     }
 
     /**
@@ -107,13 +132,12 @@ public class VaultManager {
 
     public VaultLoadResult loadVault(String username, char[] masterPassword)
             throws VaultDecryptionException, VaultEncryptionException, IOException {
-        String path = getVaultPath(username);
-        Path filePath = Paths.get(path);
-        long fileSize = Files.size(filePath);
+        String name = vaultFilename(username);
+        long fileSize = store.size(name);
         if (fileSize > MAX_VAULT_FILE_SIZE) {
             throw new IOException("Vault file exceeds maximum size (" + MAX_VAULT_FILE_SIZE / (1024 * 1024) + " MB)");
         }
-        byte[] fileBytes = Files.readAllBytes(filePath);
+        byte[] fileBytes = store.read(name);
         String fileContent;
         try {
             fileContent = new String(fileBytes, StandardCharsets.UTF_8);
@@ -205,60 +229,62 @@ public class VaultManager {
             SecureWiper.wipe(vaultBytes);
         }
 
-        Path path = Paths.get(getVaultPath(username));
+        String name = vaultFilename(username);
 
         // Backup existing file before overwriting (single rolling .bak)
-        if (Files.exists(path)) {
-            Path backupPath = Paths.get(getVaultPath(username) + ".bak");
-            Files.copy(path, backupPath, StandardCopyOption.REPLACE_EXISTING);
-            FileSecurityUtils.setOwnerOnlyPermissions(backupPath);
+        if (store.exists(name)) {
+            store.copy(name, name + VAULT_BACKUP_SUFFIX);
             cleanupOldBackups(username);
         }
 
-        // Atomic write: write to temp file, set permissions, then rename
-        Path tempPath = Paths.get(getVaultPath(username) + ".tmp");
-        Files.write(tempPath, envelopeJson.getBytes(StandardCharsets.UTF_8));
-        FileSecurityUtils.setOwnerOnlyPermissions(tempPath);
-        try {
-            Files.move(tempPath, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
-            Files.move(tempPath, path, StandardCopyOption.REPLACE_EXISTING);
-        } finally {
-            Files.deleteIfExists(tempPath);
-        }
-
-        FileSecurityUtils.setOwnerOnlyPermissions(path);
+        // Atomic write delegated to the store (temp + rename + permissions where applicable)
+        store.writeAtomic(name, envelopeJson.getBytes(StandardCharsets.UTF_8));
     }
 
     public String[] listUsers() {
-        File dir = new File(vaultDirectory);
-        File[] files = dir.listFiles((d, name) -> name.startsWith("vault_") && name.endsWith(".enc"));
-        if (files == null) return new String[0];
-        String[] users = new String[files.length];
-        for (int i = 0; i < files.length; i++) {
-            String name = files[i].getName();
-            users[i] = name.substring(6, name.length() - 4);
+        List<String> names;
+        try {
+            names = store.list();
+        } catch (IOException e) {
+            return new String[0];
         }
-        Arrays.sort(users);
-        return users;
+        List<String> users = new ArrayList<>();
+        for (String name : names) {
+            if (name.startsWith(VAULT_FILE_PREFIX) && name.endsWith(VAULT_FILE_SUFFIX)) {
+                users.add(name.substring(VAULT_FILE_PREFIX.length(),
+                    name.length() - VAULT_FILE_SUFFIX.length()));
+            }
+        }
+        Collections.sort(users);
+        return users.toArray(new String[0]);
     }
 
     public boolean deleteVault(String username) {
         validateUsername(username);
-        File file = new File(getVaultPath(username));
-        boolean deleted = file.exists() && file.delete();
-
-        // Also delete all backup files for this user
-        File dir = new File(vaultDirectory);
-        String prefix = "vault_" + username;
-        File[] backups = dir.listFiles((d, name) ->
-            name.startsWith(prefix) && name.endsWith(".bak"));
-        if (backups != null) {
-            for (File backup : backups) {
-                backup.delete();
-            }
+        String name = vaultFilename(username);
+        boolean existed = store.exists(name);
+        try {
+            store.delete(name);
+        } catch (IOException e) {
+            return false;
         }
-        return deleted;
+        // Best-effort backup cleanup: failures here must not flip the result of the
+        // primary delete (which already succeeded) nor abort on the first error.
+        String prefix = VAULT_FILE_PREFIX + username;
+        try {
+            for (String f : store.list()) {
+                if (f.startsWith(prefix) && f.endsWith(VAULT_BACKUP_SUFFIX)) {
+                    try {
+                        store.delete(f);
+                    } catch (IOException ignored) {
+                        // continue deleting the remaining backups
+                    }
+                }
+            }
+        } catch (IOException ignored) {
+            // listing failed; leave remaining backups (best-effort)
+        }
+        return existed;
     }
 
     /**
@@ -278,13 +304,12 @@ public class VaultManager {
      */
     public Vault reloadVault(String username, VaultSession session)
             throws VaultDecryptionException, IOException {
-        String path = getVaultPath(username);
-        Path filePath = Paths.get(path);
-        long fileSize = Files.size(filePath);
+        String name = vaultFilename(username);
+        long fileSize = store.size(name);
         if (fileSize > MAX_VAULT_FILE_SIZE) {
             throw new IOException("Vault file exceeds maximum size (" + MAX_VAULT_FILE_SIZE / (1024 * 1024) + " MB)");
         }
-        byte[] fileBytes = Files.readAllBytes(filePath);
+        byte[] fileBytes = store.read(name);
         String fileContent;
         try {
             fileContent = new String(fileBytes, StandardCharsets.UTF_8);
@@ -367,8 +392,7 @@ public class VaultManager {
      * Does not decrypt or validate the contents; {@code session} is currently unused.
      */
     public void exportBackup(String username, VaultSession session, String exportPath) throws IOException {
-        String sourcePath = getVaultPath(username);
-        byte[] data = Files.readAllBytes(Paths.get(sourcePath));
+        byte[] data = store.read(vaultFilename(username));
         Path target = Paths.get(exportPath);
         Files.write(target, data);
         FileSecurityUtils.setOwnerOnlyPermissions(target);
@@ -498,14 +522,21 @@ public class VaultManager {
      * Retains only the most recent backup files per user, deleting older ones.
      */
     private void cleanupOldBackups(String username) {
-        File dir = new File(vaultDirectory);
-        String prefix = "vault_" + username;
-        File[] backups = dir.listFiles((d, name) ->
-            name.startsWith(prefix) && name.endsWith(".bak"));
-        if (backups == null || backups.length <= 3) return;
-        java.util.Arrays.sort(backups, java.util.Comparator.comparingLong(File::lastModified).reversed());
-        for (int i = 3; i < backups.length; i++) {
-            backups[i].delete();
+        try {
+            String prefix = VAULT_FILE_PREFIX + username;
+            List<String> backups = new ArrayList<>();
+            for (String name : store.list()) {
+                if (name.startsWith(prefix) && name.endsWith(VAULT_BACKUP_SUFFIX)) {
+                    backups.add(name);
+                }
+            }
+            if (backups.size() <= 3) return;
+            backups.sort(java.util.Comparator.comparingLong(store::lastModified).reversed());
+            for (int i = 3; i < backups.size(); i++) {
+                store.delete(backups.get(i));
+            }
+        } catch (IOException e) {
+            // best-effort cleanup; ignore
         }
     }
 

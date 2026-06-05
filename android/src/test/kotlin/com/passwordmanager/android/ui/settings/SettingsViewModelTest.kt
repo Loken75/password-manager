@@ -6,6 +6,7 @@ import com.passwordmanager.android.data.SshHostKeyStore
 import java.io.File
 import com.passwordmanager.android.test.FakeBiometricHelper
 import com.passwordmanager.android.test.FakeConfigRepository
+import com.passwordmanager.android.test.FakeWorkspaceManager
 import com.passwordmanager.android.test.MainDispatcherExtension
 import com.passwordmanager.android.test.TestSessionHelper
 import com.passwordmanager.config.ThemeMode
@@ -37,7 +38,7 @@ class SettingsViewModelTest {
         TestSessionHelper.unlockWithEmptyVault(tempDir)
         biometricHelper = FakeBiometricHelper()
         hostKeyStore = SshHostKeyStore(File(tempDir.toFile(), "ssh_known_hosts"))
-        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder, hostKeyStore)
+        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder, hostKeyStore, FakeWorkspaceManager(tempDir.toString()))
     }
 
     @AfterEach
@@ -103,14 +104,14 @@ class SettingsViewModelTest {
     @Test
     fun `biometric unavailable hides toggle`() {
         biometricHelper.available = false
-        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder, hostKeyStore)
+        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder, hostKeyStore, FakeWorkspaceManager(tempDir.toString()))
         assertFalse(viewModel.uiState.value.biometricAvailable)
     }
 
     @Test
     fun `biometric available shows toggle`() {
         biometricHelper.available = true
-        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder, hostKeyStore)
+        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder, hostKeyStore, FakeWorkspaceManager(tempDir.toString()))
         assertTrue(viewModel.uiState.value.biometricAvailable)
     }
 
@@ -122,7 +123,7 @@ class SettingsViewModelTest {
     @Test
     fun `biometric enabled reflects config state`() {
         configRepo.setBiometricEnabled("testuser", true)
-        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder, hostKeyStore)
+        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder, hostKeyStore, FakeWorkspaceManager(tempDir.toString()))
         assertTrue(viewModel.uiState.value.biometricEnabled)
     }
 
@@ -132,7 +133,7 @@ class SettingsViewModelTest {
         configRepo.setBiometricEncryptedPassword("testuser", byteArrayOf(1, 2, 3))
         configRepo.setBiometricIv("testuser", byteArrayOf(4, 5, 6))
 
-        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder, hostKeyStore)
+        viewModel = SettingsViewModel(configRepo, biometricHelper, SessionHolder, hostKeyStore, FakeWorkspaceManager(tempDir.toString()))
         viewModel.disableBiometric()
 
         assertFalse(viewModel.uiState.value.biometricEnabled)

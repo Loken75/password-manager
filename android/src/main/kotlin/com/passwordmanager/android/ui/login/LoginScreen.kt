@@ -1,7 +1,12 @@
 package com.passwordmanager.android.ui.login
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.documentfile.provider.DocumentFile
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.BuildConfig
 import com.passwordmanager.android.R
+import com.passwordmanager.android.data.WorkspaceManager
 import com.passwordmanager.android.ui.components.PasswordField
 import com.passwordmanager.android.update.AndroidUpdateManager
 import com.passwordmanager.android.update.UpdateResult
@@ -64,6 +70,24 @@ fun LoginScreen(
 
     // Update check state
     val context = LocalContext.current
+
+    // SAF folder picker: persist the grant, then switch the workspace to that tree.
+    val folderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                viewModel.switchWorkspace(WorkspaceManager.safSpec(uri.toString()))
+            } catch (e: SecurityException) {
+                // The grant was not persistable — leave the workspace unchanged.
+            }
+        }
+    }
+
     val coroutineScope = rememberCoroutineScope()
     var isCheckingUpdate by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
@@ -134,6 +158,51 @@ fun LoginScreen(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Working-folder (workspace) selector: known locations + "Choose folder…" (SAF)
+                    run {
+                        var workspaceExpanded by remember { mutableStateOf(false) }
+                        ExposedDropdownMenuBox(
+                            expanded = workspaceExpanded,
+                            onExpandedChange = { workspaceExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = workspaceSpecLabel(state.workspaceSpec),
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text(stringResource(R.string.workspace_label)) },
+                                trailingIcon = {
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = workspaceExpanded,
+                                onDismissRequest = { workspaceExpanded = false }
+                            ) {
+                                state.workspaceOptions.forEach { spec ->
+                                    DropdownMenuItem(
+                                        text = { Text(workspaceSpecLabel(spec)) },
+                                        onClick = {
+                                            viewModel.switchWorkspace(spec)
+                                            workspaceExpanded = false
+                                        }
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.workspace_choose_folder)) },
+                                    onClick = {
+                                        workspaceExpanded = false
+                                        folderPicker.launch(null)
+                                    }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
                     // User dropdown
                     var dropdownExpanded by remember { mutableStateOf(false) }
 
@@ -321,6 +390,27 @@ fun LoginScreen(
         )
     }
 
+    // Workspace switch / migration dialog
+    if (state.pendingWorkspaceSwitch != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelWorkspaceSwitch() },
+            title = { Text(stringResource(R.string.workspace_migrate_title)) },
+            text = {
+                Text(stringResource(R.string.workspace_migrate_message, state.pendingWorkspaceVaultCount))
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmWorkspaceSwitch(migrate = true) }) {
+                    Text(stringResource(R.string.workspace_migrate_move))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.confirmWorkspaceSwitch(migrate = false) }) {
+                    Text(stringResource(R.string.workspace_migrate_keep))
+                }
+            }
+        )
+    }
+
     // Create user dialog
     if (state.showCreateDialog) {
         CreateUserDialog(
@@ -332,6 +422,21 @@ fun LoginScreen(
             onCreate = { viewModel.createUser(localizedCategories) }
         )
     }
+}
+
+@Composable
+private fun workspaceSpecLabel(spec: String): String = when {
+    spec == WorkspaceManager.SPEC_EXTERNAL -> stringResource(R.string.workspace_external)
+    spec.startsWith(WorkspaceManager.SAF_PREFIX) -> {
+        val context = LocalContext.current
+        val fallback = stringResource(R.string.workspace_folder)
+        // Resolve the folder name once per spec (a ContentResolver query), not every recomposition.
+        remember(spec) {
+            DocumentFile.fromTreeUri(context, Uri.parse(spec.removePrefix(WorkspaceManager.SAF_PREFIX)))
+                ?.name ?: fallback
+        }
+    }
+    else -> stringResource(R.string.workspace_internal)
 }
 
 @Composable

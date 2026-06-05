@@ -12,6 +12,7 @@ import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.android.data.SftpHostKeyVerifier
 import com.passwordmanager.android.data.SshHostKeyStore
 import com.passwordmanager.android.data.UnknownHostKeyException
+import com.passwordmanager.android.data.WorkspaceManager
 import com.passwordmanager.config.StorageMode
 import com.passwordmanager.config.ThemeMode
 import com.jcraft.jsch.JSch
@@ -56,8 +57,12 @@ class SettingsViewModel @Inject constructor(
     private val configRepo: ConfigRepository,
     private val biometricHelper: BiometricHelper,
     private val sessionHolder: SessionHolder,
-    private val hostKeyStore: SshHostKeyStore
+    private val hostKeyStore: SshHostKeyStore,
+    private val workspaceManager: WorkspaceManager
 ) : ViewModel() {
+
+    /** Biometric enrollment is namespaced per workspace so same-named users don't collide. */
+    private fun bioAccount(username: String): String = workspaceManager.biometricAccount(username)
 
     private val _uiState = MutableStateFlow(
         SettingsUiState(
@@ -66,7 +71,7 @@ class SettingsViewModel @Inject constructor(
             autoLockMinutes = configRepo.getAutoLockMinutes(),
             clipboardClearSeconds = configRepo.getClipboardClearSeconds(),
             biometricAvailable = biometricHelper.canAuthenticate(),
-            biometricEnabled = sessionHolder.username?.let { configRepo.isBiometricEnabled(it) } ?: false,
+            biometricEnabled = sessionHolder.username?.let { configRepo.isBiometricEnabled(bioAccount(it)) } ?: false,
             storageMode = configRepo.getStorageMode(),
             sftpHost = configRepo.getSftpHost(),
             sftpPort = configRepo.getSftpPort().toString(),
@@ -165,10 +170,11 @@ class SettingsViewModel @Inject constructor(
     private fun enrollBiometric(activity: FragmentActivity, password: CharArray) {
         val username = sessionHolder.username ?: run { password.fill('\u0000'); return }
 
-        biometricHelper.generateKey(username)
-        val cipher = biometricHelper.getEncryptCipher(username)
+        val account = bioAccount(username)
+        biometricHelper.generateKey(account)
+        val cipher = biometricHelper.getEncryptCipher(account)
         if (cipher == null) {
-            biometricHelper.deleteKey(username)
+            biometricHelper.deleteKey(account)
             password.fill('\u0000')
             return
         }
@@ -183,16 +189,16 @@ class SettingsViewModel @Inject constructor(
                 val authenticatedCipher = crypto?.cipher ?: run { password.fill('\u0000'); return@showBiometricPrompt }
                 try {
                     val (encrypted, iv) = BiometricHelper.encryptPassword(authenticatedCipher, password)
-                    configRepo.setBiometricEncryptedPassword(username, encrypted)
-                    configRepo.setBiometricIv(username, iv)
-                    configRepo.setBiometricEnabled(username, true)
+                    configRepo.setBiometricEncryptedPassword(account, encrypted)
+                    configRepo.setBiometricIv(account, iv)
+                    configRepo.setBiometricEnabled(account, true)
                     _uiState.update { it.copy(biometricEnabled = true) }
                 } finally {
                     password.fill('\u0000')
                 }
             },
             onError = { _, _ ->
-                biometricHelper.deleteKey(username)
+                biometricHelper.deleteKey(account)
                 password.fill('\u0000')
             }
         )
@@ -200,8 +206,9 @@ class SettingsViewModel @Inject constructor(
 
     fun disableBiometric() {
         val username = sessionHolder.username ?: return
-        configRepo.clearBiometricData(username)
-        biometricHelper.deleteKey(username)
+        val account = bioAccount(username)
+        configRepo.clearBiometricData(account)
+        biometricHelper.deleteKey(account)
         _uiState.update { it.copy(biometricEnabled = false) }
     }
 

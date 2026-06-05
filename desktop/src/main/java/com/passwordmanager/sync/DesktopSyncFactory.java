@@ -24,17 +24,21 @@ public final class DesktopSyncFactory {
         LocalRepository local = new LocalRepository(config.getLocalVaultDirectory());
         RemoteSyncRepository remote = null;
         if (config.getStorageMode() == StorageMode.REMOTE) {
+            SFTPRepository sftp;
             if (config.isUsingVaultKey() && vaultKeyBytes != null) {
-                remote = new SFTPRepository(
+                sftp = new SFTPRepository(
                     config.getSftpHost(), config.getSftpPort(),
                     config.getSftpUser(), vaultKeyBytes,
                     config.getSftpRemotePath());
             } else {
-                remote = new SFTPRepository(
+                sftp = new SFTPRepository(
                     config.getSftpHost(), config.getSftpPort(),
                     config.getSftpUser(), config.getSftpKeyPath(),
                     config.getSftpRemotePath());
             }
+            // Validate uploads against the configured workspace directory (not the legacy default).
+            sftp.setAllowedLocalDir(config.getLocalVaultDirectory());
+            remote = sftp;
         }
         return new SyncService(local, remote, config.getStorageMode());
     }

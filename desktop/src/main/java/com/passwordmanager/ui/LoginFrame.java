@@ -8,13 +8,19 @@ import com.passwordmanager.update.DesktopUpdateManager;
 import com.passwordmanager.util.PasswordValidator;
 import com.passwordmanager.vault.VaultLoadResult;
 import com.passwordmanager.vault.VaultManager;
+import com.passwordmanager.vault.VaultStoreMigrator;
+import com.passwordmanager.vault.store.FileVaultStore;
 
 import javax.swing.*;
 import java.awt.*;
+import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Login screen: user selection, master password, user creation, language switch.
@@ -26,6 +32,8 @@ public class LoginFrame extends JFrame {
     private VaultManager vaultManager;
 
     private JComboBox<String> userCombo;
+    private JComboBox<String> workspaceCombo;
+    private boolean updatingWorkspaceCombo = false;
     private JPasswordField passwordField;
     private JButton loginButton;
     private JButton createUserButton;
@@ -65,6 +73,34 @@ public class LoginFrame extends JFrame {
         subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         mainPanel.add(subtitleLabel);
         mainPanel.add(Box.createVerticalStrut(30));
+
+        // Working folder (workspace) selection
+        JPanel workspacePanel = new JPanel(new BorderLayout(10, 0));
+        workspacePanel.setMaximumSize(new Dimension(350, 30));
+        JLabel workspaceLabel = new JLabel(lang.getString("login.workspace"));
+        workspaceLabel.setPreferredSize(new Dimension(140, 25));
+        workspaceCombo = new JComboBox<>();
+        workspaceCombo.setToolTipText(appConfig.getLocalVaultDirectory());
+        JButton browseWorkspaceBtn = new JButton("...");
+        browseWorkspaceBtn.setMargin(new Insets(0, 6, 0, 6));
+        browseWorkspaceBtn.setToolTipText(lang.getString("settings.change_workspace"));
+        refreshWorkspaceCombo();
+        JPanel workspaceRight = new JPanel(new BorderLayout(4, 0));
+        workspaceRight.add(workspaceCombo, BorderLayout.CENTER);
+        workspaceRight.add(browseWorkspaceBtn, BorderLayout.EAST);
+        workspacePanel.add(workspaceLabel, BorderLayout.WEST);
+        workspacePanel.add(workspaceRight, BorderLayout.CENTER);
+        mainPanel.add(workspacePanel);
+        mainPanel.add(Box.createVerticalStrut(15));
+
+        workspaceCombo.addActionListener(e -> {
+            if (updatingWorkspaceCombo) return;
+            String selected = (String) workspaceCombo.getSelectedItem();
+            if (selected != null && !selected.equals(appConfig.getLocalVaultDirectory())) {
+                switchWorkspace(selected);
+            }
+        });
+        browseWorkspaceBtn.addActionListener(e -> doBrowseWorkspace());
 
         // User selection
         JPanel userPanel = new JPanel(new BorderLayout(10, 0));
@@ -185,6 +221,106 @@ public class LoginFrame extends JFrame {
         userCombo.removeAllItems();
         for (String u : vaultManager.listUsers()) {
             userCombo.addItem(u);
+        }
+    }
+
+    /** Rebuilds the workspace dropdown: current folder first, then recent folders. */
+    private void refreshWorkspaceCombo() {
+        updatingWorkspaceCombo = true;
+        try {
+            workspaceCombo.removeAllItems();
+            Set<String> dirs = new LinkedHashSet<>();
+            dirs.add(appConfig.getLocalVaultDirectory());
+            dirs.addAll(appConfig.getRecentWorkspaces());
+            for (String d : dirs) {
+                workspaceCombo.addItem(d);
+            }
+            workspaceCombo.setSelectedItem(appConfig.getLocalVaultDirectory());
+            workspaceCombo.setToolTipText(appConfig.getLocalVaultDirectory());
+        } finally {
+            updatingWorkspaceCombo = false;
+        }
+    }
+
+    private void doBrowseWorkspace() {
+        JFileChooser fc = new JFileChooser();
+        fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        fc.setDialogTitle(lang.getString("workspace.choose_title"));
+        File current = new File(appConfig.getLocalVaultDirectory());
+        if (current.isDirectory()) fc.setCurrentDirectory(current);
+        if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            switchWorkspace(fc.getSelectedFile().getAbsolutePath());
+        }
+    }
+
+    /**
+     * Switches the active working folder: validates write access, optionally migrates
+     * existing vaults, persists the choice, and rebuilds the VaultManager + user list.
+     * On any abort/error the dropdown is reset to the current folder.
+     */
+    private void switchWorkspace(String newDir) {
+        String oldDir = appConfig.getLocalVaultDirectory();
+        String canonNew = canonicalize(newDir);
+        // Compare canonical paths so "/foo", "/foo/" and relative spellings are the same folder.
+        if (canonNew == null || canonNew.equals(canonicalize(oldDir))) {
+            refreshWorkspaceCombo();
+            return;
+        }
+        File dir = new File(canonNew);
+        if (!dir.exists()) dir.mkdirs();
+        if (!dir.isDirectory() || !dir.canWrite()) {
+            showError(lang.getString("error.dir_not_writable"));
+            refreshWorkspaceCombo();
+            return;
+        }
+
+        // Offer to migrate existing vaults from the old folder to the new one.
+        File[] existing = new File(oldDir).listFiles((d, name) ->
+            name.startsWith(VaultManager.VAULT_FILE_PREFIX) && name.endsWith(VaultManager.VAULT_FILE_SUFFIX));
+        int vaultCount = existing == null ? 0 : existing.length;
+        if (vaultCount > 0) {
+            int choice = JOptionPane.showConfirmDialog(this,
+                lang.getString("workspace.migrate_prompt").replace("{0}", String.valueOf(vaultCount)),
+                lang.getString("workspace.migrate_title"),
+                JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+            if (choice == JOptionPane.CANCEL_OPTION || choice == JOptionPane.CLOSED_OPTION) {
+                refreshWorkspaceCombo();
+                return;
+            }
+            if (choice == JOptionPane.YES_OPTION) {
+                try {
+                    VaultStoreMigrator.Result r = VaultStoreMigrator.migrate(
+                        new FileVaultStore(oldDir), new FileVaultStore(canonNew));
+                    if (r.hasFailures()) {
+                        showError(lang.getString("workspace.migrate_failed")
+                            .replace("{0}", String.valueOf(r.failed)));
+                    }
+                } catch (IOException ex) {
+                    showError(lang.getString("workspace.migrate_failed").replace("{0}", "?"));
+                }
+            }
+        }
+
+        // Keep the folder we are leaving reachable from the dropdown, then switch.
+        appConfig.addRecentWorkspace(canonicalize(oldDir));
+        appConfig.setLocalVaultDirectory(canonNew);
+        appConfig.addRecentWorkspace(canonNew);
+        configManager.saveConfig(appConfig);
+        vaultManager = new VaultManager(canonNew);
+        vaultManager.getImporter().setDefaultImportCategory(lang.getString("category.default.other"));
+        refreshUserList();
+        refreshWorkspaceCombo();
+        statusLabel.setText("");
+        passwordField.setText("");
+    }
+
+    /** Resolves a path to its canonical form (collapses {@code ..}, trailing separators); falls back to absolute. */
+    private static String canonicalize(String path) {
+        if (path == null) return null;
+        try {
+            return new File(path).getCanonicalPath();
+        } catch (IOException e) {
+            return new File(path).getAbsolutePath();
         }
     }
 

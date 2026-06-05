@@ -2,8 +2,12 @@ package com.passwordmanager.android.ui.login
 
 import com.passwordmanager.android.data.AndroidVaultRepository
 import com.passwordmanager.android.data.SessionHolder
+import com.passwordmanager.android.data.WorkspaceManager
+import kotlinx.coroutines.Dispatchers
+import com.passwordmanager.vault.store.FileVaultStore
 import com.passwordmanager.android.test.FakeBiometricHelper
 import com.passwordmanager.android.test.FakeConfigRepository
+import com.passwordmanager.android.test.FakeWorkspaceManager
 import com.passwordmanager.android.test.MainDispatcherExtension
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -31,6 +35,7 @@ class LoginViewModelTest {
 
     private lateinit var configRepo: FakeConfigRepository
     private lateinit var biometricHelper: FakeBiometricHelper
+    private lateinit var workspaceManager: FakeWorkspaceManager
     private lateinit var repo: AndroidVaultRepository
     private lateinit var viewModel: LoginViewModel
 
@@ -38,13 +43,14 @@ class LoginViewModelTest {
     fun setUp() {
         configRepo = FakeConfigRepository()
         biometricHelper = FakeBiometricHelper()
+        workspaceManager = FakeWorkspaceManager(tempDir.toString())
         repo = AndroidVaultRepository(tempDir.toString())
         SessionHolder.init(repo)
 
         // Create a test user
         repo.createVault("testuser", TEST_PASSWORD.toCharArray(), listOf("Email", "Work"))
 
-        viewModel = LoginViewModel(repo, SessionHolder, biometricHelper, configRepo)
+        viewModel = LoginViewModel(repo, SessionHolder, biometricHelper, configRepo, workspaceManager, Dispatchers.Unconfined)
     }
 
     @AfterEach
@@ -64,21 +70,21 @@ class LoginViewModelTest {
     @Test
     fun `init detects biometric unavailable`() {
         biometricHelper.available = false
-        viewModel = LoginViewModel(repo, SessionHolder, biometricHelper, configRepo)
+        viewModel = LoginViewModel(repo, SessionHolder, biometricHelper, configRepo, workspaceManager, Dispatchers.Unconfined)
         assertFalse(viewModel.uiState.value.biometricAvailable)
     }
 
     @Test
     fun `init detects biometric available`() {
         biometricHelper.available = true
-        viewModel = LoginViewModel(repo, SessionHolder, biometricHelper, configRepo)
+        viewModel = LoginViewModel(repo, SessionHolder, biometricHelper, configRepo, workspaceManager, Dispatchers.Unconfined)
         assertTrue(viewModel.uiState.value.biometricAvailable)
     }
 
     @Test
     fun `init loads biometric enabled status for selected user`() {
         configRepo.setBiometricEnabled("testuser", true)
-        viewModel = LoginViewModel(repo, SessionHolder, biometricHelper, configRepo)
+        viewModel = LoginViewModel(repo, SessionHolder, biometricHelper, configRepo, workspaceManager, Dispatchers.Unconfined)
         assertTrue(viewModel.uiState.value.biometricEnabledForUser)
     }
 
@@ -258,6 +264,65 @@ class LoginViewModelTest {
         viewModel.updateNewPasswordConfirm("weak")
         viewModel.createUser(listOf("Email"))
         assertEquals("security_password_requirements", viewModel.uiState.value.createError)
+    }
+
+    // --- Workspace switch / migration ---
+
+    @Test
+    fun `switchWorkspace defers to migrate prompt when current folder has vaults`() {
+        val internal = tempDir.resolve("internal").toString()
+        val external = tempDir.resolve("external").toString()
+        val ws = FakeWorkspaceManager(internal, external)
+        val r = AndroidVaultRepository(FileVaultStore(internal))
+        SessionHolder.init(r)
+        r.createVault("alice", TEST_PASSWORD.toCharArray(), listOf("Email"))
+        val vm = LoginViewModel(r, SessionHolder, biometricHelper, configRepo, ws, Dispatchers.Unconfined)
+
+        vm.switchWorkspace(WorkspaceManager.SPEC_EXTERNAL)
+
+        assertEquals(WorkspaceManager.SPEC_EXTERNAL, vm.uiState.value.pendingWorkspaceSwitch)
+        assertEquals(1, vm.uiState.value.pendingWorkspaceVaultCount)
+        // Not switched yet
+        assertEquals(WorkspaceManager.SPEC_INTERNAL, vm.uiState.value.workspaceSpec)
+    }
+
+    @Test
+    fun `confirmWorkspaceSwitch with migrate moves vaults to the new folder`() {
+        val internal = tempDir.resolve("internal").toString()
+        val external = tempDir.resolve("external").toString()
+        val ws = FakeWorkspaceManager(internal, external)
+        val r = AndroidVaultRepository(FileVaultStore(internal))
+        SessionHolder.init(r)
+        r.createVault("alice", TEST_PASSWORD.toCharArray(), listOf("Email"))
+        val vm = LoginViewModel(r, SessionHolder, biometricHelper, configRepo, ws, Dispatchers.Unconfined)
+
+        vm.switchWorkspace(WorkspaceManager.SPEC_EXTERNAL)
+        vm.confirmWorkspaceSwitch(migrate = true)
+
+        assertEquals(WorkspaceManager.SPEC_EXTERNAL, vm.uiState.value.workspaceSpec)
+        assertNull(vm.uiState.value.pendingWorkspaceSwitch)
+        assertTrue(vm.uiState.value.users.contains("alice"))
+        // Source folder no longer holds the vault after a move
+        assertFalse(AndroidVaultRepository(FileVaultStore(internal)).listUsers().contains("alice"))
+    }
+
+    @Test
+    fun `confirmWorkspaceSwitch keep leaves vaults in the old folder`() {
+        val internal = tempDir.resolve("internal").toString()
+        val external = tempDir.resolve("external").toString()
+        val ws = FakeWorkspaceManager(internal, external)
+        val r = AndroidVaultRepository(FileVaultStore(internal))
+        SessionHolder.init(r)
+        r.createVault("alice", TEST_PASSWORD.toCharArray(), listOf("Email"))
+        val vm = LoginViewModel(r, SessionHolder, biometricHelper, configRepo, ws, Dispatchers.Unconfined)
+
+        vm.switchWorkspace(WorkspaceManager.SPEC_EXTERNAL)
+        vm.confirmWorkspaceSwitch(migrate = false)
+
+        assertEquals(WorkspaceManager.SPEC_EXTERNAL, vm.uiState.value.workspaceSpec)
+        assertFalse(vm.uiState.value.users.contains("alice"))
+        // Original vault is untouched in the internal folder
+        assertTrue(AndroidVaultRepository(FileVaultStore(internal)).listUsers().contains("alice"))
     }
 
     // --- onCleared ---

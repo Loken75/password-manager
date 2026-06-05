@@ -58,6 +58,13 @@ public class ConfigManager {
         config.setSftpKeyPath(ConfigEncryptor.decrypt(props.getProperty("sftp.key_path", "")));
         config.setSftpRemotePath(ConfigEncryptor.decrypt(props.getProperty("sftp.remote_path", "/vault/data")));
         config.setLocalVaultDirectory(props.getProperty("local.vault_directory", config.getLocalVaultDirectory()));
+        java.util.List<String> recents = new java.util.ArrayList<>();
+        for (int i = 0; ; i++) {
+            String w = props.getProperty("workspace.recent." + i);
+            if (w == null) break;
+            recents.add(w);
+        }
+        config.setRecentWorkspaces(recents);
         config.setAutoLockMinutes(parseIntSafe(props.getProperty("security.auto_lock_minutes"), 15));
         config.setClipboardClearSeconds(parseIntSafe(props.getProperty("security.clipboard_clear_seconds"), 30));
         config.setTheme(ThemeMode.fromValue(props.getProperty("app.theme", "light")));
@@ -81,6 +88,10 @@ public class ConfigManager {
         props.setProperty("sftp.key_path", ConfigEncryptor.encrypt(config.getSftpKeyPath()));
         props.setProperty("sftp.remote_path", ConfigEncryptor.encrypt(config.getSftpRemotePath()));
         props.setProperty("local.vault_directory", config.getLocalVaultDirectory());
+        java.util.List<String> recents = config.getRecentWorkspaces();
+        for (int i = 0; i < recents.size(); i++) {
+            props.setProperty("workspace.recent." + i, recents.get(i));
+        }
         props.setProperty("security.auto_lock_minutes", String.valueOf(config.getAutoLockMinutes()));
         props.setProperty("security.clipboard_clear_seconds", String.valueOf(config.getClipboardClearSeconds()));
 

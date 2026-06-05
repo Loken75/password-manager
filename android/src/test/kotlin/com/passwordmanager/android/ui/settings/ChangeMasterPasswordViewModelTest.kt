@@ -3,6 +3,7 @@ package com.passwordmanager.android.ui.settings
 import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.android.test.FakeBiometricHelper
 import com.passwordmanager.android.test.FakeConfigRepository
+import com.passwordmanager.android.test.FakeWorkspaceManager
 import com.passwordmanager.android.test.MainDispatcherExtension
 import com.passwordmanager.android.test.TestSessionHelper
 import com.passwordmanager.vault.Vault
@@ -33,7 +34,7 @@ class ChangeMasterPasswordViewModelTest {
         configRepo = FakeConfigRepository()
         biometricHelper = FakeBiometricHelper()
         vault = TestSessionHelper.unlockWithEmptyVault(tempDir)
-        viewModel = ChangeMasterPasswordViewModel(SessionHolder, biometricHelper, configRepo)
+        viewModel = ChangeMasterPasswordViewModel(SessionHolder, biometricHelper, configRepo, FakeWorkspaceManager(tempDir.toString()))
     }
 
     @AfterEach

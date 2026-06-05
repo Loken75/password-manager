@@ -22,6 +22,7 @@ public class SettingsDialog extends JDialog {
     private AppConfig config;
     private ConfigManager configManager;
     private boolean saved = false;
+    private boolean workspaceChangeRequested = false;
 
     // General
     private JComboBox<String> langCombo;
@@ -84,7 +85,31 @@ public class SettingsDialog extends JDialog {
         }
         generalPanel.add(themeCombo, g);
 
-        g.gridx = 0; g.gridy = 2; g.weighty = 1;
+        g.gridx = 0; g.gridy = 2; g.weightx = 0; g.weighty = 0;
+        generalPanel.add(new JLabel(lang.getString("settings.workspace")), g);
+        g.gridx = 1; g.weightx = 1;
+        JTextField workspaceField = new JTextField(config.getLocalVaultDirectory());
+        workspaceField.setEditable(false);
+        workspaceField.setToolTipText(config.getLocalVaultDirectory());
+        generalPanel.add(workspaceField, g);
+
+        g.gridx = 1; g.gridy = 3; g.weightx = 1;
+        JButton changeWorkspaceBtn = new JButton(lang.getString("settings.change_workspace"));
+        changeWorkspaceBtn.addActionListener(e -> {
+            int c = JOptionPane.showConfirmDialog(this,
+                lang.getString("settings.workspace_relogin"),
+                lang.getString("settings.change_workspace"),
+                JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+            if (c == JOptionPane.YES_OPTION) {
+                // Do not mark as saved: other edits in this dialog are intentionally
+                // discarded (like Cancel). The caller relogs in to pick the new folder.
+                workspaceChangeRequested = true;
+                dispose();
+            }
+        });
+        generalPanel.add(changeWorkspaceBtn, g);
+
+        g.gridx = 0; g.gridy = 4; g.weighty = 1;
         generalPanel.add(Box.createVerticalGlue(), g);
 
         tabs.addTab(lang.getString("settings.general"), generalPanel);
@@ -340,4 +365,7 @@ public class SettingsDialog extends JDialog {
     }
 
     public boolean isSaved() { return saved; }
+
+    /** True when the user asked to change the working folder (caller should re-login). */
+    public boolean isWorkspaceChangeRequested() { return workspaceChangeRequested; }
 }

@@ -85,6 +85,38 @@ class ConfigManagerTest {
     }
 
     @Test
+    void recentWorkspacesRoundTrip() {
+        String configPath = tempDir.resolve("config.properties").toString();
+        ConfigManager manager = new ConfigManager(configPath);
+
+        AppConfig config = new AppConfig();
+        config.setLocalVaultDirectory("/home/user/vaultsA");
+        config.addRecentWorkspace("/home/user/vaultsA");
+        config.addRecentWorkspace("/home/user/vaultsB");
+        manager.saveConfig(config);
+
+        AppConfig loaded = manager.loadConfig();
+        // addRecentWorkspace puts most-recent first.
+        assertEquals(java.util.List.of("/home/user/vaultsB", "/home/user/vaultsA"),
+            loaded.getRecentWorkspaces());
+    }
+
+    @Test
+    void addRecentWorkspaceDeduplicatesOrdersAndCaps() {
+        AppConfig config = new AppConfig();
+        config.addRecentWorkspace("/a");
+        config.addRecentWorkspace("/b");
+        config.addRecentWorkspace("/a"); // re-adding moves it to the front
+        assertEquals(java.util.List.of("/a", "/b"), config.getRecentWorkspaces());
+
+        for (int i = 0; i < 12; i++) {
+            config.addRecentWorkspace("/dir" + i);
+        }
+        assertEquals(8, config.getRecentWorkspaces().size(), "list is capped at 8");
+        assertEquals("/dir11", config.getRecentWorkspaces().get(0), "most recent is first");
+    }
+
+    @Test
     void loadCreatesDefaultFileIfMissing() {
         String configPath = tempDir.resolve("subdir").resolve("config.properties").toString();
         ConfigManager manager = new ConfigManager(configPath);

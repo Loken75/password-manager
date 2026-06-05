@@ -46,6 +46,10 @@ class FakeConfigRepository : ConfigRepository {
     override fun getSftpKeyId(): String = sftpKeyId
     override fun setSftpKeyId(keyId: String) { this.sftpKeyId = keyId }
 
+    private var vaultWorkspace: String? = null
+    override fun getVaultWorkspace(): String? = vaultWorkspace
+    override fun setVaultWorkspace(spec: String?) { this.vaultWorkspace = spec }
+
     // Biometric
     private val biometricEnabled = mutableMapOf<String, Boolean>()
     private val biometricPasswords = mutableMapOf<String, ByteArray>()

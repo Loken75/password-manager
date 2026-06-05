@@ -1,11 +1,15 @@
 package com.passwordmanager.config;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Application configuration holder with validated setters.
  */
 public class AppConfig {
+    /** Maximum number of remembered working folders. */
+    private static final int MAX_RECENT_WORKSPACES = 8;
     private String language = "fr";
     private StorageMode storageMode = StorageMode.LOCAL;
     private String sftpHost = "";
@@ -15,6 +19,7 @@ public class AppConfig {
     private String sftpVaultKeyId = "";
     private String sftpRemotePath = "/vault/data";
     private String localVaultDirectory;
+    private final List<String> recentWorkspaces = new ArrayList<>();
     private int autoLockMinutes = 15;
     private int clipboardClearSeconds = 30;
     private ThemeMode theme = ThemeMode.LIGHT;
@@ -74,6 +79,34 @@ public class AppConfig {
     public void setLocalVaultDirectory(String localVaultDirectory) {
         if (localVaultDirectory != null && !localVaultDirectory.trim().isEmpty()) {
             this.localVaultDirectory = localVaultDirectory.trim();
+        }
+    }
+
+    /** Returns the most-recently-used working folders, most recent first (defensive copy). */
+    public List<String> getRecentWorkspaces() { return new ArrayList<>(recentWorkspaces); }
+
+    /** Replaces the recent-workspaces list (trimmed, de-duplicated, capped). */
+    public void setRecentWorkspaces(List<String> workspaces) {
+        recentWorkspaces.clear();
+        if (workspaces == null) return;
+        for (String w : workspaces) {
+            if (w == null) continue;
+            String t = w.trim();
+            if (!t.isEmpty() && !recentWorkspaces.contains(t)) {
+                recentWorkspaces.add(t);
+                if (recentWorkspaces.size() >= MAX_RECENT_WORKSPACES) break;
+            }
+        }
+    }
+
+    /** Records a working folder as most-recently-used (moves it to the front, capped). */
+    public void addRecentWorkspace(String workspace) {
+        if (workspace == null || workspace.trim().isEmpty()) return;
+        String t = workspace.trim();
+        recentWorkspaces.remove(t);
+        recentWorkspaces.add(0, t);
+        while (recentWorkspaces.size() > MAX_RECENT_WORKSPACES) {
+            recentWorkspaces.remove(recentWorkspaces.size() - 1);
         }
     }
 

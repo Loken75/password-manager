@@ -296,9 +296,8 @@ class VaultListViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val username = sessionHolder.username ?: return@launch
-                // Read the encrypted vault file and write to the SAF uri
-                val vaultPath = sessionHolder.getRepository().manager.getVaultPath(username)
-                val bytes = java.io.File(vaultPath).readBytes()
+                // Read the encrypted vault bytes (store-backed, SAF-safe) and write to the SAF uri
+                val bytes = sessionHolder.getRepository().readVaultBytes(username)
                 context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
                 _uiState.update { it.copy(message = "export_success") }
             } catch (e: CancellationException) {
@@ -394,10 +393,12 @@ class VaultListViewModel @Inject constructor(
             return
         }
         val username = sessionHolder.username ?: return
-        val vaultFilename = "vault_${username}.enc"
+        val vaultFilename = sessionHolder.getRepository().vaultFilename(username)
 
         syncJob?.cancel()
         syncJob = viewModelScope.launch(Dispatchers.IO) {
+            // Local vault staged to a temp file for JSch's path-based put() (SAF-safe).
+            var localStaged: java.io.File? = null
             try {
                 val host = configRepo.getSftpHost()
                 val port = configRepo.getSftpPort()
@@ -414,13 +415,15 @@ class VaultListViewModel @Inject constructor(
                 // Save current vault first
                 sessionHolder.save()
 
-                val vaultManager = sessionHolder.getRepository().manager
-                val localPath = vaultManager.getVaultPath(username)
-                val localFile = java.io.File(localPath)
-                if (!localFile.exists()) {
+                val repository = sessionHolder.getRepository()
+                val localFile = try {
+                    stageVaultToTemp(username)
+                } catch (e: Exception) {
                     _uiState.update { it.copy(message = "sync_error") }
                     return@launch
                 }
+                localStaged = localFile
+                val localPath = localFile.absolutePath
 
                 val jsch = JSch()
                 var keyBytes: ByteArray? = null
@@ -477,13 +480,13 @@ class VaultListViewModel @Inject constructor(
                                     // Vaults differ -- decrypt remote and merge
                                     val vaultSession = sessionHolder.session
                                         ?: throw IllegalStateException("No active vault session")
-                                    val remoteVault = vaultManager.decryptVaultFile(
+                                    val remoteVault = repository.decryptVaultFile(
                                         tempFile.absolutePath, vaultSession
                                     )
                                     // R4: adopt the remote envelope so a master-password change
                                     // made on another device is preserved when we save+upload
                                     // (not reverted by this device's stale envelope).
-                                    vaultManager.adoptEnvelopeFromFile(vaultSession, tempFile.absolutePath)
+                                    repository.adoptEnvelopeFromFile(vaultSession, tempFile.absolutePath)
 
                                     try {
                                         val localVault = sessionHolder.vault
@@ -533,8 +536,13 @@ class VaultListViewModel @Inject constructor(
                                             sessionHolder.save()
                                             refreshEntries()
 
-                                            // Re-read the saved (merged) file and upload
-                                            channel.put(localPath, remoteFile, ChannelSftp.OVERWRITE)
+                                            // Re-stage the saved (merged) vault and upload
+                                            val mergedStaged = stageVaultToTemp(username)
+                                            try {
+                                                channel.put(mergedStaged.absolutePath, remoteFile, ChannelSftp.OVERWRITE)
+                                            } finally {
+                                                secureDelete(mergedStaged)
+                                            }
                                             _uiState.update { it.copy(message = "sync_merge_auto") }
                                         }
                                     } finally {
@@ -568,8 +576,18 @@ class VaultListViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "SFTP sync failed", e)
                 _uiState.update { it.copy(message = "sync_error") }
+            } finally {
+                localStaged?.let { secureDelete(it) }
             }
         }
+    }
+
+    /** Materializes the user's local vault into a temp file for path-based SFTP/JSch use (SAF-safe). */
+    private fun stageVaultToTemp(username: String): java.io.File {
+        val bytes = sessionHolder.getRepository().readVaultBytes(username)
+        val temp = java.io.File.createTempFile("vault_stage", ".enc", context.cacheDir)
+        temp.writeBytes(bytes)
+        return temp
     }
 
     // Host key awaiting user confirmation (kept out of UI state -- raw bytes).
@@ -633,7 +651,7 @@ class VaultListViewModel @Inject constructor(
             try {
                 val localVault = sessionHolder.vault ?: return@launch
                 val username = sessionHolder.username ?: return@launch
-                val vaultFilename = "vault_${username}.enc"
+                val vaultFilename = sessionHolder.getRepository().vaultFilename(username)
 
                 // Replace each conflicting entry by id with the chosen version.
                 // Vault.addEntry replaces any existing entry with the same id, so the
@@ -706,7 +724,7 @@ class VaultListViewModel @Inject constructor(
         val sshKeyId = configRepo.getSftpKeyId()
         val remotePath = configRepo.getSftpRemotePath()
 
-        val localPath = sessionHolder.getRepository().manager.getVaultPath(username)
+        val localStaged = stageVaultToTemp(username)
 
         val jsch = JSch()
         var keyBytes: ByteArray? = null
@@ -722,6 +740,7 @@ class VaultListViewModel @Inject constructor(
         } else if (keyPath.isNotBlank()) {
             jsch.addIdentity(keyPath)
         } else {
+            secureDelete(localStaged)
             return
         }
         val sftpSession = SftpHostKeyVerifier.connect(
@@ -732,7 +751,7 @@ class VaultListViewModel @Inject constructor(
             channel.connect(10_000)
             try {
                 val remoteFile = "$remotePath/$vaultFilename"
-                channel.put(localPath, remoteFile, ChannelSftp.OVERWRITE)
+                channel.put(localStaged.absolutePath, remoteFile, ChannelSftp.OVERWRITE)
             } finally {
                 channel.disconnect()
             }
@@ -740,6 +759,7 @@ class VaultListViewModel @Inject constructor(
             sftpSession.disconnect()
             jsch.removeAllIdentity()
             keyBytes?.fill(0)
+            secureDelete(localStaged)
         }
     }
 
@@ -759,7 +779,7 @@ class VaultListViewModel @Inject constructor(
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     tempFile.outputStream().use { output -> input.copyTo(output) }
                 }
-                val sourceVault = sessionHolder.getRepository().manager.importEncryptedVault(password, tempFile.absolutePath)
+                val sourceVault = sessionHolder.getRepository().importEncryptedVault(password, tempFile.absolutePath)
                 tempFile.delete()
                 java.util.Arrays.fill(password, '\u0000')
 

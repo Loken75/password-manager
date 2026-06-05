@@ -1,5 +1,6 @@
 package com.passwordmanager.android.ui.login
 
+import android.util.Log
 import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
@@ -8,9 +9,13 @@ import com.passwordmanager.android.data.AndroidVaultRepository
 import com.passwordmanager.android.data.BiometricHelper
 import com.passwordmanager.android.data.ConfigRepository
 import com.passwordmanager.android.data.SessionHolder
+import com.passwordmanager.android.data.WorkspaceManager
+import com.passwordmanager.android.di.IoDispatcher
 import com.passwordmanager.crypto.VaultDecryptionException
 import com.passwordmanager.util.PasswordValidator
+import com.passwordmanager.vault.VaultStoreMigrator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,7 +41,12 @@ data class LoginUiState(
     val biometricAvailable: Boolean = false,
     val biometricEnabledForUser: Boolean = false,
     val showBiometricEnrollDialog: Boolean = false,
-    val biometricError: String? = null
+    val biometricError: String? = null,
+    val workspaceSpec: String = WorkspaceManager.SPEC_INTERNAL,
+    val workspaceOptions: List<String> = listOf(WorkspaceManager.SPEC_INTERNAL),
+    /** Target spec awaiting the user's migrate/keep decision (null = no pending switch). */
+    val pendingWorkspaceSwitch: String? = null,
+    val pendingWorkspaceVaultCount: Int = 0
 )
 
 @HiltViewModel
@@ -44,7 +54,9 @@ class LoginViewModel @Inject constructor(
     private val repository: AndroidVaultRepository,
     private val sessionHolder: SessionHolder,
     private val biometricHelper: BiometricHelper,
-    private val configRepo: ConfigRepository
+    private val configRepo: ConfigRepository,
+    private val workspaceManager: WorkspaceManager,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -58,14 +70,84 @@ class LoginViewModel @Inject constructor(
     private var pendingOnSuccess: (() -> Unit)? = null
 
     init {
-        _uiState.update { it.copy(biometricAvailable = biometricHelper.canAuthenticate()) }
+        // Workspace + user resolution can touch a SAF tree (ContentResolver), so keep it off main.
+        viewModelScope.launch(ioDispatcher) {
+            _uiState.update {
+                it.copy(
+                    biometricAvailable = biometricHelper.canAuthenticate(),
+                    workspaceSpec = workspaceManager.currentSpec(),
+                    workspaceOptions = workspaceManager.availableSpecs()
+                )
+            }
+            loadUsers()
+        }
+    }
+
+    /**
+     * Requests a working-folder switch. If the current folder holds vaults, defers to a
+     * migrate/keep prompt; otherwise switches immediately. Runs off the main thread because
+     * a SAF-backed store lists/copies via ContentResolver.
+     */
+    fun switchWorkspace(spec: String) {
+        if (spec == _uiState.value.workspaceSpec) return
+        viewModelScope.launch(ioDispatcher) {
+            val existing = repository.listUsers().size
+            if (existing > 0) {
+                _uiState.update { it.copy(pendingWorkspaceSwitch = spec, pendingWorkspaceVaultCount = existing) }
+            } else {
+                performWorkspaceSwitch(spec, migrate = false)
+            }
+        }
+    }
+
+    /** Confirms a pending switch, optionally migrating the existing vaults to the new folder. */
+    fun confirmWorkspaceSwitch(migrate: Boolean) {
+        val spec = _uiState.value.pendingWorkspaceSwitch ?: return
+        viewModelScope.launch(ioDispatcher) { performWorkspaceSwitch(spec, migrate) }
+    }
+
+    fun cancelWorkspaceSwitch() {
+        _uiState.update { it.copy(pendingWorkspaceSwitch = null, pendingWorkspaceVaultCount = 0) }
+    }
+
+    /**
+     * Performs the switch: locks any session (defensive), optionally migrates vault files,
+     * re-points the repository, resets stale per-user state, and reloads users.
+     */
+    private fun performWorkspaceSwitch(spec: String, migrate: Boolean) {
+        val oldSpec = _uiState.value.workspaceSpec
+        sessionHolder.lock()
+        if (migrate) {
+            try {
+                val result = VaultStoreMigrator.migrate(
+                    workspaceManager.storeFor(oldSpec), workspaceManager.storeFor(spec)
+                )
+                if (result.hasFailures()) {
+                    Log.w("LoginViewModel", "Workspace migration: ${result.failed} file(s) could not be moved")
+                }
+            } catch (e: Exception) {
+                Log.w("LoginViewModel", "Workspace migration failed", e)
+            }
+        }
+        workspaceManager.setWorkspace(spec)
+        repository.useStore(workspaceManager.storeFor(spec))
+        failedAttempts.clear()
+        _uiState.update {
+            it.copy(
+                workspaceSpec = spec, password = "", error = null, biometricError = null,
+                isRateLimited = false, pendingWorkspaceSwitch = null, pendingWorkspaceVaultCount = 0
+            )
+        }
         loadUsers()
     }
+
+    /** Biometric enrollment is namespaced per workspace so same-named users don't collide. */
+    private fun bioAccount(username: String): String = workspaceManager.biometricAccount(username)
 
     fun loadUsers() {
         val users = repository.listUsers().toList()
         val selectedUser = users.firstOrNull()
-        val biometricEnabled = selectedUser?.let { configRepo.isBiometricEnabled(it) } ?: false
+        val biometricEnabled = selectedUser?.let { configRepo.isBiometricEnabled(bioAccount(it)) } ?: false
         _uiState.update {
             it.copy(
                 users = users,
@@ -76,7 +158,7 @@ class LoginViewModel @Inject constructor(
     }
 
     fun selectUser(user: String) {
-        val biometricEnabled = configRepo.isBiometricEnabled(user)
+        val biometricEnabled = configRepo.isBiometricEnabled(bioAccount(user))
         _uiState.update {
             it.copy(
                 selectedUser = user,
@@ -125,7 +207,7 @@ class LoginViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoading = false, password = "") }
 
                 // Propose biometric enrollment if available and not already enabled
-                if (state.biometricAvailable && !configRepo.isBiometricEnabled(user)) {
+                if (state.biometricAvailable && !configRepo.isBiometricEnabled(bioAccount(user))) {
                     pendingPasswordForEnroll = password.toCharArray()
                     pendingOnSuccess = onSuccess
                     _uiState.update { it.copy(showBiometricEnrollDialog = true) }
@@ -145,12 +227,13 @@ class LoginViewModel @Inject constructor(
 
     fun enrollBiometric(activity: FragmentActivity) {
         val user = _uiState.value.selectedUser ?: return
+        val account = bioAccount(user)
         val password = pendingPasswordForEnroll ?: run { finishEnrollment(); return }
 
-        biometricHelper.generateKey(user)
-        val cipher = biometricHelper.getEncryptCipher(user)
+        biometricHelper.generateKey(account)
+        val cipher = biometricHelper.getEncryptCipher(account)
         if (cipher == null) {
-            biometricHelper.deleteKey(user)
+            biometricHelper.deleteKey(account)
             finishEnrollment()
             return
         }
@@ -164,13 +247,13 @@ class LoginViewModel @Inject constructor(
             onSuccess = { crypto ->
                 val authenticatedCipher = crypto?.cipher ?: return@showBiometricPrompt
                 val (encrypted, iv) = BiometricHelper.encryptPassword(authenticatedCipher, password)
-                configRepo.setBiometricEncryptedPassword(user, encrypted)
-                configRepo.setBiometricIv(user, iv)
-                configRepo.setBiometricEnabled(user, true)
+                configRepo.setBiometricEncryptedPassword(account, encrypted)
+                configRepo.setBiometricIv(account, iv)
+                configRepo.setBiometricEnabled(account, true)
                 finishEnrollment()
             },
             onError = { _, _ ->
-                biometricHelper.deleteKey(user)
+                biometricHelper.deleteKey(account)
                 finishEnrollment()
             }
         )
@@ -188,7 +271,7 @@ class LoginViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 showBiometricEnrollDialog = false,
-                biometricEnabledForUser = it.selectedUser?.let { u -> configRepo.isBiometricEnabled(u) } ?: false
+                biometricEnabledForUser = it.selectedUser?.let { u -> configRepo.isBiometricEnabled(bioAccount(u)) } ?: false
             )
         }
         callback?.let { viewModelScope.launch(Dispatchers.Main) { it() } }
@@ -196,19 +279,20 @@ class LoginViewModel @Inject constructor(
 
     fun loginWithBiometric(activity: FragmentActivity, onSuccess: () -> Unit) {
         val user = _uiState.value.selectedUser ?: return
-        val encryptedPassword = configRepo.getBiometricEncryptedPassword(user)
-        val iv = configRepo.getBiometricIv(user)
+        val account = bioAccount(user)
+        val encryptedPassword = configRepo.getBiometricEncryptedPassword(account)
+        val iv = configRepo.getBiometricIv(account)
         if (encryptedPassword == null || iv == null) {
-            configRepo.clearBiometricData(user)
+            configRepo.clearBiometricData(account)
             _uiState.update {
                 it.copy(biometricEnabledForUser = false, biometricError = "biometric_key_invalidated")
             }
             return
         }
 
-        val cipher = biometricHelper.getDecryptCipher(user, iv)
+        val cipher = biometricHelper.getDecryptCipher(account, iv)
         if (cipher == null) {
-            configRepo.clearBiometricData(user)
+            configRepo.clearBiometricData(account)
             _uiState.update {
                 it.copy(biometricEnabledForUser = false, biometricError = "biometric_key_invalidated")
             }
@@ -231,8 +315,8 @@ class LoginViewModel @Inject constructor(
                         launch(Dispatchers.Main) { onSuccess() }
                     } catch (_: VaultDecryptionException) {
                         // Master password was changed — biometric data is stale
-                        configRepo.clearBiometricData(user)
-                        biometricHelper.deleteKey(user)
+                        configRepo.clearBiometricData(account)
+                        biometricHelper.deleteKey(account)
                         _uiState.update {
                             it.copy(
                                 biometricEnabledForUser = false,

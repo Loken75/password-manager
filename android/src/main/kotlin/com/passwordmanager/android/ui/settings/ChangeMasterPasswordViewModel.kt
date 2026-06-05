@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.passwordmanager.android.data.BiometricHelper
 import com.passwordmanager.android.data.ConfigRepository
 import com.passwordmanager.android.data.SessionHolder
+import com.passwordmanager.android.data.WorkspaceManager
 import com.passwordmanager.crypto.VaultDecryptionException
 import com.passwordmanager.util.PasswordValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,7 +30,8 @@ data class ChangeMasterPasswordUiState(
 class ChangeMasterPasswordViewModel @Inject constructor(
     private val sessionHolder: SessionHolder,
     private val biometricHelper: BiometricHelper,
-    private val configRepo: ConfigRepository
+    private val configRepo: ConfigRepository,
+    private val workspaceManager: WorkspaceManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChangeMasterPasswordUiState())
@@ -90,9 +92,10 @@ class ChangeMasterPasswordViewModel @Inject constructor(
                 sessionHolder.unlock(vault, newSession, username)
 
                 // Invalidate biometric data — the stored encrypted password is now stale
-                if (configRepo.isBiometricEnabled(username)) {
-                    configRepo.clearBiometricData(username)
-                    biometricHelper.deleteKey(username)
+                val account = workspaceManager.biometricAccount(username)
+                if (configRepo.isBiometricEnabled(account)) {
+                    configRepo.clearBiometricData(account)
+                    biometricHelper.deleteKey(account)
                 }
 
                 _uiState.update { it.copy(isLoading = false, success = true) }

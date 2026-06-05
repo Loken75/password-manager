@@ -13,6 +13,17 @@
     <string name="login_user_created">User created successfully</string>
     <string name="login_no_user">Please select a user</string>
 
+    <!-- Workspace (working folder) -->
+    <string name="workspace_label">Working folder</string>
+    <string name="workspace_internal">Internal (private)</string>
+    <string name="workspace_external">External (USB-accessible)</string>
+    <string name="workspace_migrate_title">Move vaults?</string>
+    <string name="workspace_migrate_message">Move %1$d vault(s) to the new folder? Choose \"Keep here\" to leave them in the current folder.</string>
+    <string name="workspace_migrate_move">Move</string>
+    <string name="workspace_migrate_keep">Keep here</string>
+    <string name="workspace_choose_folder">Choose folder…</string>
+    <string name="workspace_folder">Selected folder</string>
+
     <!-- Errors -->
     <string name="error_invalid_password">Invalid password</string>
     <string name="error_empty_password">Please enter the password</string>

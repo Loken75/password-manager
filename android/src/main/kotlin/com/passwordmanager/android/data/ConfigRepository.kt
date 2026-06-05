@@ -31,6 +31,10 @@ interface ConfigRepository {
     fun getSftpKeyId(): String
     fun setSftpKeyId(keyId: String)
 
+    // Vault working folder (workspace). Null = default (internal storage).
+    fun getVaultWorkspace(): String?
+    fun setVaultWorkspace(spec: String?)
+
     // Biometric unlock
     fun isBiometricEnabled(username: String): Boolean
     fun setBiometricEnabled(username: String, enabled: Boolean)

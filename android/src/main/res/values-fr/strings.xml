@@ -13,6 +13,17 @@
     <string name="login_user_created">Utilisateur créé avec succès</string>
     <string name="login_no_user">Veuillez sélectionner un utilisateur</string>
 
+    <!-- Espace de travail (dossier de travail) -->
+    <string name="workspace_label">Dossier de travail</string>
+    <string name="workspace_internal">Interne (privé)</string>
+    <string name="workspace_external">Externe (accessible USB)</string>
+    <string name="workspace_migrate_title">Déplacer les coffres ?</string>
+    <string name="workspace_migrate_message">Déplacer %1$d coffre(s) vers le nouveau dossier ? Choisissez « Garder ici » pour les laisser dans le dossier actuel.</string>
+    <string name="workspace_migrate_move">Déplacer</string>
+    <string name="workspace_migrate_keep">Garder ici</string>
+    <string name="workspace_choose_folder">Choisir un dossier…</string>
+    <string name="workspace_folder">Dossier sélectionné</string>
+
     <!-- Errors -->
     <string name="error_invalid_password">Mot de passe incorrect</string>
     <string name="error_empty_password">Veuillez saisir le mot de passe</string>
