@@ -1,7 +1,7 @@
 import java.util.Properties
 
 plugins {
-    id("com.android.application") version "8.7.3"
+    id("com.android.application") version "9.2.1"
     id("org.jetbrains.kotlin.android") version "2.1.0"
     id("org.jetbrains.kotlin.plugin.compose") version "2.1.0"
     id("com.google.devtools.ksp") version "2.1.0-1.0.29"
