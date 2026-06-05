@@ -117,7 +117,7 @@ dependencies {
 
     // Activity Compose + AppCompat (for per-app language)
     implementation("androidx.activity:activity-compose:1.9.3")
-    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.appcompat:appcompat:1.7.1")
 
     // Storage Access Framework (user-chosen vault folder)
     implementation("androidx.documentfile:documentfile:1.0.1")
