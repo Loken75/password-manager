@@ -23,6 +23,9 @@ public class AppConfig {
     private int autoLockMinutes = 15;
     private int clipboardClearSeconds = 30;
     private ThemeMode theme = ThemeMode.LIGHT;
+    // Whether the app may fetch website favicons over the network. Default on;
+    // when off, no favicon is fetched or shown (privacy: zero outbound requests).
+    private boolean faviconsEnabled = true;
 
     public AppConfig() {
         String appHome = System.getProperty("app.home",
@@ -123,5 +126,10 @@ public class AppConfig {
     public ThemeMode getTheme() { return theme; }
     public void setTheme(ThemeMode theme) {
         this.theme = theme != null ? theme : ThemeMode.LIGHT;
+    }
+
+    public boolean isFaviconsEnabled() { return faviconsEnabled; }
+    public void setFaviconsEnabled(boolean faviconsEnabled) {
+        this.faviconsEnabled = faviconsEnabled;
     }
 }

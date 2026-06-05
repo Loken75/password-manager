@@ -2,35 +2,53 @@ package com.passwordmanager.crypto;
 
 import com.passwordmanager.util.SecureWiper;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import javax.security.auth.Destroyable;
 
 /**
  * Holds the DEK (data encryption key) and envelope metadata for an unlocked vault.
  * Must be destroyed when the vault is locked or the application exits.
  * Implements AutoCloseable to support try-with-resources patterns.
+ *
+ * <p>The DEK is held as a raw {@code byte[]} owned by this session so that
+ * {@link #destroy()} can actually zero it (unlike {@code SecretKeySpec.destroy()},
+ * which is a no-op on the standard JCA provider). {@link #getDataKey()} rebuilds a
+ * transient {@link SecretKeySpec} on demand for each cipher operation; that
+ * short-lived copy is outside this session's control (a residual JCA limitation),
+ * but the authoritative key material kept here is wiped on destroy.
  */
 public class VaultSession implements Destroyable, AutoCloseable {
-    private static final Logger LOGGER = Logger.getLogger(VaultSession.class.getName());
-    private SecretKey dataKey;
+    private final byte[] rawDek;
     private byte[] salt;
     private byte[] kekIv;
     private byte[] encryptedDek;
     private int kdfIterations;
-    private boolean destroyed = false;
+    private volatile boolean destroyed = false;
 
-    VaultSession(SecretKey dataKey, byte[] salt, byte[] kekIv,
+    VaultSession(byte[] rawDek, byte[] salt, byte[] kekIv,
                  byte[] encryptedDek, int kdfIterations) {
-        this.dataKey = dataKey;
+        // Defensive copy: this session owns its DEK and wipes it on destroy,
+        // independently of the caller's buffer (which the caller wipes itself).
+        this.rawDek = rawDek.clone();
         this.salt = salt;
         this.kekIv = kekIv;
         this.encryptedDek = encryptedDek;
         this.kdfIterations = kdfIterations;
     }
 
-    public SecretKey getDataKey() { return dataKey; }
+    /**
+     * Rebuilds a transient AES key from the owned DEK bytes for a single use.
+     *
+     * @throws IllegalStateException if the session has already been destroyed
+     */
+    public SecretKey getDataKey() {
+        if (destroyed) {
+            throw new IllegalStateException("VaultSession has been destroyed");
+        }
+        return new SecretKeySpec(rawDek, "AES");
+    }
+
     public byte[] getSalt() { return salt != null ? salt.clone() : null; }
     public byte[] getKekIv() { return kekIv != null ? kekIv.clone() : null; }
     public byte[] getEncryptedDek() { return encryptedDek != null ? encryptedDek.clone() : null; }
@@ -52,11 +70,7 @@ public class VaultSession implements Destroyable, AutoCloseable {
     @Override
     public void destroy() {
         if (!destroyed) {
-            if (dataKey != null) {
-                try { dataKey.destroy(); } catch (Exception e) {
-                    LOGGER.log(Level.FINE, "SecretKey.destroy() not supported", e);
-                }
-            }
+            SecureWiper.wipe(rawDek);
             SecureWiper.wipe(salt);
             SecureWiper.wipe(kekIv);
             SecureWiper.wipe(encryptedDek);
@@ -75,5 +89,13 @@ public class VaultSession implements Destroyable, AutoCloseable {
     @Override
     public void close() {
         destroy();
+    }
+
+    /**
+     * Package-private accessor exposing the live DEK buffer so tests can assert it
+     * is zeroed after {@link #destroy()}. Not for production use.
+     */
+    byte[] dataKeyBytesForTest() {
+        return rawDek;
     }
 }

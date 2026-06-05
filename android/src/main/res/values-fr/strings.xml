@@ -267,6 +267,7 @@
     <string name="biometric_enabled">Déverrouillage biométrique activé</string>
     <string name="biometric_disabled">Déverrouillage biométrique désactivé</string>
     <string name="settings_biometric">Déverrouillage biométrique</string>
+    <string name="settings_favicons">Favicons des sites</string>
 
     <!-- Autofill -->
     <string name="settings_autofill">Activer le service de remplissage automatique</string>

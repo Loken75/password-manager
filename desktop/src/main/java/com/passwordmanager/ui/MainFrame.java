@@ -130,6 +130,7 @@ public class MainFrame extends JFrame {
         try {
             String cacheDir = System.getProperty("user.home") + "/.password-manager/data/favicons";
             vaultPanel.setFaviconService(new FaviconService(cacheDir));
+            vaultPanel.setFaviconsEnabled(appConfig.isFaviconsEnabled());
         } catch (Exception ignored) {}
 
         appPanel = new AppPanel(vaultService.getAppService(), appConfig.getClipboardClearSeconds());
@@ -370,6 +371,7 @@ public class MainFrame extends JFrame {
             vaultPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
             appPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
             sshKeyPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
+            vaultPanel.setFaviconsEnabled(appConfig.isFaviconsEnabled());
             autoLockManager.startAutoLock();
             boolean remoteEnabled = appConfig.getStorageMode() == StorageMode.REMOTE;
             syncNowMenuItem.setEnabled(remoteEnabled);

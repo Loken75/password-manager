@@ -75,6 +75,7 @@ public class VaultPanel extends JPanel {
     private FaviconService faviconService;
     private final Map<String, ImageIcon> faviconCache = new ConcurrentHashMap<>();
     private static final ImageIcon FAVICON_LOADING = new ImageIcon(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB));
+    private boolean faviconsEnabled = true;
 
     // Callbacks
     private Runnable onVaultChanged;
@@ -88,6 +89,13 @@ public class VaultPanel extends JPanel {
 
     public void setFaviconService(FaviconService faviconService) {
         this.faviconService = faviconService;
+    }
+
+    /** When disabled, no favicon is fetched or shown (privacy: zero outbound requests). */
+    public void setFaviconsEnabled(boolean faviconsEnabled) {
+        this.faviconsEnabled = faviconsEnabled;
+        faviconCache.clear();
+        if (tableModel != null) tableModel.fireTableDataChanged();
     }
 
     public void setOnVaultChanged(Runnable onVaultChanged) {
@@ -908,6 +916,7 @@ public class VaultPanel extends JPanel {
         dlg.setVisible(true);
         if (dlg.isConfirmed()) {
             vaultService.updateEntry(dlg.getEntry());
+            warmFaviconCache(dlg.getEntry());
             refreshEntries();
             notifyChanged();
         }
@@ -922,6 +931,7 @@ public class VaultPanel extends JPanel {
         dlg.setVisible(true);
         if (dlg.isConfirmed()) {
             vaultService.addEntry(dlg.getEntry());
+            warmFaviconCache(dlg.getEntry());
             refreshEntries();
             notifyChanged();
         }
@@ -959,7 +969,7 @@ public class VaultPanel extends JPanel {
     }
 
     private ImageIcon getFaviconForEntry(PasswordEntry entry) {
-        if (faviconService == null) return null;
+        if (faviconService == null || !faviconsEnabled) return null;
         String url = entry.getUrl();
         if (url == null || url.isBlank()) return null;
         String domain = FaviconService.extractDomain(url);
@@ -976,7 +986,10 @@ public class VaultPanel extends JPanel {
             @Override
             protected ImageIcon doInBackground() {
                 try {
-                    byte[] data = faviconService.getFavicon(url);
+                    // Cache-only: read the local disk cache, never the network, so
+                    // merely displaying the vault discloses no domains (privacy). The
+                    // network fetch happens only on create/edit via warmFaviconCache.
+                    byte[] data = faviconService.getCachedFavicon(url);
                     if (data != null && data.length > 0) {
                         ImageIcon raw = new ImageIcon(data);
                         Image scaled = raw.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH);
@@ -993,14 +1006,45 @@ public class VaultPanel extends JPanel {
                         faviconCache.put(domain, icon);
                         tableModel.fireTableDataChanged();
                     } else {
-                        faviconCache.remove(domain);
+                        // Memoize the miss (FAVICON_LOADING renders as no icon) so we
+                        // don't re-spawn a worker on every repaint. Cleared by
+                        // warmFaviconCache once the favicon is fetched on create/edit.
+                        faviconCache.put(domain, FAVICON_LOADING);
                     }
                 } catch (Exception ignored) {
-                    faviconCache.remove(domain);
+                    faviconCache.put(domain, FAVICON_LOADING);
                 }
             }
         }.execute();
         return null;
+    }
+
+    /**
+     * Fetches the favicon for an entry's URL over the network (warming the on-disk
+     * cache) after the entry is created or edited, then refreshes the table so it
+     * appears. This is the ONLY place a favicon network request originates; display
+     * is cache-only. No-op when no URL is set.
+     */
+    private void warmFaviconCache(PasswordEntry entry) {
+        if (faviconService == null || !faviconsEnabled || entry == null) return;
+        String url = entry.getUrl();
+        if (url == null || url.isBlank()) return;
+        String domain = FaviconService.extractDomain(url);
+        if (domain == null || domain.isEmpty()) return;
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() {
+                try { faviconService.getFavicon(url); } catch (Exception ignored) {}
+                return null;
+            }
+            @Override
+            protected void done() {
+                // Drop any cached miss/placeholder so the next render re-reads the
+                // now-warmed disk cache.
+                faviconCache.remove(domain);
+                tableModel.fireTableDataChanged();
+            }
+        }.execute();
     }
 
     private void notifyChanged() {

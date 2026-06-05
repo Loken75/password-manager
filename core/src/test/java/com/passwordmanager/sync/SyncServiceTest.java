@@ -303,6 +303,36 @@ class SyncServiceTest {
     }
 
     // ---------------------------------------------------------------
+    // resolveConflict() - integrity check on downloaded vault (verifyDownload)
+    // ---------------------------------------------------------------
+
+    @Test
+    void resolveConflict_keepRemote_invalidRemoteRejectedAndLocalPreserved() throws IOException {
+        // Remote vault is structurally invalid (no version/salt): it must be rejected
+        // BEFORE the local vault is touched (R-A: verify-before-promote).
+        String localContent = "{\"version\":\"2.0\",\"salt\":\"x\",\"entries\":[{\"local\":true}]}";
+        localRepo.writeFile(VAULT, localContent);
+        remoteRepo.putRemoteFile(VAULT, "{\"entries\":[]}", System.currentTimeMillis());
+
+        SyncService.SyncResult result = service.resolveConflict(VAULT, ConflictStrategy.KEEP_REMOTE);
+
+        assertFalse(result.isSuccess(), "An invalid downloaded vault must not be accepted");
+        assertEquals(localContent, localRepo.readFile(VAULT), "Local vault must be preserved intact");
+    }
+
+    @Test
+    void resolveConflict_keepBoth_invalidRemoteRejectedAndLocalPreserved() throws IOException {
+        String localContent = "{\"version\":\"2.0\",\"salt\":\"x\",\"entries\":[{\"local\":true}]}";
+        localRepo.writeFile(VAULT, localContent);
+        remoteRepo.putRemoteFile(VAULT, "{\"entries\":[]}", System.currentTimeMillis());
+
+        SyncService.SyncResult result = service.resolveConflict(VAULT, ConflictStrategy.KEEP_BOTH);
+
+        assertFalse(result.isSuccess(), "An invalid downloaded vault must not be accepted");
+        assertEquals(localContent, localRepo.readFile(VAULT), "Local vault must be preserved intact");
+    }
+
+    // ---------------------------------------------------------------
     // resolveConflict() - no remote configured
     // ---------------------------------------------------------------
 

@@ -425,6 +425,45 @@ Telecharge les 4 archives produites par les jobs `build-desktop` et `build-andro
 
 Genere un fichier `SHA256SUMS.txt` contenant les empreintes SHA-256 de chaque archive. Ce fichier permet aux utilisateurs de verifier l'integrite des telechargements.
 
+#### 2b. Signature GPG detachee (authenticite)
+
+Les checksums prouvent l'**integrite** mais pas l'**authenticite** (qui a produit le binaire). Une signature GPG detachee (`.asc`) est generee pour chaque artefact, y compris `SHA256SUMS.txt`. La signature est **optionnelle** : si le secret `GPG_PRIVATE_KEY` n'est pas configure, la release se poursuit **non signee** avec un avertissement (elle n'echoue pas).
+
+Secrets GitHub Actions requis : `GPG_PRIVATE_KEY` (cle privee ASCII-armored) et `GPG_PASSPHRASE`.
+
+```yaml
+- name: Sign artifacts (GPG detached)
+  if: steps.gpg.outputs.enabled == 'true'
+  env:
+    GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+    GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+  run: |
+    echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+    cd release-assets
+    for f in *.tar.gz *.zip *.apk *-sbom.json SHA256SUMS.txt; do
+      [ -e "$f" ] || continue
+      gpg --batch --yes --pinentry-mode loopback \
+          --passphrase "$GPG_PASSPHRASE" --armor --detach-sign "$f"
+    done
+```
+
+**Verification cote utilisateur** (apres avoir importe la cle publique du projet) :
+
+```bash
+# 1. Importer la cle publique (une seule fois)
+gpg --import password-manager-public-key.asc
+
+# 2. Verifier la signature d'un artefact
+gpg --verify password-manager-1.5.0-linux-x64.tar.gz.asc \
+             password-manager-1.5.0-linux-x64.tar.gz
+
+# 3. Verifier l'integrite (et, via SHA256SUMS.txt.asc, son authenticite)
+gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt
+sha256sum -c SHA256SUMS.txt
+```
+
+> Note : la signature GPG ne supprime pas les avertissements OS (« editeur inconnu » SmartScreen/Gatekeeper) — cela necessiterait une signature de code OS avec certificat payant. Elle fournit une authenticite verifiable pour qui fait confiance a la cle du projet.
+
 #### 3. Creation de la release GitHub
 
 ```yaml

@@ -30,6 +30,7 @@ public class SettingsDialog extends JDialog {
 
     // Security
     private JSpinner autoLockSpinner;
+    private JCheckBox faviconsCheck;
     private JSpinner clipboardSpinner;
 
     // Sync
@@ -109,7 +110,13 @@ public class SettingsDialog extends JDialog {
         });
         generalPanel.add(changeWorkspaceBtn, g);
 
-        g.gridx = 0; g.gridy = 4; g.weighty = 1;
+        g.gridx = 0; g.gridy = 4; g.weightx = 0; g.weighty = 0; g.gridwidth = 2;
+        faviconsCheck = new JCheckBox(lang.getString("settings.favicons"));
+        faviconsCheck.setSelected(config.isFaviconsEnabled());
+        generalPanel.add(faviconsCheck, g);
+        g.gridwidth = 1;
+
+        g.gridx = 0; g.gridy = 5; g.weighty = 1;
         generalPanel.add(Box.createVerticalGlue(), g);
 
         tabs.addTab(lang.getString("settings.general"), generalPanel);
@@ -339,6 +346,7 @@ public class SettingsDialog extends JDialog {
         ThemeMode[] themes = { ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK };
         config.setTheme(themes[themeCombo.getSelectedIndex()]);
         config.setAutoLockMinutes((Integer) autoLockSpinner.getValue());
+        config.setFaviconsEnabled(faviconsCheck.isSelected());
         config.setClipboardClearSeconds((Integer) clipboardSpinner.getValue());
         config.setStorageMode(remoteRadio.isSelected() ? StorageMode.REMOTE : StorageMode.LOCAL);
         config.setSftpHost(hostField.getText());

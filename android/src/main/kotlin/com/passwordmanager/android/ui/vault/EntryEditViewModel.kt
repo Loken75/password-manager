@@ -1,13 +1,19 @@
 package com.passwordmanager.android.ui.vault
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.passwordmanager.android.data.ConfigRepository
+import com.passwordmanager.android.data.FaviconCache
+import com.passwordmanager.android.data.FaviconRepository
 import com.passwordmanager.android.data.SessionHolder
+import com.passwordmanager.util.FaviconService
 import com.passwordmanager.vault.PasswordEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class EntryEditUiState(
@@ -27,7 +33,10 @@ data class EntryEditUiState(
 
 @HiltViewModel
 class EntryEditViewModel @Inject constructor(
-    private val sessionHolder: SessionHolder
+    private val sessionHolder: SessionHolder,
+    private val faviconRepository: FaviconRepository,
+    private val faviconCache: FaviconCache,
+    private val configRepository: ConfigRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EntryEditUiState())
@@ -128,6 +137,22 @@ class EntryEditViewModel @Inject constructor(
         }
 
         sessionHolder.save()
+        warmFavicon(state.url)
         return true
+    }
+
+    /**
+     * Fetches the favicon for a saved URL over the network, warming the on-disk
+     * cache so the list can show it later without any request at display time.
+     * Fire-and-forget; failures are ignored. No-op when no URL is set.
+     */
+    private fun warmFavicon(url: String) {
+        if (url.isBlank() || !configRepository.isFaviconsEnabled()) return
+        val domain = FaviconService.extractDomain(url) ?: return
+        viewModelScope.launch {
+            runCatching {
+                faviconRepository.getFavicon(url)?.let { faviconCache.put(domain, it) }
+            }
+        }
     }
 }

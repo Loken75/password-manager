@@ -207,13 +207,12 @@ public class SyncService {
                         remoteRepo.uploadFile(localPath, vaultFilename);
                         break;
                     case KEEP_REMOTE:
-                        remoteRepo.downloadFile(vaultFilename, localPath);
-                        verifyDownload(vaultFilename);
+                        // Download to a temp file and verify BEFORE replacing the local
+                        // vault, so a corrupted/invalid remote cannot destroy it (R-A).
+                        downloadVerifyAndPromote(vaultFilename, false);
                         break;
                     case KEEP_BOTH:
-                        localRepo.createBackup(vaultFilename);
-                        remoteRepo.downloadFile(vaultFilename, localPath);
-                        verifyDownload(vaultFilename);
+                        downloadVerifyAndPromote(vaultFilename, true);
                         break;
                 }
                 // Update sync hash after resolution
@@ -229,6 +228,30 @@ public class SyncService {
             } finally {
                 if (remoteRepo != null) remoteRepo.disconnect();
             }
+        }
+    }
+
+    /**
+     * Downloads the remote vault into a temp file and verifies it BEFORE replacing the
+     * local vault, so a corrupted/invalid remote can never destroy the local copy. The
+     * temp file is always cleaned up. When {@code backupFirst} is true (KEEP_BOTH), the
+     * existing local vault is backed up just before being overwritten.
+     */
+    private void downloadVerifyAndPromote(String vaultFilename, boolean backupFirst) throws Exception {
+        String tempFilename = vaultFilename + SYNC_TMP_SUFFIX;
+        String tempPath = localRepo.getFilePath(tempFilename);
+        try {
+            remoteRepo.downloadFile(vaultFilename, tempPath);
+            // SEC-02: restrict permissions on the temp file holding the encrypted vault.
+            FileSecurityUtils.setOwnerOnlyPermissions(Paths.get(tempPath));
+            // Throws if the download is empty/not-a-vault: local stays untouched.
+            verifyDownload(tempFilename);
+            if (backupFirst) {
+                localRepo.createBackup(vaultFilename);
+            }
+            localRepo.writeFile(vaultFilename, localRepo.readFile(tempFilename));
+        } finally {
+            cleanupTempFile(tempPath);
         }
     }
 

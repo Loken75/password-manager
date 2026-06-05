@@ -32,19 +32,34 @@ public class KeyDerivation {
 
     /**
      * Derives an AES-256 key from the given password, salt, and iteration count.
+     *
+     * <p>The returned {@link SecretKeySpec} copies the key bytes internally and
+     * cannot be reliably wiped (JCA limitation). Callers that need to zero the key
+     * material after use should prefer {@link #deriveKeyBytes} and wipe the array.
      */
     public static SecretKey deriveKey(char[] password, byte[] salt, int iterations) throws VaultEncryptionException {
+        byte[] keyBytes = deriveKeyBytes(password, salt, iterations);
+        try {
+            return new SecretKeySpec(keyBytes, "AES");
+        } finally {
+            SecureWiper.wipe(keyBytes);
+        }
+    }
+
+    /**
+     * Derives raw AES-256 key material (32 bytes) from the given password, salt,
+     * and iteration count. Unlike {@link #deriveKey}, the caller owns the returned
+     * array and is responsible for wiping it with {@link SecureWiper#wipe(byte[])}
+     * once the derived key is no longer needed. This enables real zeroing of the
+     * KEK, which {@code SecretKeySpec.destroy()} cannot provide.
+     */
+    public static byte[] deriveKeyBytes(char[] password, byte[] salt, int iterations) throws VaultEncryptionException {
         try {
             SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
             PBEKeySpec spec = new PBEKeySpec(password, salt, iterations, KEY_SIZE);
             try {
-                SecretKey tmp = factory.generateSecret(spec);
-                byte[] encoded = tmp.getEncoded();
-                try {
-                    return new SecretKeySpec(encoded, "AES");
-                } finally {
-                    SecureWiper.wipe(encoded);
-                }
+                // tmp.getEncoded() returns a fresh copy that the caller now owns.
+                return factory.generateSecret(spec).getEncoded();
             } finally {
                 spec.clearPassword();
             }

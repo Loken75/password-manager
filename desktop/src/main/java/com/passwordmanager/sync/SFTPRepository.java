@@ -61,6 +61,10 @@ public class SFTPRepository implements RemoteSyncRepository {
                 knownHostsFile.getParentFile().mkdirs();
                 if (!knownHostsFile.createNewFile()) {
                     LOGGER.warning("Could not create known_hosts file");
+                } else {
+                    // SEC-01: restrict the freshly created file to the owner so it is
+                    // never left world-readable under a permissive umask.
+                    com.passwordmanager.util.FileSecurityUtils.setOwnerOnlyPermissions(knownHostsFile.toPath());
                 }
             } catch (IOException e) {
                 LOGGER.log(Level.WARNING, "Failed to create known_hosts file", e);

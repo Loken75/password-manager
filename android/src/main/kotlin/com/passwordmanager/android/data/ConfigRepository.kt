@@ -14,6 +14,8 @@ interface ConfigRepository {
     fun setAutoLockMinutes(minutes: Int)
     fun getClipboardClearSeconds(): Int
     fun setClipboardClearSeconds(seconds: Int)
+    fun isFaviconsEnabled(): Boolean
+    fun setFaviconsEnabled(enabled: Boolean)
 
     // SFTP sync
     fun getStorageMode(): StorageMode

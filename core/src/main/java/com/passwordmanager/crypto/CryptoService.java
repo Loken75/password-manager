@@ -8,8 +8,6 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.SecureRandom;
 import java.util.Arrays;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * AES-256-GCM encryption service with DEK/KEK envelope encryption.
@@ -21,9 +19,12 @@ import java.util.logging.Logger;
  *
  * Benefits: saves are fast (no KDF), password change only re-encrypts DEK,
  * master password is not needed in memory after unlock.
+ *
+ * Key material (DEK and KEK) is handled as raw {@code byte[]} and wiped after use;
+ * the only residual exposure is the short-lived {@link SecretKeySpec} each cipher
+ * operation must build, which the JCA copies and we cannot zero.
  */
 public class CryptoService implements EncryptionService {
-    private static final Logger LOGGER = Logger.getLogger(CryptoService.class.getName());
     private static final String ALGORITHM = "AES/GCM/NoPadding";
     private static final int GCM_IV_LENGTH = 12;
     private static final int GCM_TAG_LENGTH = 128;
@@ -35,41 +36,39 @@ public class CryptoService implements EncryptionService {
     public VaultSession createSession(char[] masterPassword) throws VaultEncryptionException {
         byte[] rawDek = new byte[DEK_LENGTH];
         byte[] salt = null;
-        SecretKey kek = null;
+        byte[] kekBytes = null;
         try {
             RANDOM.nextBytes(rawDek);
-            SecretKey dek = new SecretKeySpec(rawDek, "AES");
 
             salt = KeyDerivation.generateSalt();
             int iterations = KeyDerivation.getDefaultIterations();
-            kek = KeyDerivation.deriveKey(masterPassword, salt, iterations);
+            kekBytes = KeyDerivation.deriveKeyBytes(masterPassword, salt, iterations);
 
             byte[] kekIv = new byte[GCM_IV_LENGTH];
             RANDOM.nextBytes(kekIv);
-            EncryptedPayload encDek = doEncrypt(dek.getEncoded(), kek, kekIv, null);
+            EncryptedPayload encDek = doEncrypt(rawDek, new SecretKeySpec(kekBytes, "AES"), kekIv, null);
 
-            return new VaultSession(dek, salt, kekIv, encDek.getCiphertext(), iterations);
+            return new VaultSession(rawDek, salt, kekIv, encDek.getCiphertext(), iterations);
         } catch (VaultEncryptionException e) {
             throw e;
         } catch (Exception e) {
             throw new VaultEncryptionException("Failed to create vault session", e);
         } finally {
             SecureWiper.wipe(rawDek);
-            destroyKey(kek);
+            SecureWiper.wipe(kekBytes);
         }
     }
 
     @Override
     public VaultSession openSession(byte[] salt, byte[] kekIv, byte[] encryptedDek,
                                     int kdfIterations, char[] masterPassword) throws VaultDecryptionException {
-        SecretKey kek = null;
+        byte[] kekBytes = null;
         byte[] rawDek = null;
         try {
-            kek = KeyDerivation.deriveKey(masterPassword, salt, kdfIterations);
-            rawDek = doDecrypt(encryptedDek, kekIv, kek, null);
-            SecretKey dek = new SecretKeySpec(rawDek, "AES");
+            kekBytes = KeyDerivation.deriveKeyBytes(masterPassword, salt, kdfIterations);
+            rawDek = doDecrypt(encryptedDek, kekIv, new SecretKeySpec(kekBytes, "AES"), null);
 
-            return new VaultSession(dek,
+            return new VaultSession(rawDek,
                 Arrays.copyOf(salt, salt.length),
                 Arrays.copyOf(kekIv, kekIv.length),
                 Arrays.copyOf(encryptedDek, encryptedDek.length),
@@ -77,7 +76,7 @@ public class CryptoService implements EncryptionService {
         } catch (Exception e) {
             throw new VaultDecryptionException("Invalid master password or corrupted vault", e);
         } finally {
-            destroyKey(kek);
+            SecureWiper.wipe(kekBytes);
             SecureWiper.wipe(rawDek);
         }
     }
@@ -104,17 +103,17 @@ public class CryptoService implements EncryptionService {
 
     @Override
     public VaultSession changePassword(VaultSession session, char[] newPassword) throws VaultEncryptionException {
-        SecretKey newKek = null;
+        byte[] newKekBytes = null;
         byte[] rawDek = null;
         try {
             byte[] newSalt = KeyDerivation.generateSalt();
             int iterations = KeyDerivation.getDefaultIterations();
-            newKek = KeyDerivation.deriveKey(newPassword, newSalt, iterations);
+            newKekBytes = KeyDerivation.deriveKeyBytes(newPassword, newSalt, iterations);
 
             byte[] newKekIv = new byte[GCM_IV_LENGTH];
             RANDOM.nextBytes(newKekIv);
             rawDek = session.getDataKey().getEncoded();
-            EncryptedPayload encDek = doEncrypt(rawDek, newKek, newKekIv, null);
+            EncryptedPayload encDek = doEncrypt(rawDek, new SecretKeySpec(newKekBytes, "AES"), newKekIv, null);
 
             session.updateEnvelope(newSalt, newKekIv, encDek.getCiphertext(), iterations);
             return session;
@@ -124,21 +123,21 @@ public class CryptoService implements EncryptionService {
             throw new VaultEncryptionException("Password change failed", e);
         } finally {
             SecureWiper.wipe(rawDek);
-            destroyKey(newKek);
+            SecureWiper.wipe(newKekBytes);
         }
     }
 
     @Override
     public byte[] decryptLegacy(byte[] salt, byte[] iv, byte[] ciphertext,
                                 char[] masterPassword) throws VaultDecryptionException {
-        SecretKey key = null;
+        byte[] keyBytes = null;
         try {
-            key = KeyDerivation.deriveKey(masterPassword, salt, LEGACY_ITERATIONS);
-            return doDecrypt(ciphertext, iv, key, null);
+            keyBytes = KeyDerivation.deriveKeyBytes(masterPassword, salt, LEGACY_ITERATIONS);
+            return doDecrypt(ciphertext, iv, new SecretKeySpec(keyBytes, "AES"), null);
         } catch (Exception e) {
             throw new VaultDecryptionException("Legacy vault decryption failed", e);
         } finally {
-            destroyKey(key);
+            SecureWiper.wipe(keyBytes);
         }
     }
 
@@ -157,15 +156,5 @@ public class CryptoService implements EncryptionService {
         cipher.init(Cipher.DECRYPT_MODE, key, spec);
         if (aad != null) cipher.updateAAD(aad);
         return cipher.doFinal(ciphertext);
-    }
-
-    private static void destroyKey(SecretKey key) {
-        if (key != null) {
-            try {
-                key.destroy();
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Failed to destroy SecretKey", e);
-            }
-        }
     }
 }

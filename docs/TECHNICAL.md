@@ -36,7 +36,8 @@ Password Manager est une application multiplateforme (desktop + Android) permett
 - Interface bilingue francais/anglais
 - Themes systeme, clair et sombre
 - Injection de dependances Hilt sur le module Android
-- ~493 tests unitaires et d'integration (core, desktop et Android)
+- ~517 tests unitaires et d'integration (core, desktop et Android), plus des tests
+  instrumentes Android (Keystore AES-GCM, EncryptedSharedPreferences, smoke Compose)
 
 ---
 
@@ -735,7 +736,7 @@ Emplacement : `~/.password-manager/data/.config_key`
 | Presse-papiers securise (Desktop) | `SecureClipboard` : `Transferable` personnalise stockant `char[]`, efface sur `lostOwnership()` + `clear()` en shutdown hook. Aucun `new String(password)` dans le presse-papiers |
 | Copie defensive | `PasswordEntry.getPassword()`, `AppEntry.getPin()`, `SshKeyEntry.getPrivateKey()` retournent des clones. Les setters effacent l'ancienne valeur avant clone |
 | Copie defensive session | `VaultSession.getSalt/getKekIv/getEncryptedDek()` retournent des clones |
-| Nettoyage de session | `VaultSession.destroy()` efface sel, IV et DEK chiffree (`byte[]`), et appelle `SecretKey.destroy()` sur la DEK. **Limite JCE** : `SecretKeySpec.destroy()` n'est pas supporte (leve `DestroyFailedException`, loggee en FINE) — le materiel de cle AES de la DEK n'est donc pas reellement efface en memoire avant le GC |
+| Nettoyage de session | La DEK est detenue en clair sous forme de `byte[]` possede par `VaultSession` ; `destroy()` efface reellement (`SecureWiper.wipe`) la DEK, le sel, l'IV et la DEK chiffree. Le KEK derive du mot de passe est lui aussi manipule en `byte[]` (`KeyDerivation.deriveKeyBytes`) et efface en `finally` apres chaque operation dans `CryptoService`. **Limite JCA residuelle** : chaque operation cipher doit reconstruire un `SecretKeySpec` transitoire (`getDataKey()`), dont la copie interne des octets n'est pas effacable et subsiste jusqu'au GC ; cette exposition est de courte duree, contrairement a l'ancienne ou la DEK persistait toute la session. `getDataKey()` leve `IllegalStateException` apres destruction |
 | Nettoyage Swing | Insertion via `Document.insertString()` au lieu de `JPasswordField.setText(String)` pour minimiser l'interning |
 | Nettoyage ViewModel (Android) | `EntryEditViewModel.onCleared()`, `EntryDetailViewModel.onCleared()`, `AppDetailViewModel.onCleared()`, `ChangeMasterPasswordViewModel.onCleared()` et `SettingsViewModel.onCleared()` effacent les donnees sensibles de l'etat UI |
 | Biometrie AndroidKeyStore | Cle AES-256-GCM par utilisateur, `setUserAuthenticationRequired(true)`, `setInvalidatedByBiometricEnrollment(true)`. Le mot de passe maitre est chiffre/dechiffre via `CharBuffer`/`ByteBuffer` (sans intermediaire `String`) et stocke dans `EncryptedSharedPreferences`. L'inscription efface le `char[]` du mot de passe apres chiffrement |

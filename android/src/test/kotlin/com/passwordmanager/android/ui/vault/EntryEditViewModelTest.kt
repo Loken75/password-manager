@@ -1,8 +1,12 @@
 package com.passwordmanager.android.ui.vault
 
+import com.passwordmanager.android.data.FaviconCache
+import com.passwordmanager.android.data.FaviconRepository
 import com.passwordmanager.android.data.SessionHolder
+import com.passwordmanager.android.test.FakeConfigRepository
 import com.passwordmanager.android.test.MainDispatcherExtension
 import com.passwordmanager.android.test.TestSessionHelper
+import com.passwordmanager.util.FaviconService
 import com.passwordmanager.vault.Vault
 import com.passwordmanager.vault.PasswordEntry
 import org.junit.jupiter.api.AfterEach
@@ -27,7 +31,8 @@ class EntryEditViewModelTest {
     @BeforeEach
     fun setUp() {
         vault = TestSessionHelper.unlockWithEmptyVault(tempDir)
-        viewModel = EntryEditViewModel(SessionHolder)
+        val faviconRepository = FaviconRepository(FaviconService(tempDir.resolve("favicons").toString()))
+        viewModel = EntryEditViewModel(SessionHolder, faviconRepository, FaviconCache(), FakeConfigRepository())
     }
 
     @AfterEach

@@ -36,6 +36,32 @@ class VaultSessionTest {
     }
 
     @Test
+    void destroy_zeroesDataKeyMaterial() throws VaultEncryptionException {
+        VaultSession session = createTestSession();
+        byte[] dekBuffer = session.dataKeyBytesForTest();
+        // Sanity: a freshly generated DEK is not already all-zero.
+        boolean nonZeroBefore = false;
+        for (byte b : dekBuffer) {
+            if (b != 0) { nonZeroBefore = true; break; }
+        }
+        assertTrue(nonZeroBefore, "DEK material should be non-zero before destroy");
+
+        session.destroy();
+
+        // dataKeyBytesForTest() returns the live buffer; destroy must have wiped it.
+        for (byte b : dekBuffer) {
+            assertEquals(0, b, "DEK material must be zeroed after destroy");
+        }
+    }
+
+    @Test
+    void getDataKey_afterDestroy_throws() throws VaultEncryptionException {
+        VaultSession session = createTestSession();
+        session.destroy();
+        assertThrows(IllegalStateException.class, session::getDataKey);
+    }
+
+    @Test
     void close_delegatesToDestroy() throws VaultEncryptionException {
         VaultSession session = createTestSession();
         session.close();

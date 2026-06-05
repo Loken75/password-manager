@@ -35,6 +35,26 @@ class FaviconServiceTest {
         assertNull(service.getCachedFavicon("https://nonexistent.example.com"));
     }
 
+    /**
+     * Locks the cache-only contract the UI now relies on for privacy: getCachedFavicon
+     * serves bytes straight from the on-disk cache (no network). The cache filename
+     * mirrors FaviconService's scheme: hex(SHA-256(domain)).
+     */
+    @Test
+    void getCachedFaviconReturnsBytesFromDiskWithoutNetwork(@TempDir Path tempDir) throws Exception {
+        FaviconService service = new FaviconService(tempDir.toString());
+        String domain = "cached.example.com";
+        byte[] png = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 1, 2, 3, 4};
+
+        java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+        byte[] hash = md.digest(domain.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        StringBuilder filename = new StringBuilder(hash.length * 2);
+        for (byte b : hash) filename.append(String.format("%02x", b & 0xFF));
+        java.nio.file.Files.write(tempDir.resolve(filename.toString()), png);
+
+        assertArrayEquals(png, service.getCachedFavicon("https://" + domain + "/login"));
+    }
+
     // --- R7: validate fetched bytes are an image (prevents caching HTML error pages) ---
 
     @Test

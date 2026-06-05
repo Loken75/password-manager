@@ -231,6 +231,24 @@ fun SettingsScreen(
                 steps = 0
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Favicons toggle (privacy: when off, no favicon network request is made)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    stringResource(R.string.settings_favicons),
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Switch(
+                    checked = state.faviconsEnabled,
+                    onCheckedChange = { viewModel.setFaviconsEnabled(it) }
+                )
+            }
+
             // Biometric toggle
             if (state.biometricAvailable) {
                 val activity = context as FragmentActivity

@@ -29,6 +29,9 @@ class FakeConfigRepository : ConfigRepository {
     override fun setAutoLockMinutes(minutes: Int) { this.autoLockMinutes = minutes.coerceIn(1, 60) }
     override fun getClipboardClearSeconds(): Int = clipboardClearSeconds
     override fun setClipboardClearSeconds(seconds: Int) { this.clipboardClearSeconds = seconds.coerceIn(5, 120) }
+    private var faviconsEnabled = true
+    override fun isFaviconsEnabled(): Boolean = faviconsEnabled
+    override fun setFaviconsEnabled(enabled: Boolean) { this.faviconsEnabled = enabled }
 
     override fun getStorageMode(): StorageMode = storageMode
     override fun setStorageMode(mode: StorageMode) { this.storageMode = mode }

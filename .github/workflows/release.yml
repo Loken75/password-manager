@@ -152,9 +152,53 @@ jobs:
           path: password-manager-${{ steps.version.outputs.VERSION }}-android.apk
           retention-days: 1
 
+  build-sbom:
+    name: SBOM - CycloneDX
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Inject version into build
+        shell: bash
+        run: |
+          sed -i.bak "s/^appVersion=.*/appVersion=${{ steps.version.outputs.VERSION }}/" gradle.properties
+          rm -f gradle.properties.bak
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate CycloneDX SBOM
+        run: ./gradlew cyclonedxBom
+
+      - name: Rename SBOM
+        run: mv build/reports/bom.json password-manager-${{ steps.version.outputs.VERSION }}-sbom.json
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: password-manager-${{ steps.version.outputs.VERSION }}-sbom
+          path: password-manager-${{ steps.version.outputs.VERSION }}-sbom.json
+          retention-days: 1
+
   release:
     name: Create GitHub Release
-    needs: [build-desktop, build-android]
+    needs: [build-desktop, build-android, build-sbom]
     runs-on: ubuntu-latest
 
     steps:
@@ -172,7 +216,38 @@ jobs:
       - name: Generate checksums
         run: |
           cd release-assets
-          sha256sum *.tar.gz *.zip *.apk > SHA256SUMS.txt
+          sha256sum *.tar.gz *.zip *.apk *-sbom.json > SHA256SUMS.txt
+
+      # Detached GPG signatures authenticate each artifact. Optional: if the signing
+      # key secret is not configured, the release proceeds unsigned with a warning.
+      - name: Check for GPG signing key
+        id: gpg
+        env:
+          # Passed via env (not interpolated into the script) so the multiline key
+          # cannot break the shell.
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          if [ -n "$GPG_PRIVATE_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::GPG_PRIVATE_KEY secret not set; release artifacts will be UNSIGNED."
+          fi
+
+      - name: Sign artifacts (GPG detached)
+        if: steps.gpg.outputs.enabled == 'true'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          cd release-assets
+          for f in *.tar.gz *.zip *.apk *-sbom.json SHA256SUMS.txt; do
+            [ -e "$f" ] || continue
+            gpg --batch --yes --pinentry-mode loopback \
+                --passphrase "$GPG_PASSPHRASE" \
+                --armor --detach-sign "$f"
+          done
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -186,4 +261,6 @@ jobs:
             release-assets/password-manager-${{ steps.version.outputs.VERSION }}-windows-x64.zip
             release-assets/password-manager-${{ steps.version.outputs.VERSION }}-macos-aarch64.tar.gz
             release-assets/password-manager-${{ steps.version.outputs.VERSION }}-android.apk
+            release-assets/password-manager-${{ steps.version.outputs.VERSION }}-sbom.json
             release-assets/SHA256SUMS.txt
+            release-assets/*.asc

@@ -20,6 +20,7 @@ android {
         targetSdk = 35
         versionCode = appVersion.replace(".", "").toIntOrNull() ?: 1
         versionName = appVersion
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -138,9 +139,20 @@ dependencies {
     // Debug tooling
     debugImplementation("androidx.compose.ui:ui-tooling")
 
-    // Test
+    // Test (JVM unit tests, JUnit 5)
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+
+    // Instrumented tests (androidTest, run on device/emulator, JUnit 4 runner).
+    // Cover the real Android Keystore, EncryptedSharedPreferences and Compose UI
+    // that JVM unit tests cannot exercise. The biometric-prompt path is covered by
+    // manual QA (see docs/manual-qa-biometric.md), as it requires a fingerprint.
+    androidTestImplementation(composeBom)
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core-ktx:1.6.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

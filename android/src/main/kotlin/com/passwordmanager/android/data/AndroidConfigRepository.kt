@@ -66,6 +66,14 @@ class AndroidConfigRepository(context: Context) : ConfigRepository {
         prefs.edit().putInt(KEY_CLIPBOARD_CLEAR, seconds.coerceIn(5, 120)).apply()
     }
 
+    // --- Favicons ---
+
+    override fun isFaviconsEnabled(): Boolean = prefs.getBoolean(KEY_FAVICONS_ENABLED, true)
+
+    override fun setFaviconsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_FAVICONS_ENABLED, enabled).apply()
+    }
+
     // --- SFTP sync ---
 
     override fun getStorageMode(): StorageMode =
@@ -172,6 +180,7 @@ class AndroidConfigRepository(context: Context) : ConfigRepository {
         private const val KEY_LANGUAGE = "language"
         private const val KEY_AUTO_LOCK = "auto_lock_minutes"
         private const val KEY_CLIPBOARD_CLEAR = "clipboard_clear_seconds"
+        private const val KEY_FAVICONS_ENABLED = "favicons_enabled"
         private const val KEY_STORAGE_MODE = "storage_mode"
         private const val KEY_SFTP_HOST = "sftp_host"
         private const val KEY_SFTP_PORT = "sftp_port"

@@ -4,18 +4,17 @@ import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.passwordmanager.android.data.AndroidSftpRepository
 import com.passwordmanager.android.data.BiometricHelper
 import com.passwordmanager.android.data.ConfigRepository
 import com.passwordmanager.android.data.HostKeyChangedException
 import com.passwordmanager.android.data.HostKeyPrompt
 import com.passwordmanager.android.data.SessionHolder
-import com.passwordmanager.android.data.SftpHostKeyVerifier
 import com.passwordmanager.android.data.SshHostKeyStore
 import com.passwordmanager.android.data.UnknownHostKeyException
 import com.passwordmanager.android.data.WorkspaceManager
 import com.passwordmanager.config.StorageMode
 import com.passwordmanager.config.ThemeMode
-import com.jcraft.jsch.JSch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +32,7 @@ data class SettingsUiState(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val autoLockMinutes: Int = 15,
     val clipboardClearSeconds: Int = 30,
+    val faviconsEnabled: Boolean = true,
     val biometricAvailable: Boolean = false,
     val biometricEnabled: Boolean = false,
     val showBiometricPasswordDialog: Boolean = false,
@@ -70,6 +70,7 @@ class SettingsViewModel @Inject constructor(
             themeMode = configRepo.getThemeMode(),
             autoLockMinutes = configRepo.getAutoLockMinutes(),
             clipboardClearSeconds = configRepo.getClipboardClearSeconds(),
+            faviconsEnabled = configRepo.isFaviconsEnabled(),
             biometricAvailable = biometricHelper.canAuthenticate(),
             biometricEnabled = sessionHolder.username?.let { configRepo.isBiometricEnabled(bioAccount(it)) } ?: false,
             storageMode = configRepo.getStorageMode(),
@@ -119,6 +120,11 @@ class SettingsViewModel @Inject constructor(
         val clamped = seconds.coerceIn(5, 120)
         configRepo.setClipboardClearSeconds(clamped)
         _uiState.update { it.copy(clipboardClearSeconds = clamped) }
+    }
+
+    fun setFaviconsEnabled(enabled: Boolean) {
+        configRepo.setFaviconsEnabled(enabled)
+        _uiState.update { it.copy(faviconsEnabled = enabled) }
     }
 
     // --- Biometric ---
@@ -262,27 +268,16 @@ class SettingsViewModel @Inject constructor(
             return
         }
 
-        val port = state.sftpPort.toIntOrNull() ?: 22
         viewModelScope.launch(Dispatchers.IO) {
-            var keyBytes: ByteArray? = null
+            val repo = AndroidSftpRepository.fromConfig(
+                configRepo, sessionHolder.vault, hostKeyStore, connectTimeoutMs = 10_000
+            )
+            if (repo == null) {
+                _uiState.update { it.copy(connectionTestResult = "fail") }
+                return@launch
+            }
             try {
-                val jsch = JSch()
-                if (keyEntry != null) {
-                    val privChars = keyEntry.privateKey
-                    if (privChars != null) {
-                        keyBytes = String(privChars).toByteArray(Charsets.UTF_8)
-                        com.passwordmanager.util.SecureWiper.wipe(privChars)
-                        jsch.addIdentity("vault_key", keyBytes, null, null)
-                    }
-                } else {
-                    jsch.addIdentity(keyPath)
-                }
-                val session = SftpHostKeyVerifier.connect(
-                    jsch, state.sftpHost, port, state.sftpUser, hostKeyStore, 10_000
-                )
-                val ok = session.isConnected
-                session.disconnect()
-                jsch.removeAllIdentity()
+                val ok = repo.testConnection()
                 _uiState.update { it.copy(connectionTestResult = if (ok) "ok" else "fail") }
             } catch (e: UnknownHostKeyException) {
                 stashPendingHostKey(e.host, e.port, e.blob)
@@ -297,8 +292,6 @@ class SettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "SFTP connection test failed", e)
                 _uiState.update { it.copy(connectionTestResult = "fail") }
-            } finally {
-                keyBytes?.fill(0)
             }
         }
     }

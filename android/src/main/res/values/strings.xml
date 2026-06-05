@@ -267,6 +267,7 @@
     <string name="biometric_enabled">Biometric unlock enabled</string>
     <string name="biometric_disabled">Biometric unlock disabled</string>
     <string name="settings_biometric">Biometric unlock</string>
+    <string name="settings_favicons">Website favicons</string>
 
     <!-- Autofill -->
     <string name="settings_autofill">Enable autofill service</string>
