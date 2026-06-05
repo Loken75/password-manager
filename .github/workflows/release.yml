@@ -90,7 +90,7 @@ jobs:
         run: Compress-Archive -Path dist\* -DestinationPath password-manager-${{ steps.version.outputs.VERSION }}-${{ matrix.label }}.${{ matrix.archive_ext }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: password-manager-${{ steps.version.outputs.VERSION }}-${{ matrix.label }}
           path: password-manager-${{ steps.version.outputs.VERSION }}-${{ matrix.label }}.${{ matrix.archive_ext }}
@@ -146,7 +146,7 @@ jobs:
         run: mv android/build/outputs/apk/release/android-release.apk password-manager-${{ steps.version.outputs.VERSION }}-android.apk
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: password-manager-${{ steps.version.outputs.VERSION }}-android
           path: password-manager-${{ steps.version.outputs.VERSION }}-android.apk
@@ -190,7 +190,7 @@ jobs:
         run: mv build/reports/bom.json password-manager-${{ steps.version.outputs.VERSION }}-sbom.json
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: password-manager-${{ steps.version.outputs.VERSION }}-sbom
           path: password-manager-${{ steps.version.outputs.VERSION }}-sbom.json
