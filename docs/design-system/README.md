@@ -59,7 +59,9 @@ Détail du mapping dans [`platform-mapping.md`](./platform-mapping.md).
 | Lot | Contenu | Statut |
 |---|---|---|
 | 0 | Design system documenté (ce dossier) | ✅ |
-| 1 | Tokens → thèmes générés + bibliothèque de composants (desktop + Android) | À faire |
+| 1a | Tokens → thèmes générés (desktop FlatLaf + Android Compose) | ✅ |
+| 1b desktop | Bibliothèque de composants Swing + galerie de démo | ✅ |
+| 1b android | Bibliothèque de composants Compose + galerie de démo | À faire |
 | 2 | Écrans à fort impact : Login, Vault/liste, Détail | À faire |
 | 3 | Édition + Générateur + Audit | À faire |
 | 4 | Réglages + Sync/Conflits + Import-Export | À faire |
