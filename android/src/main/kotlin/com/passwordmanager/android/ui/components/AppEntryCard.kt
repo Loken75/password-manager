@@ -23,7 +23,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.passwordmanager.android.ui.theme.appColors
-import com.passwordmanager.android.ui.theme.categoryColor
 import com.passwordmanager.vault.AppEntry
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -84,19 +83,19 @@ fun AppEntryCard(
 
                 Spacer(modifier = Modifier.width(if (isSelectionMode) 8.dp else 12.dp))
 
-                // Avatar - letter on a deterministic category-palette color
+                // Avatar - neutral letter (color reserved for security signals)
                 val initial = (entry.title?.firstOrNull() ?: '?').uppercaseChar()
                 Box(
                     modifier = Modifier
                         .padding(vertical = 12.dp)
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(categoryColor(entry.title)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = initial.toString(),
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )

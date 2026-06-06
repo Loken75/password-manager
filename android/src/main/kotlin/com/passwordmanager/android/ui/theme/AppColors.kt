@@ -37,7 +37,7 @@ internal val LightAppColors = AppColors(
     statusWeak = Palette.red50,
     statusWeakText = Palette.red40,
     onStatus = Palette.neutral0,
-    favorite = Palette.amber50,
+    favorite = Palette.gold50,
 )
 
 internal val DarkAppColors = AppColors(
@@ -50,7 +50,7 @@ internal val DarkAppColors = AppColors(
     statusWeak = Palette.red60,
     statusWeakText = Palette.red60,
     onStatus = Palette.neutral100,
-    favorite = Palette.amber60,
+    favorite = Palette.gold60,
 )
 
 internal val LocalAppColors = staticCompositionLocalOf { LightAppColors }

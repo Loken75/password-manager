@@ -49,10 +49,11 @@ public class SegmentedControl extends RoundedPanel {
 
     private void applyStyle(AbstractButton tab) {
         if (tab.isSelected()) {
+            // Sober "raised card" selected segment with accent text (calm, not a loud fill).
             tab.setContentAreaFilled(true);
             tab.setOpaque(true);
-            tab.setBackground(DesignTokens.accent());
-            tab.setForeground(DesignTokens.onAccent());
+            tab.setBackground(DesignTokens.surface());
+            tab.setForeground(DesignTokens.accent());
         } else {
             tab.setContentAreaFilled(false);
             tab.setOpaque(false);

@@ -8,12 +8,12 @@ contrôles d'accessibilité.
 
 ### Accent de marque
 
-`#4F46E5` (indigo, `accent.40`) est le **seed** de la palette tonale. Vif sans être
-criard : il porte la direction « expressive » tout en restant crédible pour une app de
-sécurité. Décliné en 11 tons (`accent.10` → `accent.95`).
+`#3B66C9` (bleu acier, `accent.40`) est le **seed** de la palette tonale. Sobre et
+rassurant : il porte la direction « Calme & confiance » et reste crédible pour une app
+de sécurité. Décliné en 11 tons (`accent.10` → `accent.95`).
 
 - **Light** : accent = `accent.40` ; texte blanc dessus.
-- **Dark** : accent = `accent.60` (`#818CF8`) pour rester lisible sur fond sombre.
+- **Dark** : accent = `accent.60` (`#6E92E8`) pour rester lisible sur fond sombre.
 - **Android ≥ API 31** : `dynamicColor` (Material You) prend le dessus et dérive le
   schéma du fond d'écran ; le seed indigo est le repli (< API 31 et desktop).
   **Les couleurs de statut sécurité restent fixes** quelle que soit la teinte dynamique
@@ -26,10 +26,14 @@ Seul usage « couleur signifiante » de l'app. Mappées sur les 4 niveaux de
 
 | Niveau core | Token | Light | Usage |
 |---|---|---|---|
-| `VERY_STRONG` | `color.status.veryStrong` | `#2563EB` | jauge, badge « très fort » (signal positif fort) |
-| `STRONG` | `color.status.strong` | `#16A34A` | jauge, badge « fort » |
-| `MEDIUM` | `color.status.medium` | `#F59E0B` | jauge, badge « moyen » |
-| `WEAK` / breached | `color.status.weak` | `#DC2626` | jauge, badge « faible/compromis » |
+| `VERY_STRONG` | `color.status.veryStrong` | `#2F6FB0` | jauge, badge « très fort » (signal positif fort) |
+| `STRONG` | `color.status.strong` | `#2F9E68` | jauge, badge « fort » |
+| `MEDIUM` | `color.status.medium` | `#B97D08` | jauge, badge « moyen » |
+| `WEAK` / breached | `color.status.weak` | `#CF4747` | jauge, badge « faible/compromis » |
+
+> Teintes **adoucies** (vs vives) pour la direction calme. Les badges s'affichent en
+> style **doux** (fond teinté clair + texte/point de la couleur), pas en pastilles
+> pleines. Favori = or sobre (`#C79A33`), distinct des statuts.
 
 > Conserve le « Très fort = bleu » documenté du README (4 niveaux distincts) tout en
 > remplaçant les **3 verts incohérents** du desktop et les **couleurs codées en dur**
@@ -43,23 +47,23 @@ Ratios calculés sur les couples critiques (cible : texte 4.5:1, large 3:1, UI 3
 
 | Couple | Ratio | Verdict |
 |---|---|---|
-| Blanc sur `accent.40` (#4F46E5) | **6.36:1** | ✅ texte |
-| Blanc sur `red.50` (#DC2626) | **4.83:1** | ✅ texte |
-| Blanc sur `green.50` (#16A34A) | 3.30:1 | ⚠️ **UI/icône seulement** — pour du texte, utiliser `green.40` (#15803D) → `*.text` |
-| `amber.50` (#F59E0B) | clair | ⚠️ fill ; texte foncé obligatoire, ou `amber.40` pour du texte |
+| Blanc sur `accent.40` (#3B66C9) | **5.34:1** | ✅ texte (bouton primaire) |
+| `status.*.text` (`*.40`) sur `*.90` (fond doux clair) | ≥ 4.5:1 | ✅ texte de badge doux |
+| `accent.40` sur surface claire | ≥ 4.5:1 | ✅ liens / segment actif |
 
-Conséquence encodée dans les tokens : chaque statut a une variante `*.text` plus foncée
-(`color.status.strong.text` = `green.40`, etc.) pour le **texte coloré sur fond clair**,
-distincte du **fill** utilisé pour barres/icônes. À l'implémentation, je repasse au crible
-tous les couples surface/texte et j'ajuste tout token qui n'atteint pas le seuil.
+Style **badge doux** : fond = teinte `*.90` (très clair), texte/point = `*.40` (foncé).
+Chaque statut garde une variante `*.text` (`*.40`) pour le texte coloré, distincte du
+**fill** (`*.50`) des barres de force. À l'implémentation, je repasse au crible tous les
+couples surface/texte et j'ajuste tout token sous le seuil.
 
 ### Catégories
 
-Palette de 10 teintes (`category.indigo` … `category.slate`) attribuées par **hash
-déterministe** du nom de catégorie → avatar/chip coloré stable. Unifie le violet unique
-d'Android et le gris du desktop. Les 10 teintes sont choisies pour rester distinguables
-en light comme en dark et pour les déficiences de vision des couleurs (on ne s'appuie
-jamais sur la seule couleur — toujours doublée d'un libellé/initiale).
+En direction « Calme & confiance », **les avatars sont neutres** (cercle `surface`
+sombre/clair + initiale en `text.secondary`) : la couleur reste réservée aux signaux de
+sécurité. La catégorie s'affiche en **chip neutre** (texte secondaire) et, dans la
+sidebar desktop, en simple puce grise. La palette `category.*` (10 teintes) est
+**conservée dans les tokens** mais non utilisée pour les avatars — réserve pour un
+éventuel mode « couleur par catégorie » optionnel plus tard.
 
 ## Typographie
 

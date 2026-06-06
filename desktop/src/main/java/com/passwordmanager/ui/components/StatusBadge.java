@@ -49,12 +49,15 @@ public class StatusBadge extends JComponent {
         return getFont().deriveFont(Font.BOLD, 11f);
     }
 
+    private static final int DOT = 7;
+    private static final int DOT_GAP = 6;
+
     @Override
     public Dimension getPreferredSize() {
         Font f = badgeFont();
         FontRenderContext frc = new FontRenderContext(null, true, true);
         Rectangle2D b = f.getStringBounds(text, frc);
-        int w = (int) Math.ceil(b.getWidth()) + PAD.left + PAD.right;
+        int w = (int) Math.ceil(b.getWidth()) + DOT + DOT_GAP + PAD.left + PAD.right;
         int h = (int) Math.ceil(b.getHeight()) + PAD.top + PAD.bottom;
         return new Dimension(w, h);
     }
@@ -66,23 +69,20 @@ public class StatusBadge extends JComponent {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             int w = getWidth();
             int h = getHeight();
-            g2.setColor(fill);
+            // Soft tinted pill (fill at low opacity) + colored dot + colored text.
+            g2.setColor(DesignTokens.softTint(fill));
             g2.fillRoundRect(0, 0, w - 1, h - 1, h, h);
-            g2.setColor(contrastingText(fill));
+            int dotY = (h - DOT) / 2;
+            g2.setColor(fill);
+            g2.fillOval(PAD.left, dotY, DOT, DOT);
             g2.setFont(badgeFont());
             FontRenderContext frc = g2.getFontRenderContext();
             Rectangle2D b = badgeFont().getStringBounds(text, frc);
-            float x = (float) ((w - b.getWidth()) / 2.0);
+            float x = PAD.left + DOT + DOT_GAP;
             float y = (float) ((h - b.getHeight()) / 2.0 - b.getY());
             g2.drawString(text, x, y);
         } finally {
             g2.dispose();
         }
-    }
-
-    /** Pick white or near-black text for adequate contrast on the fill. */
-    private static Color contrastingText(Color bg) {
-        double luminance = (0.2126 * bg.getRed() + 0.7152 * bg.getGreen() + 0.0722 * bg.getBlue()) / 255.0;
-        return luminance > 0.55 ? new Color(0x111116) : Color.WHITE;
     }
 }

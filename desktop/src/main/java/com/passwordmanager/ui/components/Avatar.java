@@ -22,7 +22,7 @@ public class Avatar extends JComponent {
 
     private final int size;
     private String initial = "?";
-    private Color background = DesignTokens.categoryColor(null);
+    private Color background = DesignTokens.avatarBackground();
     private Image image;
 
     public Avatar(int size) {
@@ -33,11 +33,15 @@ public class Avatar extends JComponent {
         setMaximumSize(d);
     }
 
-    /** Configure from a title + optional category (color) and optional favicon image. */
+    /**
+     * Configure from a title and optional favicon image. The {@code category} param is kept for
+     * API symmetry but no longer colors the avatar — color is reserved for security signals
+     * ("Calme & confiance"); avatars are neutral.
+     */
     public Avatar set(String title, String category, Image favicon) {
         this.initial = (title == null || title.isBlank())
                 ? "?" : title.trim().substring(0, 1).toUpperCase();
-        this.background = DesignTokens.categoryColor(category != null ? category : title);
+        this.background = DesignTokens.avatarBackground();
         this.image = favicon;
         repaint();
         return this;
@@ -56,7 +60,7 @@ public class Avatar extends JComponent {
             } else {
                 g2.setColor(background);
                 g2.fill(circle);
-                g2.setColor(Color.WHITE);
+                g2.setColor(DesignTokens.avatarForeground());
                 Font font = getFont().deriveFont(Font.BOLD, size * 0.42f);
                 g2.setFont(font);
                 FontRenderContext frc = g2.getFontRenderContext();

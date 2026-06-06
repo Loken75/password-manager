@@ -19,13 +19,13 @@ import java.awt.Color;
 public final class DesignTokens {
     private DesignTokens() {}
 
-    // Accent — indigo ramp (source: tokens.json primitive.color.accent)
-    public static final Color ACCENT = new Color(0x4F46E5);
-    private static final Color ACCENT_20 = new Color(0x312E81);
-    private static final Color ACCENT_40 = new Color(0x4F46E5);
-    private static final Color ACCENT_60 = new Color(0x818CF8);
-    private static final Color ACCENT_90 = new Color(0xE0E7FF);
-    private static final Color ACCENT_95 = new Color(0xEEF2FF);
+    // Accent — steel blue ramp (source: tokens.json primitive.color.accent), "Calme & confiance"
+    public static final Color ACCENT = new Color(0x3B66C9);
+    private static final Color ACCENT_20 = new Color(0x1E3A6E);
+    private static final Color ACCENT_40 = new Color(0x3B66C9);
+    private static final Color ACCENT_60 = new Color(0x6E92E8);
+    private static final Color ACCENT_90 = new Color(0xD7E2F7);
+    private static final Color ACCENT_95 = new Color(0xEAF0FB);
 
     // Neutrals (subset used by custom-painted components)
     private static final Color NEUTRAL_0 = new Color(0xFFFFFF);
@@ -35,6 +35,7 @@ public final class DesignTokens {
     private static final Color NEUTRAL_70 = new Color(0x3A3A44);
     private static final Color NEUTRAL_80 = new Color(0x2A2A33);
     private static final Color NEUTRAL_90 = new Color(0x1A1A20);
+    private static final Color NEUTRAL_95 = new Color(0x141418);
     private static final Color NEUTRAL_100 = new Color(0x111116);
 
     /** Theme accent (light = accent.40, dark = accent.60). */
@@ -45,6 +46,8 @@ public final class DesignTokens {
     public static Color accentContainer() { return isDark() ? ACCENT_20 : ACCENT_95; }
     public static Color onAccentContainer() { return isDark() ? ACCENT_90 : ACCENT_20; }
 
+    /** Base surface (raised elements like the selected segment). */
+    public static Color surface() { return isDark() ? NEUTRAL_95 : NEUTRAL_0; }
     /** Elevated card / container surface. */
     public static Color surfaceContainer() { return isDark() ? NEUTRAL_90 : NEUTRAL_5; }
     /** Hairline outline for cards/dividers. */
@@ -53,15 +56,17 @@ public final class DesignTokens {
     public static Color surfaceSubtle() { return isDark() ? NEUTRAL_80 : NEUTRAL_10; }
     public static Color onSurfaceFaint() { return isDark() ? NEUTRAL_20 : NEUTRAL_70; }
 
-    // Security status primitives (source: tokens.json primitive.color.{green,amber,red,blue})
-    private static final Color GREEN_50 = new Color(0x16A34A);
-    private static final Color GREEN_60 = new Color(0x22C55E);
-    private static final Color AMBER_50 = new Color(0xF59E0B);
-    private static final Color AMBER_60 = new Color(0xFBBF24);
-    private static final Color RED_50 = new Color(0xDC2626);
-    private static final Color RED_60 = new Color(0xEF4444);
-    private static final Color BLUE_50 = new Color(0x2563EB);
-    private static final Color BLUE_60 = new Color(0x3B82F6);
+    // Security status primitives (source: tokens.json primitive.color.{green,amber,red,blue}), calm tones
+    private static final Color GREEN_50 = new Color(0x2F9E68);
+    private static final Color GREEN_60 = new Color(0x46B883);
+    private static final Color AMBER_50 = new Color(0xB97D08);
+    private static final Color AMBER_60 = new Color(0xE0A23A);
+    private static final Color RED_50 = new Color(0xCF4747);
+    private static final Color RED_60 = new Color(0xE36464);
+    private static final Color BLUE_50 = new Color(0x2F6FB0);
+    private static final Color BLUE_60 = new Color(0x5E93D6);
+    private static final Color GOLD_50 = new Color(0xC79A33);
+    private static final Color GOLD_60 = new Color(0xD9B95B);
 
     /** True when the active FlatLaf theme is dark. */
     public static boolean isDark() {
@@ -84,10 +89,19 @@ public final class DesignTokens {
         }
     }
 
-    /** Favorite accent (amber), theme-aware. */
+    /** Favorite accent (gold), distinct from status colors, theme-aware. */
     public static Color favorite() {
-        return isDark() ? AMBER_60 : AMBER_50;
+        return isDark() ? GOLD_60 : GOLD_50;
     }
+
+    /** Soft badge background: the status color at low opacity (tint over the card surface). */
+    public static Color softTint(Color color) {
+        return new Color(color.getRed(), color.getGreen(), color.getBlue(), isDark() ? 46 : 34);
+    }
+
+    // Neutral avatar (color reserved for security signals)
+    public static Color avatarBackground() { return surfaceSubtle(); }
+    public static Color avatarForeground() { return onSurfaceFaint(); }
 
     // Category palette (source: tokens.json primitive.color.category) — deterministic by name.
     private static final Color[] CATEGORY = {

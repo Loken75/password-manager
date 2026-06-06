@@ -89,8 +89,9 @@ fun EntryCard(
 
                 Spacer(modifier = Modifier.width(if (isSelectionMode) 8.dp else 12.dp))
 
-                // Avatar (favicon if available, otherwise letter)
-                val avatarColor = categoryColor(entry.category)
+                // Avatar (favicon if available, otherwise neutral letter — color is reserved
+                // for security signals in the "Calme & confiance" direction)
+                val avatarColor = MaterialTheme.colorScheme.surfaceVariant
                 val initial = (entry.title?.firstOrNull() ?: '?').uppercaseChar()
                 Box(
                     modifier = Modifier
@@ -109,7 +110,7 @@ fun EntryCard(
                     } else {
                         Text(
                             text = initial.toString(),
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )

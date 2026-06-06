@@ -1,8 +1,11 @@
 # Design System — Password Manager
 
-Direction : **« Expressif & moderne »**. Système de design partagé qui pilote l'UI
-des **deux clients** (desktop Swing + FlatLaf, Android Compose + Material 3) depuis
-une **source de vérité unique** : [`tokens.json`](./tokens.json).
+Direction : **« Calme & confiance »** (accent bleu acier `#3B66C9`). Système de design
+partagé qui pilote l'UI des **deux clients** (desktop Swing + FlatLaf, Android Compose
++ Material 3) depuis une **source de vérité unique** : [`tokens.json`](./tokens.json).
+
+> Maquettes complètes validées dans [`/test_design`](../../test_design/) (PC + Android,
+> toutes les pages). C'est la **spécification visuelle de référence** pour l'implémentation.
 
 > Objectif : cohérence visuelle desktop ↔ Android (la parité que suit déjà la table
 > de fonctionnalités du `README` racine), accessibilité WCAG 2.2 AA dès la première
@@ -10,12 +13,13 @@ une **source de vérité unique** : [`tokens.json`](./tokens.json).
 
 ## Principes
 
-1. **Calme, structuré, expressif.** Surfaces neutres généreuses, cartes arrondies sur
-   grille 8px, profondeur douce (ombres diffuses + tint tonal). La personnalité vient
-   des **avatars/chips colorés par catégorie**, du **dashboard bento** et de quelques
-   moments de motion expressifs — jamais au détriment de la lisibilité.
-2. **La couleur est un signal de sécurité.** Vert = fort/sain, ambre = faible/réutilisé,
-   rouge = compromis. Le reste est neutre + un seul accent de marque (`#4F46E5`).
+1. **Calme, structuré, soft-geometric.** Surfaces neutres généreuses, cartes arrondies
+   sur grille 8px, profondeur douce (ombres diffuses + tint tonal). **Avatars neutres**
+   (pas de couleur par catégorie), badges de sécurité doux, segments sobres — le calme
+   au service de la lecture.
+2. **La couleur ne sert qu'aux signaux de sécurité.** Bleu = très fort, vert = fort/sain,
+   ambre = moyen/réutilisé, rouge = faible/compromis. Le reste est neutre + un seul
+   accent de marque sobre (bleu acier `#3B66C9`).
 3. **Monospace pour les secrets.** Mots de passe, clés, empreintes, PIN s'affichent en
    police mono (alignement tabulaire, 0/O et 1/l/I non ambigus). Révélation explicite
    et annoncée aux lecteurs d'écran, jamais exposée par défaut.
