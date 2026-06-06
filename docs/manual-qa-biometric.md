@@ -47,10 +47,20 @@ Compose) qui tournent en CI.
 2. **Attendu** : plus de proposition biométrique au déverrouillage ; les données
    biométriques chiffrées sont effacées (`clearBiometricData`).
 
+### 7. Cloisonnement par dossier de travail (workspace)
+Le nommage des clés biométriques est cloisonné par dossier de travail
+(`WorkspaceManager.biometricAccount(username)`) : deux coffres homonymes dans
+deux dossiers différents n'ont pas la même clé biométrique.
+1. Activer la biométrie pour un coffre `alice` dans le **dossier interne**.
+2. Basculer vers un **autre dossier** (SAF) contenant un coffre `alice` distinct.
+3. **Attendu** : la biométrie n'est pas proposée / ne déverrouille pas l'autre `alice` ;
+   chaque dossier conserve son propre enrôlement biométrique.
+
 ## Traçabilité
 À cocher avant chaque release contenant un changement touchant
-`BiometricHelper`, `LoginViewModel`, `ChangeMasterPasswordViewModel` ou
-`AndroidConfigRepository` :
+`BiometricHelper`, `LoginViewModel`, `ChangeMasterPasswordViewModel`,
+`ConfigRepository`/`AndroidConfigRepository` ou `WorkspaceManager`
+(le nommage des clés biométriques est désormais cloisonné par dossier de travail) :
 
 - [ ] Scénario 1 — Activation
 - [ ] Scénario 2 — Déverrouillage empreinte
@@ -58,5 +68,6 @@ Compose) qui tournent en CI.
 - [ ] Scénario 4 — Invalidation changement master password
 - [ ] Scénario 5 — Invalidation ré-enrôle
 - [ ] Scénario 6 — Désactivation
+- [ ] Scénario 7 — Cloisonnement par dossier de travail
 
 Appareil testé : __________________  Version Android : ______  Date : __________
