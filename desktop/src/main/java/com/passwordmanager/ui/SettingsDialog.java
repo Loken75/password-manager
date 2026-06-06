@@ -6,6 +6,8 @@ import com.passwordmanager.config.StorageMode;
 import com.passwordmanager.config.ThemeMode;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.sync.SFTPRepository;
+import com.passwordmanager.ui.components.Buttons;
+import com.passwordmanager.ui.theme.DesignTokens;
 
 import com.passwordmanager.vault.SshKeyEntry;
 
@@ -245,10 +247,11 @@ public class SettingsDialog extends JDialog {
         setLayout(new BorderLayout());
         add(tabs, BorderLayout.CENTER);
 
-        // Bottom buttons
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        // Bottom buttons (ghost cancel + primary apply)
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD));
+        btnPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, DesignTokens.outline()));
         JButton cancelBtn = new JButton(lang.getString("common.cancel"));
-        JButton saveBtn = new JButton(lang.getString("common.apply"));
+        JButton saveBtn = Buttons.primary(lang.getString("common.apply"));
         btnPanel.add(cancelBtn);
         btnPanel.add(saveBtn);
         add(btnPanel, BorderLayout.SOUTH);
