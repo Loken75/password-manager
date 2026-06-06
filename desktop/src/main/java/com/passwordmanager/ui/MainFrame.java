@@ -52,10 +52,13 @@ public class MainFrame extends JFrame {
     private static final String VIEW_PASSWORDS = "passwords";
     private static final String VIEW_APPS = "apps";
     private static final String VIEW_SSH = "ssh";
+    private static final String VIEW_SETTINGS = "settings";
 
     private CoffrePasswordsPanel coffrePasswordsPanel;
     private CoffreAppsPanel appPanel;
     private CoffreSshPanel sshKeyPanel;
+    private CoffreSettingsPanel settingsPanel;
+    private String lastVaultView = VIEW_PASSWORDS;
     private JPanel contentCards;
     private CardLayout contentLayout;
     private String currentView = VIEW_PASSWORDS;
@@ -138,11 +141,16 @@ public class MainFrame extends JFrame {
         sshKeyPanel = new CoffreSshPanel(vaultService.getSshKeyService(), appConfig.getClipboardClearSeconds(),
             () -> { saveVault(); statusLabel.setText(getStatusText()); refreshTypeCounts(); });
 
+        settingsPanel = new CoffreSettingsPanel(appConfig, configManager,
+            vaultService.getSshKeyService().getActiveList(),
+            this::applySettings, () -> switchView(lastVaultView), this::doLock);
+
         contentLayout = new CardLayout();
         contentCards = new JPanel(contentLayout);
         contentCards.add(coffrePasswordsPanel, VIEW_PASSWORDS);
         contentCards.add(appPanel, VIEW_APPS);
         contentCards.add(sshKeyPanel, VIEW_SSH);
+        contentCards.add(settingsPanel, VIEW_SETTINGS);
 
         // North: update notification bar + calm toolbar
         updateManager = new DesktopUpdateManager();
@@ -171,7 +179,8 @@ public class MainFrame extends JFrame {
         installKeyBindings();
         String startView = System.getProperty("pm.view");
         switchView("apps".equals(startView) ? VIEW_APPS
-            : "ssh".equals(startView) ? VIEW_SSH : VIEW_PASSWORDS);
+            : "ssh".equals(startView) ? VIEW_SSH
+            : "settings".equals(startView) ? VIEW_SETTINGS : VIEW_PASSWORDS);
 
         // Size the window to fit all components (pack) so nothing is clipped and there is
         // no horizontal scroll; also avoids the blank-first-paint issue on XWayland.
@@ -269,7 +278,7 @@ public class MainFrame extends JFrame {
 
         side.add(Box.createVerticalGlue());
         side.add(sidebarAction(lang.getString("menu.tools.security_audit"), () -> securityAuditController.doSecurityAudit()));
-        side.add(sidebarAction(lang.getString("menu.file.settings"), this::doSettings));
+        side.add(sidebarAction(lang.getString("menu.file.settings"), () -> switchView(VIEW_SETTINGS)));
 
         refreshSideCategories();
         refreshTypeCounts();
@@ -324,6 +333,9 @@ public class MainFrame extends JFrame {
 
     private void switchView(String view) {
         currentView = view;
+        if (VIEW_PASSWORDS.equals(view) || VIEW_APPS.equals(view) || VIEW_SSH.equals(view)) {
+            lastVaultView = view;
+        }
         contentLayout.show(contentCards, view);
         typeButtons.forEach((k, b) -> styleNav(b, k.equals(view)));
         if (categorySection != null) categorySection.setVisible(VIEW_PASSWORDS.equals(view));
@@ -487,23 +499,12 @@ public class MainFrame extends JFrame {
         }
     }
 
-    private void doSettings() {
-        SettingsDialog dlg = new SettingsDialog(this, appConfig, configManager,
-            vaultService.getSshKeyService().getActiveList(), this::applySettings);
-        dlg.setVisible(true);
-
-        // Changing the working folder requires a clean re-login: save+wipe the current
-        // session and return to the login screen, where the new folder is chosen.
-        if (dlg.isWorkspaceChangeRequested()) {
-            doLock();
-        }
-    }
-
     /**
-     * Applies the (already-saved) settings to the running app. Called by the Settings dialog's
-     * Apply/Validate. A language or theme change rebuilds the whole window so every component is
+     * Applies the (already-saved) settings to the running app, called by the Settings panel's
+     * Apply. A language or theme change rebuilds the whole window so every component is
      * reconstructed with fresh colors/strings (Swing's updateComponentTreeUI does not refresh
-     * explicitly-set foreground colors). Other changes apply live without a rebuild.
+     * explicitly-set foreground colors); the rebuilt window reopens on the Settings view so the
+     * user stays where they were. Other changes apply live without a rebuild.
      */
     private void applySettings() {
         boolean langChanged = !appliedLang.equals(appConfig.getLanguage());
@@ -511,7 +512,7 @@ public class MainFrame extends JFrame {
         if (langChanged || themeChanged) {
             lang.setLanguage(appConfig.getLanguage());
             applyTheme();
-            rebuildMainFrame(); // disposes this frame + any open dialog; new frame uses fresh state
+            rebuildMainFrame(VIEW_SETTINGS); // stay on Settings after the rebuild
             return;
         }
         updateSyncVaultKey();
@@ -546,10 +547,16 @@ public class MainFrame extends JFrame {
     }
 
     private void rebuildMainFrame() {
+        rebuildMainFrame(VIEW_PASSWORDS);
+    }
+
+    private void rebuildMainFrame(String startView) {
         Runtime.getRuntime().removeShutdownHook(shutdownHook);
         cleanup();
         dispose();
-        new MainFrame(vault, username, session, vaultManager, appConfig, configManager).setVisible(true);
+        MainFrame f = new MainFrame(vault, username, session, vaultManager, appConfig, configManager);
+        f.setVisible(true);
+        f.switchView(startView);
     }
 
     private void doChangeMasterPassword() {
