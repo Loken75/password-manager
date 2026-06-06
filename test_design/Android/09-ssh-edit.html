@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Android — Modifier clé SSH</title>
+<link rel="stylesheet" href="android.css"><script src="../theme-toggle.js"></script></head>
+<body>
+<div class="phone">
+  <div class="statusbar"><span>9:41</span><span class="dot-cam"></span><span>5G ▰▰▰ 84%</span></div>
+  <div class="screen">
+    <div class="appbar detail">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      <div class="title">Modifier la clé SSH</div>
+      <span style="color:var(--accent);font-weight:700;font-size:14px">Enreg.</span>
+    </div>
+    <div class="scroll">
+      <label class="lbl" style="margin-top:0">Titre</label><input class="inp" value="serveur-prod">
+      <label class="lbl">Type de clé</label><div class="inp">ED25519 ▾</div>
+      <label class="lbl">Clé privée</label>
+      <div class="field" style="margin-top:6px"><div class="v"><span class="grow mono">••••••••••••••••••••</span>
+        <button class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+      <label class="lbl">Clé publique</label>
+      <textarea class="inp mono" style="font-size:12px">ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AIDx… alice@prod</textarea>
+      <label class="lbl">Empreinte</label>
+      <div class="field" style="margin-top:6px"><div class="v"><span class="grow mono small">SHA256:Xr3k…9aF1</span></div></div>
+      <label class="lbl">Notes</label><textarea class="inp">Serveur de production</textarea>
+      <button class="btn btn-primary" style="margin-top:18px">Enregistrer</button>
+    </div>
+  </div>
+</div>
+<div class="caption">Édition clé SSH — type, clé privée masquée, clé publique, empreinte.</div>
+</body></html>

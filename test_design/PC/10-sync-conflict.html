@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>PC — Résolution de conflits</title>
+<link rel="stylesheet" href="pc.css"><script src="../theme-toggle.js"></script></head>
+<body>
+<div class="backdrop">
+  <div class="dialog wide">
+    <div class="head">Résolution de conflits de synchronisation</div>
+    <div class="content">
+      <div class="small muted" style="margin-bottom:14px">2 entrées ont été modifiées sur les deux appareils. Choisissez la version à conserver.</div>
+
+      <div class="section-title" style="margin-top:0">github.com</div>
+      <div class="conflict">
+        <div class="side pick"><div class="btn-row" style="justify-content:space-between"><strong class="small">Version locale</strong><span class="radio on"></span></div>
+          <div class="field" style="margin-top:10px"><div class="k">Identifiant</div><div class="muted">alice@example.com</div></div>
+          <div class="field"><div class="k">Modifié</div><div class="muted small">aujourd'hui 14:02</div></div></div>
+        <div class="side"><div class="btn-row" style="justify-content:space-between"><strong class="small">Version distante</strong><span class="radio"></span></div>
+          <div class="field" style="margin-top:10px"><div class="k">Identifiant</div><div class="muted">alice@work.com</div></div>
+          <div class="field"><div class="k">Modifié</div><div class="muted small">hier 19:30</div></div></div>
+      </div>
+
+      <div class="section-title">banque-x</div>
+      <div class="conflict">
+        <div class="side"><div class="btn-row" style="justify-content:space-between"><strong class="small">Version locale</strong><span class="radio"></span></div>
+          <div class="field" style="margin-top:10px"><div class="k">Mot de passe</div><div class="muted mono">•••••• (modifié)</div></div></div>
+        <div class="side pick"><div class="btn-row" style="justify-content:space-between"><strong class="small">Version distante</strong><span class="radio on"></span></div>
+          <div class="field" style="margin-top:10px"><div class="k">Mot de passe</div><div class="muted mono">•••••••••• (plus récent)</div></div></div>
+      </div>
+    </div>
+    <div class="actions"><button class="btn btn-ghost">Annuler</button><button class="btn btn-primary">Résoudre &amp; synchroniser</button></div>
+  </div>
+</div>
+</body></html>

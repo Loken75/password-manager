@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Android — Audit de sécurité</title>
+<link rel="stylesheet" href="android.css"><script src="../theme-toggle.js"></script></head>
+<body>
+<div class="phone">
+  <div class="statusbar"><span>9:41</span><span class="dot-cam"></span><span>5G ▰▰▰ 84%</span></div>
+  <div class="screen">
+    <div class="appbar"><div class="title">Audit de sécurité</div></div>
+    <div class="scroll">
+      <div class="section-card" style="padding:18px;display:flex;align-items:center;gap:18px">
+        <div><div class="cap" style="font-size:10px;font-weight:700;color:var(--text-3)">SCORE</div><div style="font-size:40px;font-weight:700;color:var(--strong);line-height:1">82</div></div>
+        <div class="grow"><div class="small muted">3 faibles · 2 réutilisés · 2 compromis</div>
+          <div class="health-bar" style="margin-top:10px;height:8px"><i style="width:62%;background:var(--strong)"></i><i style="width:20%;background:var(--medium)"></i><i style="width:18%;background:var(--weak)"></i></div></div>
+      </div>
+
+      <div class="section-card" style="padding:0">
+        <div class="setting" style="padding:14px 16px"><span class="badge b-weak" style="margin-right:6px"><span class="dot"></span></span><div class="grow sname">Mots de passe faibles</div><span class="muted">3 ›</span></div>
+        <div class="setting" style="padding:14px 16px"><span class="badge b-medium" style="margin-right:6px"><span class="dot"></span></span><div class="grow sname">Réutilisés</div><span class="muted">2 ›</span></div>
+        <div class="setting" style="padding:14px 16px"><span class="badge b-medium" style="margin-right:6px"><span class="dot"></span></span><div class="grow sname">Anciens (&gt; 180 j)</div><span class="muted">5 ›</span></div>
+        <div class="setting" style="padding:14px 16px;border:0"><span class="badge b-weak" style="margin-right:6px"><span class="dot"></span></span><div class="grow sname">Compromis (HIBP)</div><span class="muted">2 ›</span></div>
+      </div>
+      <button class="btn btn-tonal">Vérifier les compromissions (HIBP)</button>
+    </div>
+    <div class="botnav">
+      <div class="item"><div class="pill"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>Coffre</div>
+      <div class="item"><div class="pill"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h10M4 12h16M4 17h7"/></svg></div>Générateur</div>
+      <div class="item active"><div class="pill"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></div>Audit</div>
+      <div class="item"><div class="pill"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7 7 0 0 0 0-2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.4-2.6H9l-.4 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2L2.6 14.5l2 3.4 2.3-1a7 7 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4z"/></svg></div>Réglages</div>
+    </div>
+  </div>
+</div>
+<div class="caption">Audit — score, ventilation par catégorie de risque, vérification HIBP.</div>
+</body></html>

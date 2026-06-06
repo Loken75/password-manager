@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>PC — Audit de sécurité</title>
+<link rel="stylesheet" href="pc.css"><script src="../theme-toggle.js"></script></head>
+<body>
+<div class="backdrop">
+  <div class="dialog wide">
+    <div class="head">Audit de sécurité</div>
+    <div class="content">
+      <div class="bento" style="padding:0;margin-bottom:18px">
+        <div class="card"><div class="cap">Score</div><div class="big" style="color:var(--strong)">82</div><div class="sub">/ 100</div></div>
+        <div class="card"><div class="cap">Faibles</div><div class="big" style="color:var(--weak)">3</div></div>
+        <div class="card"><div class="cap">Réutilisés</div><div class="big" style="color:var(--medium)">2</div></div>
+        <div class="card"><div class="cap">Compromis (HIBP)</div><div class="big" style="color:var(--weak)">2</div></div>
+      </div>
+
+      <div class="audit-sec">
+        <div class="h"><span class="badge b-weak"><span class="dot"></span></span>Mots de passe faibles<span class="n">3</span></div>
+        <div class="item"><div class="avatar" style="width:26px;height:26px;font-size:11px">B</div><span class="grow">banque-x</span><span class="badge b-weak"><span class="dot"></span>Faible</span></div>
+        <div class="item"><div class="avatar" style="width:26px;height:26px;font-size:11px">F</div><span class="grow">forum-vieux</span><span class="badge b-weak"><span class="dot"></span>Faible</span></div>
+      </div>
+      <div class="audit-sec">
+        <div class="h"><span class="badge b-medium"><span class="dot"></span></span>Mots de passe réutilisés<span class="n">2</span></div>
+        <div class="item"><span class="grow">reddit.com · forum-vieux</span><span class="muted small">même mot de passe</span></div>
+      </div>
+      <div class="audit-sec">
+        <div class="h"><span class="badge b-medium"><span class="dot"></span></span>Anciens (&gt; 180 j)<span class="n">5</span></div>
+        <div class="item"><span class="grow">amazon.fr</span><span class="muted small">modifié il y a 2 ans</span></div>
+      </div>
+      <div class="audit-sec">
+        <div class="h"><span class="badge b-weak"><span class="dot"></span></span>Compromis (Have I Been Pwned)<span class="n">2</span></div>
+        <div class="item"><span class="grow">banque-x</span><span class="badge b-weak"><span class="dot"></span>vu 4 fois</span></div>
+        <div class="item" style="justify-content:center"><button class="btn btn-tonal btn-sm">Vérifier maintenant</button></div>
+      </div>
+    </div>
+    <div class="actions"><button class="btn btn-primary">Fermer</button></div>
+  </div>
+</div>
+</body></html>

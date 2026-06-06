@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>PC — Réglages</title>
+<link rel="stylesheet" href="pc.css"><script src="../theme-toggle.js"></script></head>
+<body>
+<div class="backdrop">
+  <div class="dialog wide">
+    <div class="head">Réglages</div>
+    <div class="tabs"><button class="active">Général</button><button>Sécurité</button><button>Synchronisation</button></div>
+    <div class="content">
+      <div class="setting"><div class="grow"><div class="sname">Langue</div><div class="sdesc">Langue de l'interface</div></div><div class="inp" style="width:160px">Français ▾</div></div>
+      <div class="setting"><div class="grow"><div class="sname">Thème</div><div class="sdesc">Système, clair ou sombre</div></div><div class="inp" style="width:160px">Sombre ▾</div></div>
+      <div class="setting"><div class="grow"><div class="sname">Dossier de travail</div><div class="sdesc muted mono small">/var/home/pierre/…/vaults</div></div><button class="btn btn-ghost btn-sm">Changer…</button></div>
+      <div class="setting" style="border:0"><div class="grow"><div class="sname">Favicons des sites</div><div class="sdesc">Récupère l'icône du site en HTTPS (aucun tiers)</div></div><div class="switch on"><i></i></div></div>
+
+      <div class="section-title">Sécurité</div>
+      <div class="setting"><div class="grow"><div class="sname">Verrouillage automatique</div><div class="sdesc">Après inactivité</div></div><div class="inp" style="width:160px">15 min ▾</div></div>
+      <div class="setting" style="border:0"><div class="grow"><div class="sname">Effacement du presse-papiers</div><div class="sdesc">Après une copie</div></div><div class="inp" style="width:160px">30 s ▾</div></div>
+
+      <div class="section-title">Synchronisation (SFTP)</div>
+      <div class="setting" style="border:0"><div class="grow"><div class="sname">Mode de stockage</div></div>
+        <div class="btn-row"><span class="chip">Local</span><span class="chip active">Serveur distant</span></div></div>
+      <div class="form-grid" style="margin-top:6px">
+        <div><label class="lbl">Hôte</label><input class="inp" value="vault.example.com"></div>
+        <div><label class="lbl">Port</label><input class="inp" value="22"></div>
+        <div><label class="lbl">Utilisateur</label><input class="inp" value="alice"></div>
+        <div><label class="lbl">Clé SSH</label><input class="inp" value="Clé du coffre ▾"></div>
+      </div>
+      <div class="btn-row" style="margin-top:14px"><button class="btn btn-tonal btn-sm">Tester la connexion</button><span class="badge b-strong"><span class="dot"></span>Connecté</span></div>
+    </div>
+    <div class="actions"><button class="btn btn-ghost">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
+  </div>
+</div>
+</body></html>

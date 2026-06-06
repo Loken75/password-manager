@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>PC — Modifier une entrée</title>
+<link rel="stylesheet" href="pc.css"><script src="../theme-toggle.js"></script></head>
+<body>
+<div class="backdrop">
+  <div class="dialog wide">
+    <div class="head">Modifier l'entrée</div>
+    <div class="content">
+      <div class="form-grid">
+        <div class="full"><label class="lbl">Titre</label><input class="inp" value="github.com"></div>
+        <div><label class="lbl">Identifiant</label><input class="inp" value="alice"></div>
+        <div><label class="lbl">Email</label><input class="inp" value="alice@example.com"></div>
+        <div class="full"><label class="lbl">Mot de passe</label>
+          <div style="display:flex;gap:8px">
+            <div class="field" style="flex:1;margin:0"><div class="v"><span class="grow mono">Tr0ub4dour&3xpl0it!</span>
+              <button class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+            <button class="btn btn-tonal btn-sm">Générer</button>
+          </div>
+          <div class="meter" style="margin-top:8px"><div class="track"><i style="width:92%;background:var(--vstrong)"></i></div><div class="cap">Très fort</div></div>
+        </div>
+        <div><label class="lbl">URL</label><input class="inp" value="https://github.com"></div>
+        <div><label class="lbl">Catégorie</label><input class="inp" value="Travail ▾"></div>
+        <div class="full"><label class="lbl">Tags</label><input class="inp" value="dev, 2fa"></div>
+        <div class="full"><label class="lbl">Notes</label><textarea class="inp">2FA activé · clé de récupération en coffre</textarea></div>
+      </div>
+    </div>
+    <div class="actions"><button class="btn btn-ghost">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
+  </div>
+</div>
+</body></html>

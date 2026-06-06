@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>PC — Import / Export</title>
+<link rel="stylesheet" href="pc.css"><script src="../theme-toggle.js"></script></head>
+<body>
+<div class="backdrop">
+  <div class="dialog">
+    <div class="head">Importer / Exporter</div>
+    <div class="content">
+      <div class="btn-row" style="margin-bottom:16px"><span class="chip active">Importer</span><span class="chip">Exporter</span></div>
+      <label class="lbl">Format</label>
+      <div class="audit-sec" style="margin-top:6px">
+        <div class="item"><span class="radio on"></span><div class="grow"><div class="sname">Coffre chiffré (.enc)</div><div class="sdesc">Recommandé — demande le mot de passe maître source</div></div></div>
+        <div class="item"><span class="radio"></span><div class="grow"><div class="sname">JSON</div><div class="sdesc">Les 3 types · non chiffré</div></div></div>
+        <div class="item"><span class="radio"></span><div class="grow"><div class="sname">CSV</div><div class="sdesc">Mots de passe & applications · non chiffré</div></div></div>
+      </div>
+      <label class="lbl" style="margin-top:14px">Mot de passe du coffre source</label>
+      <div class="field" style="margin:0"><div class="v"><span class="grow mono">••••••••••</span>
+        <button class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+      <div class="field"><div class="v" style="justify-content:center;color:var(--text-3);border-style:dashed">Glisser un fichier ici, ou cliquer pour parcourir…</div></div>
+      <div class="small muted" style="margin-top:8px">L'import fonctionne par fusion : aucune donnée existante n'est écrasée.</div>
+    </div>
+    <div class="actions"><button class="btn btn-ghost">Annuler</button><button class="btn btn-primary">Importer</button></div>
+  </div>
+</div>
+</body></html>
