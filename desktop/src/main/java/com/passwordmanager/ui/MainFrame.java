@@ -66,6 +66,9 @@ public class MainFrame extends JFrame {
     private JPanel categorySection;
     private JLabel statusLabel;
     private Thread shutdownHook;
+    // Applied language/theme, to detect changes when (re)applying settings.
+    private String appliedLang;
+    private ThemeMode appliedTheme;
 
     // Extracted controllers
     private ImportExportController importExportController;
@@ -84,6 +87,8 @@ public class MainFrame extends JFrame {
         this.configManager = configManager;
         this.vaultService = new VaultService(vault);
         this.syncService = DesktopSyncFactory.create(appConfig, null);
+        this.appliedLang = appConfig.getLanguage();
+        this.appliedTheme = appConfig.getTheme();
 
         // Initialize controllers
         this.importExportController = new ImportExportController(
@@ -483,47 +488,40 @@ public class MainFrame extends JFrame {
     }
 
     private void doSettings() {
-        String oldLang = appConfig.getLanguage();
-        ThemeMode oldTheme = appConfig.getTheme();
-
         SettingsDialog dlg = new SettingsDialog(this, appConfig, configManager,
-            vaultService.getSshKeyService().getActiveList());
+            vaultService.getSshKeyService().getActiveList(), this::applySettings);
         dlg.setVisible(true);
 
         // Changing the working folder requires a clean re-login: save+wipe the current
-        // session and return to the login screen, where the new folder is chosen. Checked
-        // before isSaved() because this path intentionally discards other dialog edits.
+        // session and return to the login screen, where the new folder is chosen.
         if (dlg.isWorkspaceChangeRequested()) {
             doLock();
-            return;
         }
-        if (!dlg.isSaved()) return;
+    }
 
-        boolean langChanged = !oldLang.equals(appConfig.getLanguage());
-        boolean themeChanged = oldTheme != appConfig.getTheme();
-
-        if (langChanged) {
-            // Rebuild entirely: the new MainFrame handles sync/status/clipboard/timer
+    /**
+     * Applies the (already-saved) settings to the running app. Called by the Settings dialog's
+     * Apply/Validate. A language or theme change rebuilds the whole window so every component is
+     * reconstructed with fresh colors/strings (Swing's updateComponentTreeUI does not refresh
+     * explicitly-set foreground colors). Other changes apply live without a rebuild.
+     */
+    private void applySettings() {
+        boolean langChanged = !appliedLang.equals(appConfig.getLanguage());
+        boolean themeChanged = appliedTheme != appConfig.getTheme();
+        if (langChanged || themeChanged) {
             lang.setLanguage(appConfig.getLanguage());
             applyTheme();
-            rebuildMainFrame();
-        } else {
-            // Apply live on current frame
-            updateSyncVaultKey();
-            syncService = DesktopSyncFactory.create(appConfig, vaultKeyBytes);
-            statusLabel.setText(getStatusText());
-            coffrePasswordsPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
-            appPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
-            sshKeyPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
-            coffrePasswordsPanel.setFaviconsEnabled(appConfig.isFaviconsEnabled());
-            autoLockManager.startAutoLock();
-
-            if (themeChanged) {
-                applyTheme();
-                SwingUtilities.updateComponentTreeUI(this);
-                pack();
-            }
+            rebuildMainFrame(); // disposes this frame + any open dialog; new frame uses fresh state
+            return;
         }
+        updateSyncVaultKey();
+        syncService = DesktopSyncFactory.create(appConfig, vaultKeyBytes);
+        statusLabel.setText(getStatusText());
+        coffrePasswordsPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
+        appPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
+        sshKeyPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
+        coffrePasswordsPanel.setFaviconsEnabled(appConfig.isFaviconsEnabled());
+        autoLockManager.startAutoLock();
     }
 
     private void applyTheme() {

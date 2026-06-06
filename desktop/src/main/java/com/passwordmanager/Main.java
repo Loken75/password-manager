@@ -95,6 +95,10 @@ public class Main {
                 "S3cure&Vault!2026x".toCharArray(), "https://proton.me", null, "Travail", null));
             vault.addAppEntry(new com.passwordmanager.vault.AppEntry("Netflix", "alice_home", "4821".toCharArray(), "Compte familial"));
             config.setLocalVaultDirectory(dir.getAbsolutePath());
+            // Align config theme with the -Dpm.theme override so live theme/language changes stay consistent.
+            String themeOverride = System.getProperty("pm.theme");
+            if ("dark".equalsIgnoreCase(themeOverride)) config.setTheme(com.passwordmanager.config.ThemeMode.DARK);
+            else if ("light".equalsIgnoreCase(themeOverride)) config.setTheme(com.passwordmanager.config.ThemeMode.LIGHT);
             new com.passwordmanager.ui.MainFrame(vault, "demo", r.getSession(), vm, config, configManager).setVisible(true);
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Demo launch failed", e);

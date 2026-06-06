@@ -23,6 +23,7 @@ public class SettingsDialog extends JDialog {
     private final LanguageManager lang = LanguageManager.getInstance();
     private AppConfig config;
     private ConfigManager configManager;
+    private Runnable onApply;
     private boolean saved = false;
     private boolean workspaceChangeRequested = false;
 
@@ -48,10 +49,16 @@ public class SettingsDialog extends JDialog {
     }
 
     public SettingsDialog(Frame owner, AppConfig config, ConfigManager configManager, List<SshKeyEntry> vaultKeys) {
+        this(owner, config, configManager, vaultKeys, null);
+    }
+
+    public SettingsDialog(Frame owner, AppConfig config, ConfigManager configManager,
+                          List<SshKeyEntry> vaultKeys, Runnable onApply) {
         super(owner, LanguageManager.getInstance().getString("settings.title"), true);
         this.config = config;
         this.configManager = configManager;
         this.vaultKeys = vaultKeys;
+        this.onApply = onApply;
         initComponents();
     }
 
@@ -251,9 +258,11 @@ public class SettingsDialog extends JDialog {
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD));
         btnPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, DesignTokens.outline()));
         JButton cancelBtn = new JButton(lang.getString("common.cancel"));
-        JButton saveBtn = Buttons.primary(lang.getString("common.apply"));
+        JButton applyBtn = Buttons.tonal(lang.getString("common.apply"));
+        JButton validateBtn = Buttons.primary(lang.getString("common.validate"));
         btnPanel.add(cancelBtn);
-        btnPanel.add(saveBtn);
+        btnPanel.add(applyBtn);
+        btnPanel.add(validateBtn);
         add(btnPanel, BorderLayout.SOUTH);
 
         // Actions
@@ -296,14 +305,15 @@ public class SettingsDialog extends JDialog {
         });
 
         cancelBtn.addActionListener(e -> dispose());
-        saveBtn.addActionListener(e -> doSave());
+        applyBtn.addActionListener(e -> commit(false));
+        validateBtn.addActionListener(e -> commit(true));
 
         pack();
         setMinimumSize(new Dimension(500, 450));
         setLocationRelativeTo(getOwner());
     }
 
-    private void doSave() {
+    private void commit(boolean close) {
         // SYNC-04: Validate all required SFTP fields when remote mode is selected
         if (remoteRadio.isSelected()) {
             if (hostField.getText().trim().isEmpty()) {
@@ -366,7 +376,8 @@ public class SettingsDialog extends JDialog {
 
         configManager.saveConfig(config);
         saved = true;
-        dispose();
+        if (onApply != null) onApply.run();   // may rebuild the main window (disposes this dialog)
+        if (close && isDisplayable()) dispose();
     }
 
     private void showValidationError(String fieldLabel) {

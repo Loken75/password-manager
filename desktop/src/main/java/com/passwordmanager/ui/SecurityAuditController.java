@@ -67,12 +67,14 @@ public class SecurityAuditController {
         JLabel summaryLabel = new JLabel();
         summaryLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
         summaryPanel.setBackground(DesignTokens.surfaceSubtle());
+        // Normal high-contrast text (readable in both themes) + a colored status dot.
+        summaryLabel.setForeground(UIManager.getColor("Label.foreground"));
         if (totalIssues == 0) {
-            summaryLabel.setText(lang.getString("audit.no_issues"));
-            summaryLabel.setForeground(DesignTokens.statusStrong());
+            summaryLabel.setText("<html><font color='" + hex(DesignTokens.statusStrong()) + "'>●</font>&nbsp; "
+                + lang.getString("audit.no_issues") + "</html>");
         } else {
-            summaryLabel.setText(lang.getString("audit.issues_found").replace("{0}", String.valueOf(totalIssues)));
-            summaryLabel.setForeground(DesignTokens.statusWeak());
+            summaryLabel.setText("<html><font color='" + hex(DesignTokens.statusWeak()) + "'>●</font>&nbsp; "
+                + lang.getString("audit.issues_found").replace("{0}", String.valueOf(totalIssues)) + "</html>");
         }
         summaryPanel.add(summaryLabel, BorderLayout.CENTER);
         summaryPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
@@ -202,6 +204,10 @@ public class SecurityAuditController {
 
         JOptionPane.showMessageDialog(parentComponent, scrollPane,
             lang.getString("audit.title"), JOptionPane.PLAIN_MESSAGE);
+    }
+
+    private static String hex(Color c) {
+        return String.format("#%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue());
     }
 
     private JPanel createAuditSection(String title, List<PasswordEntry> entries, Color accentColor) {
