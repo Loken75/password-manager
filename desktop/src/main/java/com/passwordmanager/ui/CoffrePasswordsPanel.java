@@ -246,9 +246,13 @@ public class CoffrePasswordsPanel extends JPanel {
 
     private void maybePopup(MouseEvent ev, PasswordEntry e) {
         if (ev.isPopupTrigger()) {
+            // Convert the click to this panel's coordinates BEFORE (re)selecting: selectSingle
+            // rebuilds the list and detaches the clicked card, so we must anchor the popup on a
+            // component that stays on screen (this panel).
+            Point p = SwingUtilities.convertPoint(ev.getComponent(), ev.getPoint(), this);
             if (!selectedIds.contains(e.getId())) selectSingle(e);
             JPopupMenu menu = selectedIds.size() > 1 ? bulkMenu() : contextMenu(e);
-            menu.show(ev.getComponent(), ev.getX(), ev.getY());
+            menu.show(this, p.x, p.y);
         }
     }
 
@@ -353,7 +357,9 @@ public class CoffrePasswordsPanel extends JPanel {
 
         JLabel title = new JLabel(e.getTitle());
         title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+        title.setHorizontalAlignment(SwingConstants.CENTER);
         title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        title.setMaximumSize(new Dimension(Integer.MAX_VALUE, title.getPreferredSize().height + 2));
         col.add(title);
         col.add(Box.createVerticalStrut(DesignTokens.SPACE_LG));
 
@@ -388,20 +394,26 @@ public class CoffrePasswordsPanel extends JPanel {
             col.add(url);
             col.add(Box.createVerticalStrut(DesignTokens.SPACE_MD));
         }
-        if (!isBlank(e.getCategory())) col.add(fieldRow(lang.getString("entry.category"), e.getCategory(), null));
-        if (!isBlank(e.getNotes())) col.add(fieldRow(lang.getString("entry.notes"), e.getNotes(), null));
+        // Category as an editable dropdown (changes persist immediately)
+        col.add(caption(lang.getString("entry.category")));
+        JComboBox<String> catCombo = new JComboBox<>();
+        catCombo.addItem("");
+        for (String c : vaultService.getVault().getCategories()) catCombo.addItem(c);
+        catCombo.setSelectedItem(e.getCategory() != null ? e.getCategory() : "");
+        catCombo.setAlignmentX(Component.LEFT_ALIGNMENT);
+        catCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        catCombo.addActionListener(ev -> {
+            String chosen = (String) catCombo.getSelectedItem();
+            if (chosen != null && !chosen.equals(e.getCategory() == null ? "" : e.getCategory())) {
+                e.setCategory(chosen);
+                vaultService.updateEntry(e);
+                notifyChanged();
+                refresh();
+            }
+        });
+        col.add(catCombo);
 
-        col.add(Box.createVerticalStrut(DesignTokens.SPACE_LG));
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, DesignTokens.SPACE_SM, 0));
-        actions.setOpaque(false);
-        actions.setAlignmentX(Component.LEFT_ALIGNMENT);
-        actions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
-        JButton edit = com.passwordmanager.ui.components.Buttons.tonal(lang.getString("vault.edit_entry"));
-        edit.addActionListener(ev -> editSelected());
-        JButton dup = new JButton(lang.getString("menu.duplicate"));
-        dup.addActionListener(ev -> duplicate(e));
-        actions.add(edit); actions.add(dup);
-        col.add(actions);
+        if (!isBlank(e.getNotes())) col.add(fieldRow(lang.getString("entry.notes"), e.getNotes(), null));
 
         JScrollPane sc = new JScrollPane(col);
         sc.setBorder(null);
@@ -410,6 +422,23 @@ public class CoffrePasswordsPanel extends JPanel {
         sc.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         sc.getVerticalScrollBar().setUnitIncrement(16);
         detailHost.add(sc, BorderLayout.CENTER);
+
+        // Actions pinned at the bottom (always visible), equal-width columns
+        JPanel actions = new JPanel(new GridLayout(1, 3, DesignTokens.SPACE_SM, 0));
+        actions.setOpaque(false);
+        actions.setBorder(BorderFactory.createEmptyBorder(DesignTokens.SPACE_MD, 0, 0, 0));
+        JButton edit = com.passwordmanager.ui.components.Buttons.tonal(lang.getString("detail.modify"));
+        edit.addActionListener(ev -> editSelected());
+        JButton dup = new JButton(lang.getString("detail.duplicate"));
+        dup.addActionListener(ev -> duplicate(e));
+        JButton del = new JButton(lang.getString("detail.delete"));
+        del.setForeground(DesignTokens.statusWeak());
+        del.addActionListener(ev -> deleteEntry(e));
+        actions.add(edit);
+        actions.add(dup);
+        actions.add(del);
+        detailHost.add(actions, BorderLayout.SOUTH);
+
         detailHost.revalidate();
         detailHost.repaint();
     }
