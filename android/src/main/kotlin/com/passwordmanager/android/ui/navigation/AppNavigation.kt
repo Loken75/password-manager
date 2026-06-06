@@ -254,20 +254,13 @@ fun AppNavigation() {
                 }
             ) { backStackEntry ->
                 val entryId = backStackEntry.arguments?.getString("entryId")
-                val generatedPasswordChars = remember { GeneratedPasswordHolder.consume() }
-                val generatedPassword = generatedPasswordChars?.let {
-                    val s = String(it)
-                    it.fill('\u0000')
-                    s
-                }
                 EntryEditScreen(
                     entryId = entryId,
                     onBack = { navController.popBackStack() },
                     onSaved = { navController.popBackStack() },
                     onNavigateToGenerator = {
                         navController.navigate(Routes.generator(returnPassword = true))
-                    },
-                    generatedPassword = generatedPassword
+                    }
                 )
             }
 

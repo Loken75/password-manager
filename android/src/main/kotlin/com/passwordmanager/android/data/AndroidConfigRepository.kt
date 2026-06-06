@@ -44,7 +44,9 @@ class AndroidConfigRepository(context: Context) : ConfigRepository {
 
     // --- Language ---
 
-    override fun getLanguage(): String = prefs.getString(KEY_LANGUAGE, "en") ?: "en"
+    // Default to French for parity with the desktop client (ConfigManager defaults app.language=fr),
+    // so a fresh vault's default categories are created localized in French.
+    override fun getLanguage(): String = prefs.getString(KEY_LANGUAGE, "fr") ?: "fr"
 
     override fun setLanguage(language: String) {
         prefs.edit().putString(KEY_LANGUAGE, language).apply()
