@@ -3,6 +3,7 @@ package com.passwordmanager.ui;
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.security.HibpChecker;
+import com.passwordmanager.ui.theme.DesignTokens;
 import com.passwordmanager.util.SecureWiper;
 import com.passwordmanager.vault.Vault;
 import com.passwordmanager.vault.PasswordEntry;
@@ -65,12 +66,13 @@ public class SecurityAuditController {
         summaryPanel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
         JLabel summaryLabel = new JLabel();
         summaryLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
+        summaryPanel.setBackground(DesignTokens.surfaceSubtle());
         if (totalIssues == 0) {
-            summaryLabel.setText("\u2705 " + lang.getString("audit.no_issues"));
-            summaryPanel.setBackground(new Color(200, 240, 200));
+            summaryLabel.setText(lang.getString("audit.no_issues"));
+            summaryLabel.setForeground(DesignTokens.statusStrong());
         } else {
-            summaryLabel.setText("\u26a0 " + lang.getString("audit.issues_found").replace("{0}", String.valueOf(totalIssues)));
-            summaryPanel.setBackground(new Color(255, 220, 200));
+            summaryLabel.setText(lang.getString("audit.issues_found").replace("{0}", String.valueOf(totalIssues)));
+            summaryLabel.setForeground(DesignTokens.statusWeak());
         }
         summaryPanel.add(summaryLabel, BorderLayout.CENTER);
         summaryPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
@@ -80,29 +82,29 @@ public class SecurityAuditController {
         // Weak passwords section
         mainPanel.add(createAuditSection(
             lang.getString("audit.weak_passwords") + " (" + weakEntries.size() + ")",
-            weakEntries, new Color(220, 50, 50)));
+            weakEntries, DesignTokens.statusWeak()));
         mainPanel.add(Box.createVerticalStrut(6));
 
         // Duplicate passwords section
         mainPanel.add(createAuditSection(
             lang.getString("audit.duplicate_passwords") + " (" + dupEntries.size() + ")",
-            dupEntries, new Color(200, 130, 0)));
+            dupEntries, DesignTokens.statusMedium()));
         mainPanel.add(Box.createVerticalStrut(6));
 
         // Old passwords section
         mainPanel.add(createAuditSection(
             lang.getString("audit.old_passwords").replace("{0}", String.valueOf(expiryDays))
                 + " (" + oldEntries.size() + ")",
-            oldEntries, new Color(180, 120, 0)));
+            oldEntries, DesignTokens.statusMedium()));
         mainPanel.add(Box.createVerticalStrut(6));
 
         // HIBP breach section with async check button
         JPanel hibpSection = new JPanel(new BorderLayout(8, 4));
         hibpSection.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(new Color(180, 0, 0)),
+            BorderFactory.createLineBorder(DesignTokens.statusWeak()),
             lang.getString("audit.breached_passwords"),
             TitledBorder.LEFT, TitledBorder.TOP,
-            new Font("SansSerif", Font.BOLD, 12), new Color(180, 0, 0)));
+            new Font("SansSerif", Font.BOLD, 12), DesignTokens.statusWeak()));
 
         JPanel hibpTopRow = new JPanel(new BorderLayout(8, 0));
         JLabel hibpStatus = new JLabel(lang.getString("audit.breach_checking").replace("...", ""));
@@ -169,12 +171,12 @@ public class SecurityAuditController {
                         progressBar.setVisible(false);
                         if (breached.isEmpty()) {
                             hibpStatus.setText("\u2705 " + lang.getString("audit.no_issues"));
-                            hibpStatus.setForeground(new Color(0, 140, 0));
+                            hibpStatus.setForeground(DesignTokens.statusStrong());
                         } else {
                             String msg = lang.getString("audit.breach_count")
                                 .replace("{0}", String.valueOf(breached.size()));
                             hibpStatus.setText("\u26a0 " + msg);
-                            hibpStatus.setForeground(new Color(200, 0, 0));
+                            hibpStatus.setForeground(DesignTokens.statusWeak());
                             for (String s : breached) {
                                 hibpListModel.addElement("  \u2022 " + s);
                             }
@@ -184,7 +186,7 @@ public class SecurityAuditController {
                     } catch (Exception ex) {
                         progressBar.setVisible(false);
                         hibpStatus.setText("\u274c " + lang.getString("audit.breach_error"));
-                        hibpStatus.setForeground(new Color(200, 0, 0));
+                        hibpStatus.setForeground(DesignTokens.statusWeak());
                     }
                     checkBtn.setEnabled(true);
                 }
@@ -212,7 +214,7 @@ public class SecurityAuditController {
 
         if (entries.isEmpty()) {
             JLabel noIssue = new JLabel("\u2705 " + lang.getString("audit.no_issues"));
-            noIssue.setForeground(new Color(0, 140, 0));
+            noIssue.setForeground(DesignTokens.statusStrong());
             noIssue.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
             section.add(noIssue, BorderLayout.CENTER);
         } else {
