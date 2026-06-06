@@ -73,8 +73,6 @@ public class MainFrame extends JFrame {
     private AutoLockManager autoLockManager;
     private DesktopUpdateManager updateManager;
 
-    // Toolbar buttons that need dynamic state
-    private JButton syncToolbarBtn;
 
     public MainFrame(Vault vault, String username, VaultSession session,
                      VaultManager vaultManager, AppConfig appConfig, ConfigManager configManager) {
@@ -168,11 +166,9 @@ public class MainFrame extends JFrame {
         installKeyBindings();
         switchView(VIEW_PASSWORDS);
 
-        // Lay out before the window is shown so the first paint isn't blank. Some
-        // Linux/Wayland (XWayland) setups don't repaint a setSize-only frame until it
-        // is resized; pack() (as the login screen does) makes it displayable + laid out.
+        // Size the window to fit all components (pack) so nothing is clipped and there is
+        // no horizontal scroll; also avoids the blank-first-paint issue on XWayland.
         pack();
-        setSize(1180, 760);
         setLocationRelativeTo(null);
     }
 
@@ -198,9 +194,6 @@ public class MainFrame extends JFrame {
 
         JButton newBtn = Buttons.primary("+ " + lang.getString("vault.new_entry"));
         newBtn.addActionListener(e -> addNewEntryForActiveView());
-        syncToolbarBtn = Buttons.tonal(lang.getString("menu.tools.sync_now"));
-        syncToolbarBtn.setEnabled(appConfig.getStorageMode() == StorageMode.REMOTE);
-        syncToolbarBtn.addActionListener(e -> doSync());
         JButton lockBtn = new JButton(lang.getString("menu.file.lock"));
         lockBtn.addActionListener(e -> doLock());
         JButton overflow = new JButton("⋯");
@@ -208,7 +201,6 @@ public class MainFrame extends JFrame {
         overflow.addActionListener(e -> overflowMenu().show(overflow, 0, overflow.getHeight()));
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, 0));
-        right.add(syncToolbarBtn);
         right.add(newBtn);
         right.add(lockBtn);
         right.add(overflow);
@@ -386,6 +378,11 @@ public class MainFrame extends JFrame {
 
     private JPopupMenu overflowMenu() {
         JPopupMenu m = new JPopupMenu();
+        JMenuItem sync = new JMenuItem(lang.getString("menu.tools.sync_now"));
+        sync.setEnabled(appConfig.getStorageMode() == StorageMode.REMOTE);
+        sync.addActionListener(e -> doSync());
+        m.add(sync);
+        m.addSeparator();
         JMenuItem imp = new JMenuItem(lang.getString("menu.file.import"));
         imp.addActionListener(e -> importExportController.doImport());
         m.add(imp);
@@ -505,14 +502,11 @@ public class MainFrame extends JFrame {
             sshKeyPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
             coffrePasswordsPanel.setFaviconsEnabled(appConfig.isFaviconsEnabled());
             autoLockManager.startAutoLock();
-            boolean remoteEnabled = appConfig.getStorageMode() == StorageMode.REMOTE;
-            syncToolbarBtn.setEnabled(remoteEnabled);
 
             if (themeChanged) {
                 applyTheme();
                 SwingUtilities.updateComponentTreeUI(this);
                 pack();
-                setSize(1180, 760);
             }
         }
     }

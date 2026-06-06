@@ -46,7 +46,8 @@ public class CoffrePasswordsPanel extends JPanel {
     private final JPanel bentoRow = new JPanel(new GridLayout(1, 3, DesignTokens.SPACE_MD, 0));
 
     private List<PasswordEntry> displayed = new ArrayList<>();
-    private String selectedId;
+    private final java.util.LinkedHashSet<String> selectedIds = new java.util.LinkedHashSet<>();
+    private String anchorId;
     private String currentCategory;
     private SortField currentSort = SortField.TITLE;
     private boolean sortAscending = true;
@@ -103,16 +104,18 @@ public class CoffrePasswordsPanel extends JPanel {
         cardsHost.setBorder(BorderFactory.createEmptyBorder(0, DesignTokens.SPACE_MD, DesignTokens.SPACE_MD, DesignTokens.SPACE_MD));
         JScrollPane scroll = new JScrollPane(cardsHost);
         scroll.setBorder(null);
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
+        scroll.setPreferredSize(new Dimension(700, 470));
         center.add(scroll, BorderLayout.CENTER);
 
         // RIGHT: detail
         detailHost.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(0, 1, 0, 0, DesignTokens.outline()),
             BorderFactory.createEmptyBorder(DesignTokens.SPACE_XL, DesignTokens.SPACE_XL, DesignTokens.SPACE_XL, DesignTokens.SPACE_XL)));
-        detailHost.setPreferredSize(new Dimension(330, 0));
+        detailHost.setPreferredSize(new Dimension(360, 0));
         clearDetail();
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, center, detailHost);
@@ -177,15 +180,15 @@ public class CoffrePasswordsPanel extends JPanel {
         displayed = vaultService.sorted(entries, currentSort);
         if (!sortAscending) java.util.Collections.reverse(displayed);
 
-        // Keep a selection so the detail pane is populated (auto-select first).
-        if ((selectedId == null || getSelected() == null) && !displayed.isEmpty()) {
-            selectedId = displayed.get(0).getId();
+        // Drop selections no longer present; auto-select first if nothing valid remains.
+        selectedIds.removeIf(id -> entryById(id) == null);
+        if (selectedIds.isEmpty() && !displayed.isEmpty()) {
+            selectedIds.add(displayed.get(0).getId());
+            anchorId = displayed.get(0).getId();
         }
         rebuildBento();
         rebuildList();
-        PasswordEntry sel = getSelected();
-        if (sel != null) showDetail(sel);
-        else clearDetail();
+        updateDetailOrBulk();
     }
 
     private void rebuildList() {
@@ -223,7 +226,7 @@ public class CoffrePasswordsPanel extends JPanel {
         card.setAlignmentX(Component.LEFT_ALIGNMENT);
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        if (e.getId().equals(selectedId)) {
+        if (selectedIds.contains(e.getId())) {
             card.setFillColor(DesignTokens.softTint(DesignTokens.accent()));
         }
         card.addMouseListener(new MouseAdapter() {
@@ -231,8 +234,10 @@ public class CoffrePasswordsPanel extends JPanel {
             @Override public void mouseReleased(MouseEvent ev) { maybePopup(ev, e); }
             @Override public void mouseClicked(MouseEvent ev) {
                 if (SwingUtilities.isLeftMouseButton(ev)) {
-                    if (ev.getClickCount() == 2) { selectedId = e.getId(); editSelected(); }
-                    else { select(e); }
+                    if (ev.getClickCount() == 2) { selectSingle(e); editSelected(); }
+                    else if (ev.isShiftDown()) { selectRange(e); }
+                    else if (ev.isControlDown() || ev.isMetaDown()) { toggleSelect(e); }
+                    else { selectSingle(e); }
                 }
             }
         });
@@ -241,15 +246,54 @@ public class CoffrePasswordsPanel extends JPanel {
 
     private void maybePopup(MouseEvent ev, PasswordEntry e) {
         if (ev.isPopupTrigger()) {
-            select(e);
-            contextMenu(e).show(ev.getComponent(), ev.getX(), ev.getY());
+            if (!selectedIds.contains(e.getId())) selectSingle(e);
+            JPopupMenu menu = selectedIds.size() > 1 ? bulkMenu() : contextMenu(e);
+            menu.show(ev.getComponent(), ev.getX(), ev.getY());
         }
     }
 
-    private void select(PasswordEntry e) {
-        selectedId = e.getId();
-        showDetail(e);
-        rebuildList(); // refresh highlight
+    private void selectSingle(PasswordEntry e) {
+        selectedIds.clear();
+        selectedIds.add(e.getId());
+        anchorId = e.getId();
+        rebuildList();
+        updateDetailOrBulk();
+    }
+
+    private void toggleSelect(PasswordEntry e) {
+        if (!selectedIds.add(e.getId())) selectedIds.remove(e.getId());
+        anchorId = e.getId();
+        rebuildList();
+        updateDetailOrBulk();
+    }
+
+    private void selectRange(PasswordEntry e) {
+        int a = indexOf(anchorId), b = indexOf(e.getId());
+        if (a < 0 || b < 0) { selectSingle(e); return; }
+        selectedIds.clear();
+        for (int i = Math.min(a, b); i <= Math.max(a, b); i++) {
+            selectedIds.add(displayed.get(i).getId());
+        }
+        rebuildList();
+        updateDetailOrBulk();
+    }
+
+    private int indexOf(String id) {
+        if (id == null) return -1;
+        for (int i = 0; i < displayed.size(); i++) {
+            if (displayed.get(i).getId().equals(id)) return i;
+        }
+        return -1;
+    }
+
+    private void updateDetailOrBulk() {
+        if (selectedIds.size() > 1) {
+            showBulk(selectedIds.size());
+        } else {
+            PasswordEntry s = getSelected();
+            if (s != null) showDetail(s);
+            else clearDetail();
+        }
     }
 
     // ---- Bento ----
@@ -297,7 +341,7 @@ public class CoffrePasswordsPanel extends JPanel {
 
     private void showDetail(PasswordEntry e) {
         detailHost.removeAll();
-        JPanel col = new JPanel();
+        VScrollPanel col = new VScrollPanel();
         col.setOpaque(false);
         col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
 
@@ -363,6 +407,7 @@ public class CoffrePasswordsPanel extends JPanel {
         sc.setBorder(null);
         sc.setOpaque(false);
         sc.getViewport().setOpaque(false);
+        sc.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         sc.getVerticalScrollBar().setUnitIncrement(16);
         detailHost.add(sc, BorderLayout.CENTER);
         detailHost.revalidate();
@@ -393,9 +438,8 @@ public class CoffrePasswordsPanel extends JPanel {
         JLabel val = new JLabel(value);
         v.add(val, BorderLayout.CENTER);
         if (onCopy != null) {
-            JButton copy = new JButton("⎘");
-            copy.setMargin(new Insets(1, 6, 1, 6));
-            copy.setToolTipText(lang.getString("entry.copy_password"));
+            JButton copy = new JButton("Copier");
+            copy.setMargin(new Insets(2, 8, 2, 8));
             copy.addActionListener(ev -> onCopy.run());
             v.add(copy, BorderLayout.EAST);
         }
@@ -464,6 +508,7 @@ public class CoffrePasswordsPanel extends JPanel {
     }
 
     public void deleteSelected() {
+        if (selectedIds.size() > 1) { bulkDelete(); return; }
         PasswordEntry sel = getSelected();
         if (sel != null) deleteEntry(sel);
     }
@@ -473,10 +518,94 @@ public class CoffrePasswordsPanel extends JPanel {
             lang.getString("vault.delete_entry"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (confirm == JOptionPane.YES_OPTION) {
             vaultService.bulkDelete(List.of(e.getId()));
-            if (e.getId().equals(selectedId)) { selectedId = null; clearDetail(); }
+            selectedIds.remove(e.getId());
             refresh();
             notifyChanged();
         }
+    }
+
+    // ---- Bulk (multi-selection) ----
+    private JPopupMenu bulkMenu() {
+        JPopupMenu m = new JPopupMenu();
+        JMenuItem del = new JMenuItem(lang.getString("vault.bulk.delete"));
+        del.addActionListener(e -> bulkDelete());
+        m.add(del);
+        JMenuItem cat = new JMenuItem(lang.getString("vault.bulk.changeCategory"));
+        cat.addActionListener(e -> bulkChangeCategory());
+        m.add(cat);
+        JMenuItem fav = new JMenuItem(lang.getString("vault.bulk.toggleFavorite"));
+        fav.addActionListener(e -> bulkToggleFavorite());
+        m.add(fav);
+        return m;
+    }
+
+    private void showBulk(int count) {
+        detailHost.removeAll();
+        JPanel col = new JPanel();
+        col.setOpaque(false);
+        col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
+        JLabel t = new JLabel(lang.getString("vault.bulk.selected").replace("{0}", String.valueOf(count)));
+        t.setFont(t.getFont().deriveFont(Font.BOLD, 16f));
+        t.setAlignmentX(Component.LEFT_ALIGNMENT);
+        col.add(t);
+        col.add(Box.createVerticalStrut(DesignTokens.SPACE_LG));
+        col.add(bulkButton(lang.getString("vault.bulk.delete"), this::bulkDelete, true));
+        col.add(Box.createVerticalStrut(DesignTokens.SPACE_SM));
+        col.add(bulkButton(lang.getString("vault.bulk.changeCategory"), this::bulkChangeCategory, false));
+        col.add(Box.createVerticalStrut(DesignTokens.SPACE_SM));
+        col.add(bulkButton(lang.getString("vault.bulk.toggleFavorite"), this::bulkToggleFavorite, false));
+        detailHost.add(col, BorderLayout.NORTH);
+        detailHost.revalidate();
+        detailHost.repaint();
+    }
+
+    private JButton bulkButton(String text, Runnable action, boolean danger) {
+        JButton b = new JButton(text);
+        b.setAlignmentX(Component.LEFT_ALIGNMENT);
+        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        if (danger) b.setForeground(DesignTokens.statusWeak());
+        b.addActionListener(e -> action.run());
+        return b;
+    }
+
+    private void bulkDelete() {
+        List<String> ids = new ArrayList<>(selectedIds);
+        if (ids.isEmpty()) return;
+        int confirm = JOptionPane.showConfirmDialog(this,
+            lang.getString("vault.bulk.confirm.delete").replace("{0}", String.valueOf(ids.size())),
+            lang.getString("vault.delete_entry"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (confirm == JOptionPane.YES_OPTION) {
+            vaultService.bulkDelete(ids);
+            selectedIds.clear();
+            refresh();
+            notifyChanged();
+        }
+    }
+
+    private void bulkChangeCategory() {
+        List<String> ids = new ArrayList<>(selectedIds);
+        if (ids.isEmpty()) return;
+        List<String> cats = vaultService.getVault().getCategories();
+        String chosen = (String) JOptionPane.showInputDialog(this,
+            lang.getString("vault.bulk.changeCategory"), lang.getString("entry.category"),
+            JOptionPane.PLAIN_MESSAGE, null, cats.toArray(new String[0]), cats.isEmpty() ? null : cats.get(0));
+        if (chosen != null) {
+            vaultService.bulkChangeCategory(ids, chosen);
+            refresh();
+            notifyChanged();
+        }
+    }
+
+    private void bulkToggleFavorite() {
+        List<String> ids = new ArrayList<>(selectedIds);
+        if (ids.isEmpty()) return;
+        boolean anyNotFav = false;
+        for (PasswordEntry e : displayed) {
+            if (ids.contains(e.getId()) && !e.isFavorite()) { anyNotFav = true; break; }
+        }
+        vaultService.bulkSetFavorite(ids, anyNotFav);
+        refresh();
+        notifyChanged();
     }
 
     private void duplicate(PasswordEntry selected) {
@@ -496,8 +625,13 @@ public class CoffrePasswordsPanel extends JPanel {
     }
 
     private PasswordEntry getSelected() {
-        if (selectedId == null) return null;
-        for (PasswordEntry e : displayed) if (selectedId.equals(e.getId())) return e;
+        if (selectedIds.size() != 1) return null;
+        return entryById(selectedIds.iterator().next());
+    }
+
+    private PasswordEntry entryById(String id) {
+        if (id == null) return null;
+        for (PasswordEntry e : displayed) if (id.equals(e.getId())) return e;
         return null;
     }
 
@@ -569,4 +703,13 @@ public class CoffrePasswordsPanel extends JPanel {
     private static boolean isBlank(String s) { return s == null || s.isBlank(); }
 
     private void notifyChanged() { if (onVaultChanged != null) onVaultChanged.run(); }
+
+    /** A vertical-scroll panel that tracks the viewport width (no horizontal scrollbar). */
+    private static class VScrollPanel extends JPanel implements Scrollable {
+        @Override public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }
+        @Override public int getScrollableUnitIncrement(Rectangle r, int orientation, int direction) { return 16; }
+        @Override public int getScrollableBlockIncrement(Rectangle r, int orientation, int direction) { return 64; }
+        @Override public boolean getScrollableTracksViewportWidth() { return true; }
+        @Override public boolean getScrollableTracksViewportHeight() { return false; }
+    }
 }
