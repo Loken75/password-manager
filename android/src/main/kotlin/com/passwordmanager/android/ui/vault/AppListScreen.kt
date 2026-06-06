@@ -3,9 +3,11 @@ package com.passwordmanager.android.ui.vault
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,6 +22,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
 import com.passwordmanager.android.ui.components.AppEntryCard
 import com.passwordmanager.android.ui.components.ConfirmDialog
+import com.passwordmanager.android.ui.components.DateFilterChip
 import com.passwordmanager.vault.SortField
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -198,6 +201,19 @@ fun AppListScreen(
                         )
                     }
                 )
+            }
+
+            // Date filters (parity with desktop)
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                DateFilterChip(stringResource(R.string.filter_created_since), state.createdSince, viewModel::setCreatedSince)
+                DateFilterChip(stringResource(R.string.filter_modified_since), state.modifiedSince, viewModel::setModifiedSince)
+                DateFilterChip(stringResource(R.string.filter_created_on), state.createdOn, viewModel::setCreatedOn)
+                DateFilterChip(stringResource(R.string.filter_modified_on), state.modifiedOn, viewModel::setModifiedOn)
             }
 
             // Entry list or empty state

@@ -48,6 +48,10 @@ data class VaultListUiState(
     val selectedEntryIds: Set<String> = emptySet(),
     val favoritesOnly: Boolean = false,
     val selectedStrength: com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength? = null,
+    val createdSince: java.time.LocalDate? = null,
+    val modifiedSince: java.time.LocalDate? = null,
+    val createdOn: java.time.LocalDate? = null,
+    val modifiedOn: java.time.LocalDate? = null,
     val message: String? = null,
     val refreshToken: Long = 0,
     val favicons: Map<String, Bitmap> = emptyMap(),
@@ -124,10 +128,42 @@ class VaultListViewModel @Inject constructor(
             filtered
         }
 
+        val dateFiltered = applyDateFilters(strengthFiltered)
+
         _uiState.update {
-            it.copy(entries = strengthFiltered, categories = vault.categories, refreshToken = it.refreshToken + 1)
+            it.copy(entries = dateFiltered, categories = vault.categories, refreshToken = it.refreshToken + 1)
         }
-        loadFavicons(strengthFiltered)
+        loadFavicons(dateFiltered)
+    }
+
+    private fun applyDateFilters(list: List<PasswordEntry>): List<PasswordEntry> {
+        val s = _uiState.value
+        if (s.createdSince == null && s.modifiedSince == null && s.createdOn == null && s.modifiedOn == null) return list
+        return list.filter { e ->
+            val c = dateOf(e.createdAt)
+            val m = dateOf(e.updatedAt)
+            when {
+                s.createdSince != null && (c == null || c.isBefore(s.createdSince)) -> false
+                s.modifiedSince != null && (m == null || m.isBefore(s.modifiedSince)) -> false
+                s.createdOn != null && c != s.createdOn -> false
+                s.modifiedOn != null && m != s.modifiedOn -> false
+                else -> true
+            }
+        }
+    }
+
+    private fun dateOf(iso: String?): java.time.LocalDate? {
+        if (iso == null || iso.length < 10) return null
+        return try { java.time.LocalDate.parse(iso.substring(0, 10)) } catch (e: Exception) { null }
+    }
+
+    fun setCreatedSince(d: java.time.LocalDate?) { _uiState.update { it.copy(createdSince = d) }; refreshEntries() }
+    fun setModifiedSince(d: java.time.LocalDate?) { _uiState.update { it.copy(modifiedSince = d) }; refreshEntries() }
+    fun setCreatedOn(d: java.time.LocalDate?) { _uiState.update { it.copy(createdOn = d) }; refreshEntries() }
+    fun setModifiedOn(d: java.time.LocalDate?) { _uiState.update { it.copy(modifiedOn = d) }; refreshEntries() }
+    fun clearDateFilters() {
+        _uiState.update { it.copy(createdSince = null, modifiedSince = null, createdOn = null, modifiedOn = null) }
+        refreshEntries()
     }
 
     private fun loadFavicons(entries: List<PasswordEntry>) {
