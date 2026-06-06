@@ -55,7 +55,7 @@ public class MainFrame extends JFrame {
 
     private CoffrePasswordsPanel coffrePasswordsPanel;
     private CoffreAppsPanel appPanel;
-    private SshKeyPanel sshKeyPanel;
+    private CoffreSshPanel sshKeyPanel;
     private JPanel contentCards;
     private CardLayout contentLayout;
     private String currentView = VIEW_PASSWORDS;
@@ -130,8 +130,8 @@ public class MainFrame extends JFrame {
         appPanel = new CoffreAppsPanel(vaultService.getAppService(), appConfig.getClipboardClearSeconds(),
             () -> { saveVault(); statusLabel.setText(getStatusText()); refreshTypeCounts(); });
 
-        sshKeyPanel = new SshKeyPanel(vaultService.getSshKeyService(), appConfig.getClipboardClearSeconds());
-        sshKeyPanel.setOnVaultChanged(() -> { saveVault(); statusLabel.setText(getStatusText()); refreshTypeCounts(); });
+        sshKeyPanel = new CoffreSshPanel(vaultService.getSshKeyService(), appConfig.getClipboardClearSeconds(),
+            () -> { saveVault(); statusLabel.setText(getStatusText()); refreshTypeCounts(); });
 
         contentLayout = new CardLayout();
         contentCards = new JPanel(contentLayout);
@@ -435,7 +435,8 @@ public class MainFrame extends JFrame {
         switch (currentView) {
             case VIEW_PASSWORDS: return coffrePasswordsPanel.getSearchField();
             case VIEW_APPS: return appPanel.getSearchField();
-            default: return null; // SSH keys panel keeps its own internal search
+            case VIEW_SSH: return sshKeyPanel.getSearchField();
+            default: return null;
         }
     }
 
@@ -837,7 +838,7 @@ public class MainFrame extends JFrame {
     private void refreshAllPanels() {
         coffrePasswordsPanel.refresh();
         appPanel.refresh();
-        sshKeyPanel.refreshEntries();
+        sshKeyPanel.refresh();
         refreshSideCategories();
         refreshTypeCounts();
     }
