@@ -19,8 +19,39 @@ import java.awt.Color;
 public final class DesignTokens {
     private DesignTokens() {}
 
-    // Accent — indigo (matches @accentColor in the FlatLaf properties)
+    // Accent — indigo ramp (source: tokens.json primitive.color.accent)
     public static final Color ACCENT = new Color(0x4F46E5);
+    private static final Color ACCENT_20 = new Color(0x312E81);
+    private static final Color ACCENT_40 = new Color(0x4F46E5);
+    private static final Color ACCENT_60 = new Color(0x818CF8);
+    private static final Color ACCENT_90 = new Color(0xE0E7FF);
+    private static final Color ACCENT_95 = new Color(0xEEF2FF);
+
+    // Neutrals (subset used by custom-painted components)
+    private static final Color NEUTRAL_0 = new Color(0xFFFFFF);
+    private static final Color NEUTRAL_5 = new Color(0xF7F7FB);
+    private static final Color NEUTRAL_10 = new Color(0xEEEEF4);
+    private static final Color NEUTRAL_20 = new Color(0xD9D9E3);
+    private static final Color NEUTRAL_70 = new Color(0x3A3A44);
+    private static final Color NEUTRAL_80 = new Color(0x2A2A33);
+    private static final Color NEUTRAL_90 = new Color(0x1A1A20);
+    private static final Color NEUTRAL_100 = new Color(0x111116);
+
+    /** Theme accent (light = accent.40, dark = accent.60). */
+    public static Color accent() { return isDark() ? ACCENT_60 : ACCENT_40; }
+    /** Readable foreground on {@link #accent()}. */
+    public static Color onAccent() { return isDark() ? NEUTRAL_100 : NEUTRAL_0; }
+    /** Tonal accent surface for secondary (tonal) buttons/chips. */
+    public static Color accentContainer() { return isDark() ? ACCENT_20 : ACCENT_95; }
+    public static Color onAccentContainer() { return isDark() ? ACCENT_90 : ACCENT_20; }
+
+    /** Elevated card / container surface. */
+    public static Color surfaceContainer() { return isDark() ? NEUTRAL_90 : NEUTRAL_5; }
+    /** Hairline outline for cards/dividers. */
+    public static Color outline() { return isDark() ? NEUTRAL_70 : NEUTRAL_20; }
+    /** Subtle (hover/track) surface. */
+    public static Color surfaceSubtle() { return isDark() ? NEUTRAL_80 : NEUTRAL_10; }
+    public static Color onSurfaceFaint() { return isDark() ? NEUTRAL_20 : NEUTRAL_70; }
 
     // Security status primitives (source: tokens.json primitive.color.{green,amber,red,blue})
     private static final Color GREEN_50 = new Color(0x16A34A);
