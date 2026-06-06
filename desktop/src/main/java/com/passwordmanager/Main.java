@@ -34,16 +34,26 @@ public class Main {
 
         try {
             boolean dark;
-            switch (config.getTheme()) {
-                case DARK:
-                    dark = true;
-                    break;
-                case SYSTEM:
-                    dark = isSystemDark();
-                    break;
-                default:
-                    dark = false;
-                    break;
+            // Optional override for testing/preview: -Dpm.theme=dark|light|system
+            String themeOverride = System.getProperty("pm.theme");
+            if (themeOverride != null) {
+                switch (themeOverride.toLowerCase()) {
+                    case "dark":   dark = true; break;
+                    case "light":  dark = false; break;
+                    default:        dark = isSystemDark(); break;
+                }
+            } else {
+                switch (config.getTheme()) {
+                    case DARK:
+                        dark = true;
+                        break;
+                    case SYSTEM:
+                        dark = isSystemDark();
+                        break;
+                    default:
+                        dark = false;
+                        break;
+                }
             }
             UIManager.setLookAndFeel(dark ? new FlatDarkLaf() : new FlatLightLaf());
         } catch (Exception e) {
