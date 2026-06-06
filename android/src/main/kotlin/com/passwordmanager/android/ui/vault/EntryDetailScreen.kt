@@ -26,6 +26,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
 import com.passwordmanager.android.ui.components.ConfirmDialog
 import com.passwordmanager.android.ui.components.PasswordStrengthBar
+import com.passwordmanager.android.ui.theme.appColors
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
@@ -66,7 +67,7 @@ fun EntryDetailScreen(
                             Icon(
                                 imageVector = if (entry.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
                                 contentDescription = stringResource(R.string.entry_toggle_favorite),
-                                tint = if (entry.isFavorite) Color(0xFFFFC107) else MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = if (entry.isFavorite) MaterialTheme.appColors.favorite else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }

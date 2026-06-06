@@ -26,12 +26,16 @@ Seul usage « couleur signifiante » de l'app. Mappées sur les 4 niveaux de
 
 | Niveau core | Token | Light | Usage |
 |---|---|---|---|
-| `VERY_STRONG` / `STRONG` | `color.status.strong` | `#16A34A` | jauge, badge « fort » |
+| `VERY_STRONG` | `color.status.veryStrong` | `#2563EB` | jauge, badge « très fort » (signal positif fort) |
+| `STRONG` | `color.status.strong` | `#16A34A` | jauge, badge « fort » |
 | `MEDIUM` | `color.status.medium` | `#F59E0B` | jauge, badge « moyen » |
 | `WEAK` / breached | `color.status.weak` | `#DC2626` | jauge, badge « faible/compromis » |
 
-> Remplace les **3 verts incohérents** du desktop et les **couleurs codées en dur**
-> d'Android (étoile, swipe, avatar). Un seul jeu, themable, validé contraste.
+> Conserve le « Très fort = bleu » documenté du README (4 niveaux distincts) tout en
+> remplaçant les **3 verts incohérents** du desktop et les **couleurs codées en dur**
+> d'Android (étoile, swipe, avatar). Un seul jeu, themable, validé contraste. Ces 4
+> couleurs sont **fixes** (non soumises au dynamic color). Comme l'app affiche toujours
+> aussi le **libellé** du niveau, la couleur n'est jamais le seul signal (a11y).
 
 ### Contraste WCAG 2.2 AA (vérifié)
 

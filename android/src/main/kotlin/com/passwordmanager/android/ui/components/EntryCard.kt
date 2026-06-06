@@ -27,7 +27,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import com.passwordmanager.android.ui.theme.*
 import com.passwordmanager.crypto.PasswordStrengthAnalyzer
-import com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength
 import com.passwordmanager.vault.PasswordEntry
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -45,13 +44,7 @@ fun EntryCard(
     favicon: Bitmap? = null
 ) {
     val strength = entry.password?.let { PasswordStrengthAnalyzer.analyze(it) }
-    val strengthColor = when (strength) {
-        Strength.WEAK -> StrengthWeak
-        Strength.MEDIUM -> StrengthMedium
-        Strength.STRONG -> StrengthStrong
-        Strength.VERY_STRONG -> StrengthVeryStrong
-        null -> MaterialTheme.colorScheme.outline
-    }
+    val strengthBarColor = strength?.let { strengthColor(it) } ?: MaterialTheme.colorScheme.outline
 
     val cardContent: @Composable () -> Unit = {
         Card(
@@ -76,7 +69,7 @@ fun EntryCard(
                     modifier = Modifier
                         .width(4.dp)
                         .fillMaxHeight()
-                        .background(strengthColor)
+                        .background(strengthBarColor)
                 )
 
                 // Selection checkbox
@@ -161,7 +154,7 @@ fun EntryCard(
                     Icon(
                         imageVector = if (entry.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
                         contentDescription = null,
-                        tint = if (entry.isFavorite) Color(0xFFFFC107) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (entry.isFavorite) MaterialTheme.appColors.favorite else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -204,8 +197,8 @@ fun EntryCard(
             backgroundContent = {
                 val direction = dismissState.dismissDirection
                 val color = when (direction) {
-                    SwipeToDismissBoxValue.StartToEnd -> Color(0xFF1E88E5)
-                    SwipeToDismissBoxValue.EndToStart -> Color(0xFFE53935)
+                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.appColors.statusVeryStrong
+                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.appColors.statusWeak
                     else -> Color.Transparent
                 }
                 val icon = when (direction) {

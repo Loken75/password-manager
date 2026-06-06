@@ -22,9 +22,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.passwordmanager.android.ui.theme.appColors
+import com.passwordmanager.android.ui.theme.categoryColor
 import com.passwordmanager.vault.AppEntry
-
-private val AppAvatarColor = Color(0xFF7E57C2) // Purple, PIN-themed
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -84,14 +84,14 @@ fun AppEntryCard(
 
                 Spacer(modifier = Modifier.width(if (isSelectionMode) 8.dp else 12.dp))
 
-                // Avatar - always letter with PIN-themed purple color
+                // Avatar - letter on a deterministic category-palette color
                 val initial = (entry.title?.firstOrNull() ?: '?').uppercaseChar()
                 Box(
                     modifier = Modifier
                         .padding(vertical = 12.dp)
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(AppAvatarColor),
+                        .background(categoryColor(entry.title)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -136,7 +136,7 @@ fun AppEntryCard(
                     Icon(
                         imageVector = if (entry.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
                         contentDescription = null,
-                        tint = if (entry.isFavorite) Color(0xFFFFC107) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (entry.isFavorite) MaterialTheme.appColors.favorite else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -164,8 +164,8 @@ fun AppEntryCard(
             backgroundContent = {
                 val direction = dismissState.dismissDirection
                 val color = when (direction) {
-                    SwipeToDismissBoxValue.StartToEnd -> Color(0xFF1E88E5)
-                    SwipeToDismissBoxValue.EndToStart -> Color(0xFFE53935)
+                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.appColors.statusVeryStrong
+                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.appColors.statusWeak
                     else -> Color.Transparent
                 }
                 val icon = when (direction) {

@@ -1,6 +1,7 @@
 package com.passwordmanager;
 
 import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.ConfigManager;
@@ -26,6 +27,10 @@ public class Main {
         detectAppDirectory();
         ConfigManager configManager = new ConfigManager();
         AppConfig config = configManager.loadConfig();
+
+        // Apply the design-system FlatLaf theme (generated from docs/design-system/tokens.json).
+        // Registered once; persists across runtime theme switches.
+        FlatLaf.registerCustomDefaultsSource("com.passwordmanager.ui.theme");
 
         try {
             boolean dark;
