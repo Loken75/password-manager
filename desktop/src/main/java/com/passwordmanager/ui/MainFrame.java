@@ -167,6 +167,13 @@ public class MainFrame extends JFrame {
 
         installKeyBindings();
         switchView(VIEW_PASSWORDS);
+
+        // Lay out before the window is shown so the first paint isn't blank. Some
+        // Linux/Wayland (XWayland) setups don't repaint a setSize-only frame until it
+        // is resized; pack() (as the login screen does) makes it displayable + laid out.
+        pack();
+        setSize(1180, 760);
+        setLocationRelativeTo(null);
     }
 
     private JComponent createToolBar() {
