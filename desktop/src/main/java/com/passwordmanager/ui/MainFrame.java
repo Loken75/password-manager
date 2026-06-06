@@ -16,6 +16,9 @@ import com.passwordmanager.util.PasswordValidator;
 import com.passwordmanager.update.DesktopUpdateManager;
 import com.passwordmanager.sync.EntryMerger;
 import com.passwordmanager.util.FaviconService;
+import com.passwordmanager.ui.components.Buttons;
+import com.passwordmanager.ui.components.RoundedPanel;
+import com.passwordmanager.ui.theme.DesignTokens;
 import com.passwordmanager.vault.*;
 
 import javax.swing.*;
@@ -46,12 +49,29 @@ public class MainFrame extends JFrame {
     private SyncService syncService;
     /** Cached SSH key material (vault-key auth) used when (re)building the sync service. */
     private byte[] vaultKeyBytes;
-    private VaultPanel vaultPanel;
-    private AppPanel appPanel;
-    private SshKeyPanel sshKeyPanel;
-    private JTabbedPane tabbedPane;
+    private static final String VIEW_PASSWORDS = "passwords";
+    private static final String VIEW_APPS = "apps";
+    private static final String VIEW_SSH = "ssh";
+    private static final String VIEW_SETTINGS = "settings";
+
+    private CoffrePasswordsPanel coffrePasswordsPanel;
+    private CoffreAppsPanel appPanel;
+    private CoffreSshPanel sshKeyPanel;
+    private CoffreSettingsPanel settingsPanel;
+    private String lastVaultView = VIEW_PASSWORDS;
+    private JPanel contentCards;
+    private CardLayout contentLayout;
+    private String currentView = VIEW_PASSWORDS;
+    private JTextField toolbarSearch;
+    private DefaultListModel<String> sideCategoryModel;
+    private JList<String> sideCategoryList;
+    private final java.util.Map<String, JToggleButton> typeButtons = new java.util.LinkedHashMap<>();
+    private JPanel categorySection;
     private JLabel statusLabel;
     private Thread shutdownHook;
+    // Applied language/theme, to detect changes when (re)applying settings.
+    private String appliedLang;
+    private ThemeMode appliedTheme;
 
     // Extracted controllers
     private ImportExportController importExportController;
@@ -59,9 +79,6 @@ public class MainFrame extends JFrame {
     private AutoLockManager autoLockManager;
     private DesktopUpdateManager updateManager;
 
-    // Menu items that need dynamic state
-    private JMenuItem syncNowMenuItem;
-    private JButton syncToolbarBtn;
 
     public MainFrame(Vault vault, String username, VaultSession session,
                      VaultManager vaultManager, AppConfig appConfig, ConfigManager configManager) {
@@ -73,6 +90,8 @@ public class MainFrame extends JFrame {
         this.configManager = configManager;
         this.vaultService = new VaultService(vault);
         this.syncService = DesktopSyncFactory.create(appConfig, null);
+        this.appliedLang = appConfig.getLanguage();
+        this.appliedTheme = appConfig.getTheme();
 
         // Initialize controllers
         this.importExportController = new ImportExportController(
@@ -94,8 +113,8 @@ public class MainFrame extends JFrame {
     private void initComponents() {
         setTitle(lang.getString("app.title") + " - " + username);
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-        setSize(1100, 700);
-        setMinimumSize(new Dimension(900, 600));
+        setSize(1180, 760);
+        setMinimumSize(new Dimension(960, 640));
         setLocationRelativeTo(null);
         LoginFrame.setFrameIcon(this);
 
@@ -107,201 +126,343 @@ public class MainFrame extends JFrame {
         // Track activity for auto-lock
         autoLockManager.installActivityListener();
 
-        // Menu bar
-        setJMenuBar(createMenuBar());
+        // Content panels (one per entry type)
+        coffrePasswordsPanel = new CoffrePasswordsPanel(vaultService, appConfig.getClipboardClearSeconds(),
+            () -> { saveVault(); statusLabel.setText(getStatusText()); refreshTypeCounts(); });
+        try {
+            String cacheDir = System.getProperty("user.home") + "/.password-manager/data/favicons";
+            coffrePasswordsPanel.setFaviconService(new FaviconService(cacheDir));
+            coffrePasswordsPanel.setFaviconsEnabled(appConfig.isFaviconsEnabled());
+        } catch (Exception ignored) {}
 
-        // Update notification bar + Toolbar
+        appPanel = new CoffreAppsPanel(vaultService.getAppService(), appConfig.getClipboardClearSeconds(),
+            () -> { saveVault(); statusLabel.setText(getStatusText()); refreshTypeCounts(); });
+
+        sshKeyPanel = new CoffreSshPanel(vaultService.getSshKeyService(), appConfig.getClipboardClearSeconds(),
+            () -> { saveVault(); statusLabel.setText(getStatusText()); refreshTypeCounts(); });
+
+        settingsPanel = new CoffreSettingsPanel(appConfig, configManager,
+            vaultService.getSshKeyService().getActiveList(),
+            this::applySettings, () -> switchView(lastVaultView), this::doLock);
+
+        contentLayout = new CardLayout();
+        contentCards = new JPanel(contentLayout);
+        contentCards.add(coffrePasswordsPanel, VIEW_PASSWORDS);
+        contentCards.add(appPanel, VIEW_APPS);
+        contentCards.add(sshKeyPanel, VIEW_SSH);
+        contentCards.add(settingsPanel, VIEW_SETTINGS);
+
+        // North: update notification bar + calm toolbar
         updateManager = new DesktopUpdateManager();
         JPanel northPanel = new JPanel(new BorderLayout());
         northPanel.add(updateManager.createNotificationBar(), BorderLayout.NORTH);
-        JToolBar toolbar = createToolBar();
-        northPanel.add(toolbar, BorderLayout.SOUTH);
+        northPanel.add(createToolBar(), BorderLayout.SOUTH);
         add(northPanel, BorderLayout.NORTH);
         updateManager.startPeriodicCheck();
 
-        // Tabbed pane with 3 entry types
-        tabbedPane = new JTabbedPane();
+        // West: sidebar (type nav + categories + audit/settings)
+        add(createSidebar(), BorderLayout.WEST);
 
-        vaultPanel = new VaultPanel(vaultService, appConfig.getClipboardClearSeconds());
-        vaultPanel.setOnVaultChanged(() -> {
-            saveVault();
-            statusLabel.setText(getStatusText());
-        });
-        try {
-            String cacheDir = System.getProperty("user.home") + "/.password-manager/data/favicons";
-            vaultPanel.setFaviconService(new FaviconService(cacheDir));
-            vaultPanel.setFaviconsEnabled(appConfig.isFaviconsEnabled());
-        } catch (Exception ignored) {}
+        // Center: content
+        add(contentCards, BorderLayout.CENTER);
 
-        appPanel = new AppPanel(vaultService.getAppService(), appConfig.getClipboardClearSeconds());
-        appPanel.setOnVaultChanged(() -> {
-            saveVault();
-            statusLabel.setText(getStatusText());
-        });
-
-        sshKeyPanel = new SshKeyPanel(vaultService.getSshKeyService(), appConfig.getClipboardClearSeconds());
-        sshKeyPanel.setOnVaultChanged(() -> {
-            saveVault();
-            statusLabel.setText(getStatusText());
-        });
-
-        tabbedPane.addTab(lang.getString("tab.passwords"), vaultPanel);
-        tabbedPane.addTab(lang.getString("tab.applications"), appPanel);
-        tabbedPane.addTab(lang.getString("tab.ssh_keys"), sshKeyPanel);
-
-        add(tabbedPane, BorderLayout.CENTER);
-
-        // Status bar
+        // South: status bar
         JPanel statusBar = new JPanel(new BorderLayout());
         statusBar.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-            BorderFactory.createEmptyBorder(3, 8, 3, 8)));
+            BorderFactory.createMatteBorder(1, 0, 0, 0, DesignTokens.outline()),
+            BorderFactory.createEmptyBorder(5, 12, 5, 12)));
         statusLabel = new JLabel(getStatusText());
+        statusLabel.setForeground(DesignTokens.onSurfaceFaint());
         statusBar.add(statusLabel, BorderLayout.WEST);
         add(statusBar, BorderLayout.SOUTH);
+
+        installKeyBindings();
+        String startView = System.getProperty("pm.view");
+        switchView("apps".equals(startView) ? VIEW_APPS
+            : "ssh".equals(startView) ? VIEW_SSH
+            : "settings".equals(startView) ? VIEW_SETTINGS : VIEW_PASSWORDS);
+
+        // Size the window to fit all components (pack) so nothing is clipped and there is
+        // no horizontal scroll; also avoids the blank-first-paint issue on XWayland.
+        pack();
+        setLocationRelativeTo(null);
     }
 
-    private JMenuBar createMenuBar() {
-        JMenuBar bar = new JMenuBar();
+    private JComponent createToolBar() {
+        JPanel bar = new JPanel(new BorderLayout(DesignTokens.SPACE_MD, 0));
+        bar.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, DesignTokens.outline()),
+            BorderFactory.createEmptyBorder(DesignTokens.SPACE_MD, DesignTokens.SPACE_LG, DesignTokens.SPACE_MD, DesignTokens.SPACE_LG)));
 
-        // File menu
-        JMenu fileMenu = new JMenu(lang.getString("menu.file"));
-        JMenuItem importItem = new JMenuItem(lang.getString("menu.file.import"));
-        JMenuItem exportItem = new JMenuItem(lang.getString("menu.file.export"));
-        JMenuItem settings = new JMenuItem(lang.getString("menu.file.settings"));
-        JMenuItem lock = new JMenuItem(lang.getString("menu.file.lock"));
-        JMenuItem quit = new JMenuItem(lang.getString("menu.file.quit"));
+        JLabel brand = new JLabel(lang.getString("app.brand"));
+        brand.setFont(brand.getFont().deriveFont(Font.BOLD, 17f));
 
-        fileMenu.add(importItem);
-        fileMenu.add(exportItem);
-        fileMenu.addSeparator();
-        fileMenu.add(settings);
-        fileMenu.addSeparator();
-        fileMenu.add(lock);
-        fileMenu.add(quit);
-        bar.add(fileMenu);
+        toolbarSearch = new JTextField();
+        toolbarSearch.putClientProperty("JTextField.placeholderText", lang.getString("vault.search"));
+        toolbarSearch.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { onSearch(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { onSearch(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { onSearch(); }
+        });
+        JPanel searchWrap = new JPanel(new BorderLayout());
+        searchWrap.add(toolbarSearch, BorderLayout.CENTER);
+        searchWrap.setBorder(BorderFactory.createEmptyBorder(0, DesignTokens.SPACE_LG, 0, DesignTokens.SPACE_LG));
 
-        // Edit menu
-        JMenu editMenu = new JMenu(lang.getString("menu.edit"));
-        JMenuItem newEntry = new JMenuItem(lang.getString("menu.edit.new_entry"));
-        JMenuItem editEntry = new JMenuItem(lang.getString("menu.edit.edit_entry"));
-        JMenuItem deleteEntry = new JMenuItem(lang.getString("menu.edit.delete_entry"));
-        JMenuItem changeMaster = new JMenuItem(lang.getString("menu.edit.change_master"));
+        JButton newBtn = Buttons.primary("+ " + lang.getString("vault.new_entry"));
+        newBtn.addActionListener(e -> addNewEntryForActiveView());
+        JButton lockBtn = new JButton(lang.getString("menu.file.lock"));
+        lockBtn.addActionListener(e -> doLock());
+        JButton overflow = new JButton("⋯");
+        overflow.setToolTipText(lang.getString("menu.file"));
+        overflow.addActionListener(e -> overflowMenu().show(overflow, 0, overflow.getHeight()));
 
-        newEntry.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK));
-        deleteEntry.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0));
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, 0));
+        right.add(newBtn);
+        right.add(lockBtn);
+        right.add(overflow);
 
-        editMenu.add(newEntry);
-        editMenu.add(editEntry);
-        editMenu.add(deleteEntry);
-        editMenu.addSeparator();
-        editMenu.add(changeMaster);
-        bar.add(editMenu);
-
-        // View menu
-        JMenu viewMenu = new JMenu(lang.getString("menu.view"));
-        JMenuItem refresh = new JMenuItem(lang.getString("menu.view.refresh"));
-        JMenuItem sortName = new JMenuItem(lang.getString("menu.view.sort_name"));
-        JMenuItem sortUsername = new JMenuItem(lang.getString("menu.view.sort_username"));
-        JMenuItem sortEmail = new JMenuItem(lang.getString("menu.view.sort_email"));
-        JMenuItem sortUrl = new JMenuItem(lang.getString("menu.view.sort_url"));
-        JMenuItem sortDate = new JMenuItem(lang.getString("menu.view.sort_date"));
-        JMenuItem sortCat = new JMenuItem(lang.getString("menu.view.sort_category"));
-        JMenuItem filterWeak = new JMenuItem(lang.getString("menu.view.filter_weak"));
-        JMenuItem filterDup = new JMenuItem(lang.getString("menu.view.filter_duplicate"));
-
-        refresh.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0));
-
-        viewMenu.add(refresh);
-        viewMenu.addSeparator();
-        viewMenu.add(sortName);
-        viewMenu.add(sortUsername);
-        viewMenu.add(sortEmail);
-        viewMenu.add(sortUrl);
-        viewMenu.add(sortDate);
-        viewMenu.add(sortCat);
-        viewMenu.addSeparator();
-        viewMenu.add(filterWeak);
-        viewMenu.add(filterDup);
-        bar.add(viewMenu);
-
-        // Tools menu
-        JMenu toolsMenu = new JMenu(lang.getString("menu.tools"));
-        JMenuItem generator = new JMenuItem(lang.getString("menu.tools.generator"));
-        JMenuItem audit = new JMenuItem(lang.getString("menu.tools.security_audit"));
-        syncNowMenuItem = new JMenuItem(lang.getString("menu.tools.sync_now"));
-        syncNowMenuItem.setEnabled(appConfig.getStorageMode() == StorageMode.REMOTE);
-
-        toolsMenu.add(generator);
-        toolsMenu.add(audit);
-        toolsMenu.addSeparator();
-        toolsMenu.add(syncNowMenuItem);
-        bar.add(toolsMenu);
-
-        // Help menu
-        JMenu helpMenu = new JMenu(lang.getString("menu.help"));
-        JMenuItem about = new JMenuItem(lang.getString("menu.help.about"));
-        helpMenu.add(about);
-        bar.add(helpMenu);
-
-        // === Actions ===
-        importItem.addActionListener(e -> importExportController.doImport());
-        exportItem.addActionListener(e -> importExportController.doExport());
-        settings.addActionListener(e -> doSettings());
-        lock.addActionListener(e -> doLock());
-        quit.addActionListener(e -> doQuit());
-
-        newEntry.addActionListener(e -> addNewEntryForActiveTab());
-        editEntry.addActionListener(e -> editEntryForActiveTab());
-        deleteEntry.addActionListener(e -> deleteEntryForActiveTab());
-        changeMaster.addActionListener(e -> doChangeMasterPassword());
-
-        refresh.addActionListener(e -> refreshAllPanels());
-        sortName.addActionListener(e -> setSortModeForActiveTab(SortField.TITLE));
-        sortUsername.addActionListener(e -> setSortModeForActiveTab(SortField.USERNAME));
-        sortEmail.addActionListener(e -> setSortModeForActiveTab(SortField.EMAIL));
-        sortUrl.addActionListener(e -> setSortModeForActiveTab(SortField.URL));
-        sortDate.addActionListener(e -> setSortModeForActiveTab(SortField.DATE));
-        sortCat.addActionListener(e -> setSortModeForActiveTab(SortField.CATEGORY));
-        filterWeak.addActionListener(e -> securityAuditController.doFilterWeak());
-        filterDup.addActionListener(e -> securityAuditController.doFilterDuplicate());
-
-        generator.addActionListener(e ->
-            new PasswordGeneratorDialog(MainFrame.this).setVisible(true));
-        audit.addActionListener(e -> securityAuditController.doSecurityAudit());
-        syncNowMenuItem.addActionListener(e -> doSync());
-        about.addActionListener(e ->
-            JOptionPane.showMessageDialog(MainFrame.this,
-                lang.getString("about.description").replace("{0}", AppVersion.get()),
-                lang.getString("about.title"), JOptionPane.INFORMATION_MESSAGE));
-
+        bar.add(brand, BorderLayout.WEST);
+        bar.add(searchWrap, BorderLayout.CENTER);
+        bar.add(right, BorderLayout.EAST);
         return bar;
     }
 
-    private JToolBar createToolBar() {
-        JToolBar tb = new JToolBar();
-        tb.setFloatable(false);
+    private JComponent createSidebar() {
+        JPanel side = new JPanel();
+        side.setLayout(new BoxLayout(side, BoxLayout.Y_AXIS));
+        side.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 0, 1, DesignTokens.outline()),
+            BorderFactory.createEmptyBorder(DesignTokens.SPACE_LG, DesignTokens.SPACE_MD, DesignTokens.SPACE_LG, DesignTokens.SPACE_MD)));
+        side.setPreferredSize(new Dimension(234, 0));
 
-        JButton newBtn = new JButton(lang.getString("vault.new_entry"));
-        JButton genBtn = new JButton(lang.getString("menu.tools.generator"));
-        JButton lockBtn = new JButton(lang.getString("menu.file.lock"));
-        syncToolbarBtn = new JButton(lang.getString("menu.tools.sync_now"));
-        syncToolbarBtn.setEnabled(appConfig.getStorageMode() == StorageMode.REMOTE);
+        side.add(navTitle(lang.getString("menu.view")));
+        side.add(typeNav(VIEW_PASSWORDS, lang.getString("tab.passwords")));
+        side.add(typeNav(VIEW_APPS, lang.getString("tab.applications")));
+        side.add(typeNav(VIEW_SSH, lang.getString("tab.ssh_keys")));
+        side.add(Box.createVerticalStrut(DesignTokens.SPACE_LG));
 
-        newBtn.addActionListener(e -> addNewEntryForActiveTab());
-        genBtn.addActionListener(e -> new PasswordGeneratorDialog(MainFrame.this).setVisible(true));
-        lockBtn.addActionListener(e -> doLock());
-        syncToolbarBtn.addActionListener(e -> doSync());
+        // Categories (passwords only)
+        categorySection = new JPanel();
+        categorySection.setOpaque(false);
+        categorySection.setLayout(new BoxLayout(categorySection, BoxLayout.Y_AXIS));
+        categorySection.setAlignmentX(Component.LEFT_ALIGNMENT);
+        categorySection.add(navTitle(lang.getString("entry.category")));
+        sideCategoryModel = new DefaultListModel<>();
+        sideCategoryList = new JList<>(sideCategoryModel);
+        sideCategoryList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        sideCategoryList.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                String sel = sideCategoryList.getSelectedValue();
+                String cat = (sel == null || sel.equals(lang.getString("category.all"))) ? null : sel;
+                coffrePasswordsPanel.setCategory(cat);
+            }
+        });
+        JScrollPane catScroll = new JScrollPane(sideCategoryList);
+        catScroll.setBorder(null);
+        catScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        catScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 180));
+        categorySection.add(catScroll);
+        JPanel catBtns = new JPanel(new GridLayout(1, 2, 4, 0));
+        catBtns.setOpaque(false);
+        catBtns.setAlignmentX(Component.LEFT_ALIGNMENT);
+        catBtns.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        JButton addCat = new JButton(lang.getString("category.add"));
+        JButton delCat = new JButton(lang.getString("category.delete"));
+        addCat.addActionListener(e -> addCategory());
+        delCat.addActionListener(e -> deleteCategory());
+        catBtns.add(addCat);
+        catBtns.add(delCat);
+        categorySection.add(Box.createVerticalStrut(4));
+        categorySection.add(catBtns);
+        side.add(categorySection);
 
-        tb.add(newBtn);
-        tb.addSeparator();
-        tb.add(genBtn);
-        tb.addSeparator();
-        tb.add(syncToolbarBtn);
-        tb.add(Box.createHorizontalGlue());
-        tb.add(lockBtn);
+        side.add(Box.createVerticalGlue());
+        side.add(sidebarAction(lang.getString("menu.tools.security_audit"), () -> securityAuditController.doSecurityAudit()));
+        side.add(sidebarAction(lang.getString("menu.file.settings"), () -> switchView(VIEW_SETTINGS)));
 
-        return tb;
+        refreshSideCategories();
+        refreshTypeCounts();
+        return side;
+    }
+
+    private JComponent navTitle(String text) {
+        JLabel l = new JLabel(text.toUpperCase());
+        l.setFont(l.getFont().deriveFont(Font.BOLD, 11f));
+        l.setForeground(DesignTokens.onSurfaceFaint());
+        l.setAlignmentX(Component.LEFT_ALIGNMENT);
+        l.setBorder(BorderFactory.createEmptyBorder(6, 6, 8, 6));
+        return l;
+    }
+
+    private JToggleButton typeNav(String view, String label) {
+        JToggleButton b = new JToggleButton(label);
+        b.setHorizontalAlignment(SwingConstants.LEFT);
+        b.setFocusPainted(false);
+        b.setBorder(BorderFactory.createEmptyBorder(9, 10, 9, 10));
+        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        b.setAlignmentX(Component.LEFT_ALIGNMENT);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.putClientProperty("baseLabel", label);
+        b.addActionListener(e -> switchView(view));
+        typeButtons.put(view, b);
+        return b;
+    }
+
+    private JButton sidebarAction(String text, Runnable action) {
+        JButton b = new JButton(text);
+        b.setHorizontalAlignment(SwingConstants.LEFT);
+        b.setBorderPainted(false);
+        b.setContentAreaFilled(false);
+        b.setFocusPainted(false);
+        b.setForeground(DesignTokens.onSurfaceFaint());
+        b.setBorder(BorderFactory.createEmptyBorder(9, 10, 9, 10));
+        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        b.setAlignmentX(Component.LEFT_ALIGNMENT);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.addActionListener(e -> action.run());
+        return b;
+    }
+
+    private void styleNav(JToggleButton b, boolean active) {
+        b.setSelected(active);
+        b.setContentAreaFilled(active);
+        b.setOpaque(active);
+        b.setBackground(active ? DesignTokens.accentContainer() : null);
+        b.setForeground(active ? DesignTokens.accent() : DesignTokens.onSurfaceFaint());
+    }
+
+    private void switchView(String view) {
+        currentView = view;
+        if (VIEW_PASSWORDS.equals(view) || VIEW_APPS.equals(view) || VIEW_SSH.equals(view)) {
+            lastVaultView = view;
+        }
+        contentLayout.show(contentCards, view);
+        typeButtons.forEach((k, b) -> styleNav(b, k.equals(view)));
+        if (categorySection != null) categorySection.setVisible(VIEW_PASSWORDS.equals(view));
+        if (VIEW_PASSWORDS.equals(view)) refreshSideCategories();
+        if (toolbarSearch != null) {
+            JTextField sf = activeSearchField();
+            String txt = sf != null ? sf.getText() : "";
+            if (!txt.equals(toolbarSearch.getText())) toolbarSearch.setText(txt);
+        }
+        revalidate();
+        repaint();
+    }
+
+    private void refreshSideCategories() {
+        if (sideCategoryModel == null) return;
+        String prev = sideCategoryList.getSelectedValue();
+        sideCategoryModel.clear();
+        sideCategoryModel.addElement(lang.getString("category.all"));
+        for (String c : vaultService.getVault().getCategories()) {
+            sideCategoryModel.addElement(c);
+        }
+        if (prev != null) sideCategoryList.setSelectedValue(prev, false);
+    }
+
+    private void refreshTypeCounts() {
+        setNavCount(VIEW_PASSWORDS, vault.getEntries().size());
+        setNavCount(VIEW_APPS, vault.getAppEntries().size());
+        setNavCount(VIEW_SSH, vault.getSshKeyEntries().size());
+    }
+
+    private void setNavCount(String view, int count) {
+        JToggleButton b = typeButtons.get(view);
+        if (b != null) {
+            Object base = b.getClientProperty("baseLabel");
+            b.setText((base != null ? base.toString() : "") + "   " + count);
+        }
+    }
+
+    private void addCategory() {
+        String name = JOptionPane.showInputDialog(this, lang.getString("category.new"),
+            lang.getString("category.add"), JOptionPane.PLAIN_MESSAGE);
+        if (name != null && !name.trim().isEmpty()) {
+            vaultService.addCategory(name.trim());
+            refreshSideCategories();
+            saveVault();
+        }
+    }
+
+    private void deleteCategory() {
+        String sel = sideCategoryList.getSelectedValue();
+        if (sel == null || sel.equals(lang.getString("category.all"))) return;
+        int c = JOptionPane.showConfirmDialog(this, lang.getString("category.delete_confirm"),
+            lang.getString("category.delete"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (c == JOptionPane.YES_OPTION) {
+            for (PasswordEntry e : vaultService.search("")) {
+                if (sel.equals(e.getCategory())) e.setCategory("");
+            }
+            vaultService.removeCategory(sel);
+            refreshSideCategories();
+            coffrePasswordsPanel.refresh();
+            saveVault();
+        }
+    }
+
+    private JPopupMenu overflowMenu() {
+        JPopupMenu m = new JPopupMenu();
+        JMenuItem sync = new JMenuItem(lang.getString("menu.tools.sync_now"));
+        sync.setEnabled(appConfig.getStorageMode() == StorageMode.REMOTE);
+        sync.addActionListener(e -> doSync());
+        m.add(sync);
+        m.addSeparator();
+        JMenuItem imp = new JMenuItem(lang.getString("menu.file.import"));
+        imp.addActionListener(e -> importExportController.doImport());
+        m.add(imp);
+        JMenuItem exp = new JMenuItem(lang.getString("menu.file.export"));
+        exp.addActionListener(e -> importExportController.doExport());
+        m.add(exp);
+        m.addSeparator();
+        JMenuItem gen = new JMenuItem(lang.getString("menu.tools.generator"));
+        gen.addActionListener(e -> new PasswordGeneratorDialog(MainFrame.this).setVisible(true));
+        m.add(gen);
+        JMenuItem cm = new JMenuItem(lang.getString("menu.edit.change_master"));
+        cm.addActionListener(e -> doChangeMasterPassword());
+        m.add(cm);
+        m.addSeparator();
+        JMenuItem about = new JMenuItem(lang.getString("menu.help.about"));
+        about.addActionListener(e -> JOptionPane.showMessageDialog(MainFrame.this,
+            lang.getString("about.description").replace("{0}", AppVersion.get()),
+            lang.getString("about.title"), JOptionPane.INFORMATION_MESSAGE));
+        m.add(about);
+        return m;
+    }
+
+    private void installKeyBindings() {
+        JComponent root = getRootPane();
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK), "newEntry");
+        root.getActionMap().put("newEntry", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) { addNewEntryForActiveView(); }
+        });
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0), "refresh");
+        root.getActionMap().put("refresh", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) { refreshAllPanels(); }
+        });
+    }
+
+    private void onSearch() {
+        JTextField target = activeSearchField();
+        if (target != null) target.setText(toolbarSearch.getText());
+    }
+
+    private JTextField activeSearchField() {
+        switch (currentView) {
+            case VIEW_PASSWORDS: return coffrePasswordsPanel.getSearchField();
+            case VIEW_APPS: return appPanel.getSearchField();
+            case VIEW_SSH: return sshKeyPanel.getSearchField();
+            default: return null;
+        }
+    }
+
+    private void addNewEntryForActiveView() {
+        switch (currentView) {
+            case VIEW_APPS: appPanel.addNewEntry(); break;
+            case VIEW_SSH: sshKeyPanel.addNewEntry(); break;
+            default: coffrePasswordsPanel.addNewEntry(); break;
+        }
     }
 
     private void saveVault() {
@@ -338,52 +499,30 @@ public class MainFrame extends JFrame {
         }
     }
 
-    private void doSettings() {
-        String oldLang = appConfig.getLanguage();
-        ThemeMode oldTheme = appConfig.getTheme();
-
-        SettingsDialog dlg = new SettingsDialog(this, appConfig, configManager,
-            vaultService.getSshKeyService().getActiveList());
-        dlg.setVisible(true);
-
-        // Changing the working folder requires a clean re-login: save+wipe the current
-        // session and return to the login screen, where the new folder is chosen. Checked
-        // before isSaved() because this path intentionally discards other dialog edits.
-        if (dlg.isWorkspaceChangeRequested()) {
-            doLock();
-            return;
-        }
-        if (!dlg.isSaved()) return;
-
-        boolean langChanged = !oldLang.equals(appConfig.getLanguage());
-        boolean themeChanged = oldTheme != appConfig.getTheme();
-
-        if (langChanged) {
-            // Rebuild entirely: the new MainFrame handles sync/status/clipboard/timer
+    /**
+     * Applies the (already-saved) settings to the running app, called by the Settings panel's
+     * Apply. A language or theme change rebuilds the whole window so every component is
+     * reconstructed with fresh colors/strings (Swing's updateComponentTreeUI does not refresh
+     * explicitly-set foreground colors); the rebuilt window reopens on the Settings view so the
+     * user stays where they were. Other changes apply live without a rebuild.
+     */
+    private void applySettings() {
+        boolean langChanged = !appliedLang.equals(appConfig.getLanguage());
+        boolean themeChanged = appliedTheme != appConfig.getTheme();
+        if (langChanged || themeChanged) {
             lang.setLanguage(appConfig.getLanguage());
             applyTheme();
-            rebuildMainFrame();
-        } else {
-            // Apply live on current frame
-            updateSyncVaultKey();
-            syncService = DesktopSyncFactory.create(appConfig, vaultKeyBytes);
-            statusLabel.setText(getStatusText());
-            vaultPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
-            appPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
-            sshKeyPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
-            vaultPanel.setFaviconsEnabled(appConfig.isFaviconsEnabled());
-            autoLockManager.startAutoLock();
-            boolean remoteEnabled = appConfig.getStorageMode() == StorageMode.REMOTE;
-            syncNowMenuItem.setEnabled(remoteEnabled);
-            syncToolbarBtn.setEnabled(remoteEnabled);
-
-            if (themeChanged) {
-                applyTheme();
-                SwingUtilities.updateComponentTreeUI(this);
-                pack();
-                setSize(1100, 700);
-            }
+            rebuildMainFrame(VIEW_SETTINGS); // stay on Settings after the rebuild
+            return;
         }
+        updateSyncVaultKey();
+        syncService = DesktopSyncFactory.create(appConfig, vaultKeyBytes);
+        statusLabel.setText(getStatusText());
+        coffrePasswordsPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
+        appPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
+        sshKeyPanel.setClipboardClearSeconds(appConfig.getClipboardClearSeconds());
+        coffrePasswordsPanel.setFaviconsEnabled(appConfig.isFaviconsEnabled());
+        autoLockManager.startAutoLock();
     }
 
     private void applyTheme() {
@@ -408,10 +547,16 @@ public class MainFrame extends JFrame {
     }
 
     private void rebuildMainFrame() {
+        rebuildMainFrame(VIEW_PASSWORDS);
+    }
+
+    private void rebuildMainFrame(String startView) {
         Runtime.getRuntime().removeShutdownHook(shutdownHook);
         cleanup();
         dispose();
-        new MainFrame(vault, username, session, vaultManager, appConfig, configManager).setVisible(true);
+        MainFrame f = new MainFrame(vault, username, session, vaultManager, appConfig, configManager);
+        f.setVisible(true);
+        f.switchView(startView);
     }
 
     private void doChangeMasterPassword() {
@@ -465,7 +610,7 @@ public class MainFrame extends JFrame {
 
     private void cleanup() {
         autoLockManager.cleanup();
-        vaultPanel.cancelClipboardTimer();
+        coffrePasswordsPanel.cancelClipboardTimer();
         appPanel.cancelClipboardTimer();
         sshKeyPanel.cancelClipboardTimer();
         if (updateManager != null) updateManager.stop();
@@ -695,79 +840,12 @@ public class MainFrame extends JFrame {
         }
     }
 
-    private void addNewEntryForActiveTab() {
-        int idx = tabbedPane.getSelectedIndex();
-        switch (idx) {
-            case 1: appPanel.addNewEntry(); break;
-            case 2: sshKeyPanel.addNewEntry(); break;
-            default: vaultPanel.addNewEntry(); break;
-        }
-    }
-
-    private void editEntryForActiveTab() {
-        int idx = tabbedPane.getSelectedIndex();
-        switch (idx) {
-            case 1: appPanel.editSelectedEntry(); break;
-            case 2: sshKeyPanel.editSelectedEntry(); break;
-            default: vaultPanel.editSelectedEntry(); break;
-        }
-    }
-
-    private void deleteEntryForActiveTab() {
-        int idx = tabbedPane.getSelectedIndex();
-        switch (idx) {
-            case 1: appPanel.deleteSelectedEntry(); break;
-            case 2: sshKeyPanel.deleteSelectedEntry(); break;
-            default: vaultPanel.deleteSelectedEntry(); break;
-        }
-    }
-
     private void refreshAllPanels() {
-        vaultPanel.refreshAll();
-        appPanel.refreshEntries();
-        sshKeyPanel.refreshEntries();
-    }
-
-    /**
-     * Dispatches a sort-field request to the panel that corresponds to the
-     * currently selected tab.  If the requested field is not valid for the
-     * active panel, TITLE is used as a safe fallback.
-     *
-     * Valid fields per panel:
-     *   Passwords  (0) - TITLE, USERNAME, EMAIL, URL, DATE, CATEGORY
-     *   Applications (1) - TITLE, USERNAME, DATE
-     *   SSH Keys (2) - TITLE, DATE
-     */
-    private void setSortModeForActiveTab(SortField field) {
-        int idx = tabbedPane.getSelectedIndex();
-        switch (idx) {
-            case 1: // Applications
-                switch (field) {
-                    case TITLE:
-                    case USERNAME:
-                    case DATE:
-                        appPanel.setSortMode(field);
-                        break;
-                    default:
-                        appPanel.setSortMode(SortField.TITLE);
-                        break;
-                }
-                break;
-            case 2: // SSH Keys
-                switch (field) {
-                    case TITLE:
-                    case DATE:
-                        sshKeyPanel.setSortMode(field);
-                        break;
-                    default:
-                        sshKeyPanel.setSortMode(SortField.TITLE);
-                        break;
-                }
-                break;
-            default: // Passwords (index 0)
-                vaultPanel.setSortMode(field);
-                break;
-        }
+        coffrePasswordsPanel.refresh();
+        appPanel.refresh();
+        sshKeyPanel.refresh();
+        refreshSideCategories();
+        refreshTypeCounts();
     }
 
     private String getStatusText() {

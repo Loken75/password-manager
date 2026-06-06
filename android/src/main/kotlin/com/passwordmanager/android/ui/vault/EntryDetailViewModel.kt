@@ -15,7 +15,10 @@ import javax.inject.Inject
 
 data class EntryDetailUiState(
     val entry: PasswordEntry? = null,
-    val passwordVisible: Boolean = false
+    val passwordVisible: Boolean = false,
+    // Bumped on every (re)load so StateFlow always emits a distinct value even when the
+    // underlying entry object is mutated in place (e.g. toggling favorite), forcing recomposition.
+    val refreshToken: Long = 0
 )
 
 @HiltViewModel
@@ -29,7 +32,10 @@ class EntryDetailViewModel @Inject constructor(
     fun loadEntry(entryId: String) {
         val entry = sessionHolder.vaultService?.search("")
             ?.find { it.id == entryId }
-        _uiState.value = EntryDetailUiState(entry = entry)
+        _uiState.value = _uiState.value.copy(
+            entry = entry,
+            refreshToken = _uiState.value.refreshToken + 1
+        )
     }
 
     fun togglePasswordVisibility() {

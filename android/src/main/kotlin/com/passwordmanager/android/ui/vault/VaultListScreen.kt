@@ -2,6 +2,8 @@ package com.passwordmanager.android.ui.vault
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -21,7 +23,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
+import com.passwordmanager.android.ui.components.BentoDashboard
 import com.passwordmanager.android.ui.components.ConfirmDialog
+import com.passwordmanager.android.ui.components.DateFilterChip
 import com.passwordmanager.android.ui.components.EntryCard
 import com.passwordmanager.android.ui.components.ExportDialog
 import com.passwordmanager.android.ui.components.ImportDialog
@@ -328,6 +332,11 @@ fun VaultListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // Bento dashboard (health / weak / total) — only when not selecting/searching
+            if (!state.isSelectionMode && state.entries.isNotEmpty()) {
+                BentoDashboard(state.entries)
+            }
+
             // Category dropdown filter
             if (state.categories.isNotEmpty()) {
                 var categoryExpanded by remember { mutableStateOf(false) }
@@ -437,6 +446,19 @@ fun VaultListScreen(
                         )
                     }
                 }
+            }
+
+            // Date filters (parity with desktop)
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                DateFilterChip(stringResource(R.string.filter_created_since), state.createdSince, viewModel::setCreatedSince)
+                DateFilterChip(stringResource(R.string.filter_modified_since), state.modifiedSince, viewModel::setModifiedSince)
+                DateFilterChip(stringResource(R.string.filter_created_on), state.createdOn, viewModel::setCreatedOn)
+                DateFilterChip(stringResource(R.string.filter_modified_on), state.modifiedOn, viewModel::setModifiedOn)
             }
             Spacer(modifier = Modifier.height(8.dp))
 

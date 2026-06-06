@@ -6,7 +6,7 @@
 > Android : un dossier choisi via le **Storage Access Framework (SAF)**, donc visible
 > par les explorateurs de fichiers et survivant à la désinstallation.
 >
-> Statut : **PLAN — en attente de validation. Aucune implémentation tant que GO non donné.**
+> Statut : **✅ IMPLÉMENTÉ — toutes les phases sont livrées** (commit « Add configurable vault working folder (workspace) across all clients »). Document conservé comme référence de conception / archive.
 
 ---
 
@@ -45,7 +45,7 @@ public interface VaultStore {
     long size(String name) throws IOException;
     byte[] read(String name) throws IOException;
     /** Écriture atomique + permissions, gérées par l'implémentation (temp+rename / doc SAF). */
-    void write(String name, byte[] data) throws IOException;
+    void writeAtomic(String name, byte[] data) throws IOException;   // implémenté sous ce nom
     void copy(String from, String to) throws IOException;   // pour les .bak
     void delete(String name) throws IOException;
     long lastModified(String name);
@@ -111,8 +111,10 @@ byte[]  readVaultBytes(String username)                    // pour sync (remplac
 VaultStore getStore()
 ```
 
-`getVaultPath(String)` est **conservé** mais ne fonctionne que pour `FileVaultStore`
-(desktop). Pour Android-SAF, les appelants passent par `readVaultBytes` + fichier temp.
+Le contrat « chemin réel, sinon exception » a été réalisé via `VaultStore.pathOf(name)`
+(et non `getVaultPath`) : il ne fonctionne que pour `FileVaultStore` (desktop) et lève
+`UnsupportedOperationException` côté `SafVaultStore`. Pour Android-SAF, les appelants
+passent par `readVaultBytes` + fichier temp.
 
 ---
 

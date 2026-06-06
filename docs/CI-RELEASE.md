@@ -27,10 +27,12 @@ on:
 
 | Job | Runs-on | JDK | Role |
 |-----|---------|-----|------|
-| `test-core-desktop` | ubuntu-latest | 21 | Tests core + compilation desktop + tests desktop |
-| `test-android` | ubuntu-latest | 17 | Compilation Android + tests unitaires Android |
+| `test-core-desktop` | ubuntu-latest | 21 | Tests core + porte de couverture JaCoCo + compilation et tests desktop |
+| `test-android` | ubuntu-latest | 17 | Compilation Android + tests unitaires + Android Lint |
+| `test-android-instrumented` | ubuntu-latest | 17 | Tests instrumentes Android sur emulateur (KVM) |
+| `dependency-scan` | ubuntu-latest | 21 | SBOM CycloneDX + scan de vulnerabilites Trivy |
 
-Les deux jobs s'executent **en parallele** et sont independants.
+Les quatre jobs s'executent **en parallele** et sont independants.
 
 ### Job : test-core-desktop
 
@@ -48,6 +50,21 @@ Les deux jobs s'executent **en parallele** et sont independants.
 3. `./gradlew :android:compileDebugKotlin` — verifie la compilation Kotlin Android
 4. `./gradlew :android:testDebugUnitTest` — execute les tests unitaires Android
 5. `./gradlew :android:lintDebug` — **Android Lint** : echoue sur tout nouveau probleme par rapport a `android/lint-baseline.xml` (les problemes existants sont grandfathered)
+
+### Job : test-android-instrumented
+
+1. Checkout du code
+2. Setup JDK 17 (Temurin) + Gradle
+3. **Activation de KVM** — expose `/dev/kvm` au runner pour l'acceleration materielle de l'emulateur
+4. `reactivecircus/android-emulator-runner@v2` (API 34, `google_apis`, `x86_64`) execute `./gradlew :android:connectedDebugAndroidTest` — valide le vrai Android Keystore, `EncryptedSharedPreferences` et l'UI Compose sur emulateur. Le chemin du prompt biometrique est exclu (QA manuelle, voir `docs/manual-qa-biometric.md`).
+
+### Job : dependency-scan
+
+1. Checkout du code
+2. Setup JDK 21 (Temurin) + Android SDK (le SBOM agrege resout le classpath release `:android`) + Gradle
+3. `./gradlew cyclonedxBom` — genere un SBOM CycloneDX agrege (`build/reports/bom.json`)
+4. Scan Trivy du SBOM (`aquasecurity/trivy-action`, `scan-type: sbom`) — **echoue** (`exit-code: 1`) sur toute vulnerabilite **HIGH/CRITICAL**
+5. Upload du SBOM en artifact (`sbom-cyclonedx`, `if: always()`)
 
 ### Mises a jour de dependances (Dependabot)
 
@@ -96,16 +113,19 @@ automatiquement des releases du Password Manager pour **Linux**, **Windows**,
            +------+------+------+-----+
                   |
                   v
-        +---------------------------+
-        |     Job: Release          |
-        | needs: [build-desktop,    |
-        |         build-android]    |
-        +---------------------------+
-        | 1. Download all artifacts |
-        | 2. Generate SHA256SUMS    |
-        | 3. gh release create      |
-        |    + attach 5 files       |
-        +---------------------------+
+        +-----------------------------+
+        |     Job: Release            |
+        | needs: [build-desktop,      |
+        |         build-android,      |
+        |         build-sbom]         |
+        +-----------------------------+
+        | 1. Download all artifacts   |
+        | 2. Generate SHA256SUMS      |
+        | 3. Sign artifacts (GPG)     |
+        | 4. gh release create        |
+        |    + attach archives, SBOM, |
+        |      SHA256SUMS, .asc       |
+        +-----------------------------+
                   |
                   v
         +------------------------------------+
@@ -114,9 +134,13 @@ automatiquement des releases du Password Manager pour **Linux**, **Windows**,
         |   - 1.0.0-windows-x64.zip         |
         |   - 1.0.0-macos-aarch64.tar.gz    |
         |   - 1.0.0-android.apk             |
+        |   - 1.0.0-sbom.json               |
         |   - SHA256SUMS.txt                 |
+        |   - *.asc (signatures GPG)         |
         +------------------------------------+
 ```
+
+> Un cinquieme job `build-sbom` (Ubuntu, JDK 21) genere le SBOM CycloneDX du projet en parallele des builds desktop/Android ; il alimente le job `release`.
 
 ---
 
@@ -142,23 +166,24 @@ git push origin v1.0.0
 
 ## Structure du workflow
 
-Le workflow contient **trois jobs** :
+Le workflow contient **quatre jobs** :
 
 | Job             | Runs-on              | JDK | Role                                          |
 |-----------------|----------------------|-----|-----------------------------------------------|
 | `build-desktop` | matrix (3 OS)        | 21  | Compile core+desktop, teste, package avec JRE  |
-| `build-android` | ubuntu-latest        | 17  | Compile core+android, produit l'APK            |
+| `build-android` | ubuntu-latest        | 17  | Compile core+android, produit l'APK signe      |
+| `build-sbom`    | ubuntu-latest        | 21  | Genere le SBOM CycloneDX du projet             |
 | `release`       | ubuntu-latest        | -   | Cree la release GitHub et attache les archives  |
 
 ### Dependance entre jobs
 
 ```
 build-desktop (3 runners en parallele) --+
-                                         +--> release (attend que tous finissent)
-build-android (1 runner) ----------------+
+build-android (1 runner) ----------------+--> release (attend que tous finissent)
+build-sbom (1 runner) -------------------+
 ```
 
-Le job `release` declare `needs: [build-desktop, build-android]`, il ne demarre que lorsque les 4 builds ont reussi.
+Le job `release` declare `needs: [build-desktop, build-android, build-sbom]`, il ne demarre que lorsque tous les builds (3 desktop + Android + SBOM) ont reussi.
 
 ---
 
@@ -209,7 +234,7 @@ garantit une distribution native pour chaque plateforme.
     rm -f gradle.properties.bak
 ```
 
-La version est derivee du tag (`v1.4.2` -> `1.4.2`) puis injectee dans `gradle.properties` (`appVersion`). Cette etape est presente dans les trois jobs (`build-desktop`, `build-android`, `release`) et sert a nommer les artefacts et a versionner le build. Pour `build-desktop` et `build-android`, l'injection met aussi a jour `appVersion` avant compilation.
+La version est derivee du tag (`v1.4.2` -> `1.4.2`) puis injectee dans `gradle.properties` (`appVersion`). Cette etape est presente dans les quatre jobs (`build-desktop`, `build-android`, `build-sbom`, `release`) et sert a nommer les artefacts et a versionner le build. Pour `build-desktop`, `build-android` et `build-sbom`, l'injection met aussi a jour `appVersion` avant compilation.
 
 #### 2. Installation du JDK + Gradle
 
@@ -395,9 +420,23 @@ Produit `android/build/outputs/apk/release/android-release.apk`.
 
 ---
 
-## Job 3 : Release
+## Job 3 : Build SBOM
 
-Ce job s'execute sur `ubuntu-latest` apres que les 4 builds (3 desktop + 1 Android) aient reussi.
+Ce job s'execute en parallele des builds desktop et Android, sur `ubuntu-latest` (JDK 21 + Android SDK).
+
+### Etapes
+
+1. Checkout + **Extract version** / **Inject version** (meme logique que les autres jobs)
+2. Setup JDK 21 + Android SDK + Gradle
+3. `./gradlew cyclonedxBom` — genere le SBOM CycloneDX agrege du projet
+4. Renommage : `mv build/reports/bom.json password-manager-<version>-sbom.json`
+5. Upload de l'artifact `password-manager-<version>-sbom` (le SBOM est attache a la release)
+
+---
+
+## Job 4 : Release
+
+Ce job s'execute sur `ubuntu-latest` apres que tous les builds (3 desktop + 1 Android + SBOM) aient reussi.
 
 ### Etapes
 
@@ -412,7 +451,7 @@ Le job demarre par l'etape **Extract version** (meme logique que les autres jobs
     merge-multiple: true
 ```
 
-Telecharge les 4 archives produites par les jobs `build-desktop` et `build-android`.
+Telecharge les artefacts produits par les jobs `build-desktop`, `build-android` et `build-sbom` (archives desktop, APK et SBOM).
 
 #### 2. Generation des checksums SHA-256
 
@@ -420,7 +459,7 @@ Telecharge les 4 archives produites par les jobs `build-desktop` et `build-andro
 - name: Generate checksums
   run: |
     cd release-assets
-    sha256sum *.tar.gz *.zip *.apk > SHA256SUMS.txt
+    sha256sum *.tar.gz *.zip *.apk *-sbom.json > SHA256SUMS.txt
 ```
 
 Genere un fichier `SHA256SUMS.txt` contenant les empreintes SHA-256 de chaque archive. Ce fichier permet aux utilisateurs de verifier l'integrite des telechargements.
@@ -478,7 +517,9 @@ sha256sum -c SHA256SUMS.txt
       release-assets/password-manager-<version>-windows-x64.zip
       release-assets/password-manager-<version>-macos-aarch64.tar.gz
       release-assets/password-manager-<version>-android.apk
+      release-assets/password-manager-<version>-sbom.json
       release-assets/SHA256SUMS.txt
+      release-assets/*.asc
 ```
 
 **`generate_release_notes: true`** genere automatiquement les notes de
@@ -510,7 +551,7 @@ git push origin v1.0.0
 ### Suivre le build
 
 1. Aller sur **GitHub > Actions** pour voir le workflow en cours
-2. Les 3 builds tournent en parallele (~3-5 min)
+2. Les builds (3 desktop + Android + SBOM) tournent en parallele (~3-5 min)
 3. Une fois termines, la release apparait dans **GitHub > Releases**
 
 ### Telecharger une release (utilisateur final)
@@ -537,7 +578,7 @@ Aucune installation de Java n'est requise : le JRE est embarque.
 | **Plateformes**     | Linux x64, Windows x64, macOS aarch64, Android (APK)        |
 | **JDK desktop**     | Temurin 21 (build + jlink)                                   |
 | **JDK Android**     | Temurin 17 (AGP 8.7.3)                                       |
-| **Build system**    | Gradle 8.11 (wrapper), multi-module `:core`/`:desktop`/`:android` |
+| **Build system**    | Gradle 8.12 (wrapper), multi-module `:core`/`:desktop`/`:android` |
 | **Tests desktop**   | `:core:test` + `:desktop:test` sur chaque OS desktop (~390 tests) |
 | **Taille desktop**  | ~20-25 Mo (JAR 2 Mo + JRE compresse ~57 Mo / par OS)        |
 | **Taille APK**      | ~5-10 Mo (release, signe)                                    |

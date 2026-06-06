@@ -2,6 +2,10 @@ package com.passwordmanager.ui;
 
 import com.passwordmanager.crypto.PasswordGenerator;
 import com.passwordmanager.i18n.LanguageManager;
+import com.passwordmanager.ui.components.Buttons;
+import com.passwordmanager.ui.components.RoundedPanel;
+import com.passwordmanager.ui.components.StrengthMeter;
+import com.passwordmanager.ui.theme.DesignTokens;
 import com.passwordmanager.util.SecureWiper;
 
 import javax.swing.*;
@@ -16,8 +20,7 @@ public class PasswordGeneratorDialog extends JDialog {
     private JPasswordField resultField;
     private JSpinner lengthSpinner;
     private JCheckBox upperCheck, lowerCheck, digitsCheck, specialCheck, ambiguousCheck;
-    private JProgressBar strengthBar;
-    private JLabel strengthLabel;
+    private StrengthMeter strengthMeter;
     private char[] generatedPassword;
     private int clipboardClearSeconds = 30;
     private Timer clipboardTimer;
@@ -33,69 +36,78 @@ public class PasswordGeneratorDialog extends JDialog {
     }
 
     private void initComponents() {
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout());
         JPanel mainPanel = new JPanel();
         mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 10, 15));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(
+            DesignTokens.SPACE_XL, DesignTokens.SPACE_XL, DesignTokens.SPACE_LG, DesignTokens.SPACE_XL));
 
-        // Result field
-        JPanel resultPanel = new JPanel(new BorderLayout(5, 0));
-        resultPanel.setBorder(BorderFactory.createTitledBorder(lang.getString("generator.title")));
-        resultField = new JPasswordField(25);
-        resultField.setEchoChar((char) 0); // Show password in clear by default
+        // Result card (mono value + regenerate/copy)
+        RoundedPanel resultPanel = new RoundedPanel();
+        resultPanel.setArc(DesignTokens.RADIUS_CARD);
+        resultPanel.setFillColor(DesignTokens.surfaceSubtle());
+        resultPanel.setDrawBorder(false);
+        resultPanel.setLayout(new BorderLayout(DesignTokens.SPACE_SM, 0));
+        resultPanel.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 12));
+        resultPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        resultPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 56));
+        resultField = new JPasswordField();
+        resultField.setEchoChar((char) 0);
         resultField.setEditable(false);
-        resultField.setFont(new Font("Monospaced", Font.BOLD, 14));
+        resultField.setBorder(null);
+        resultField.setOpaque(false);
+        resultField.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
         resultPanel.add(resultField, BorderLayout.CENTER);
-
-        JPanel resultButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
+        JPanel resultButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, 0));
+        resultButtons.setOpaque(false);
+        JButton refreshBtn = Buttons.tonal(lang.getString("generator.generate"));
         JButton copyBtn = new JButton(lang.getString("generator.copy"));
-        JButton refreshBtn = new JButton(lang.getString("generator.generate"));
-        resultButtons.add(copyBtn);
         resultButtons.add(refreshBtn);
+        resultButtons.add(copyBtn);
         resultPanel.add(resultButtons, BorderLayout.EAST);
         mainPanel.add(resultPanel);
-        mainPanel.add(Box.createVerticalStrut(5));
+        mainPanel.add(Box.createVerticalStrut(DesignTokens.SPACE_MD));
 
-        // Strength
-        JPanel strengthPanel = new JPanel(new BorderLayout(5, 0));
-        strengthBar = new JProgressBar(0, 100);
-        strengthBar.setStringPainted(true);
-        strengthLabel = new JLabel("  ");
-        strengthPanel.add(new JLabel(lang.getString("strength.label") + " : "), BorderLayout.WEST);
-        strengthPanel.add(strengthBar, BorderLayout.CENTER);
-        strengthPanel.add(strengthLabel, BorderLayout.EAST);
-        mainPanel.add(strengthPanel);
-        mainPanel.add(Box.createVerticalStrut(10));
+        // Strength meter
+        strengthMeter = new StrengthMeter();
+        strengthMeter.setAlignmentX(Component.LEFT_ALIGNMENT);
+        strengthMeter.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        mainPanel.add(strengthMeter);
+        mainPanel.add(Box.createVerticalStrut(DesignTokens.SPACE_LG));
 
-        // Options
-        JPanel optPanel = new JPanel(new GridLayout(0, 1, 5, 5));
-        optPanel.setBorder(BorderFactory.createTitledBorder(lang.getString("generator.options")));
-
-        JPanel lenPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        lenPanel.add(new JLabel(lang.getString("generator.length") + " :"));
+        // Length
+        JPanel lenPanel = new JPanel(new BorderLayout());
+        lenPanel.setOpaque(false);
+        lenPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        lenPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+        JLabel lenLabel = new JLabel(lang.getString("generator.length"));
+        lenPanel.add(lenLabel, BorderLayout.WEST);
         lengthSpinner = new JSpinner(new SpinnerNumberModel(16, 8, 128, 1));
-        lenPanel.add(lengthSpinner);
-        optPanel.add(lenPanel);
+        JPanel spinnerWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        spinnerWrap.setOpaque(false);
+        spinnerWrap.add(lengthSpinner);
+        lenPanel.add(spinnerWrap, BorderLayout.EAST);
+        mainPanel.add(lenPanel);
+        mainPanel.add(Box.createVerticalStrut(DesignTokens.SPACE_SM));
 
         upperCheck = new JCheckBox(lang.getString("generator.uppercase"), true);
         lowerCheck = new JCheckBox(lang.getString("generator.lowercase"), true);
         digitsCheck = new JCheckBox(lang.getString("generator.digits"), true);
         specialCheck = new JCheckBox(lang.getString("generator.special"), true);
         ambiguousCheck = new JCheckBox(lang.getString("generator.exclude_ambiguous"), false);
-
-        optPanel.add(upperCheck);
-        optPanel.add(lowerCheck);
-        optPanel.add(digitsCheck);
-        optPanel.add(specialCheck);
-        optPanel.add(ambiguousCheck);
-        mainPanel.add(optPanel);
+        for (JCheckBox cb : new JCheckBox[]{upperCheck, lowerCheck, digitsCheck, specialCheck, ambiguousCheck}) {
+            cb.setAlignmentX(Component.LEFT_ALIGNMENT);
+            cb.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+            mainPanel.add(cb);
+        }
 
         add(mainPanel, BorderLayout.CENTER);
 
-        // Bottom buttons
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        // Bottom buttons (ghost cancel + primary use)
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD));
+        btnPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, DesignTokens.outline()));
         JButton cancelBtn = new JButton(lang.getString("common.cancel"));
-        JButton useBtn = new JButton(lang.getString("generator.use"));
+        JButton useBtn = Buttons.primary(lang.getString("generator.use"));
         btnPanel.add(cancelBtn);
         btnPanel.add(useBtn);
         add(btnPanel, BorderLayout.SOUTH);
@@ -140,7 +152,7 @@ public class PasswordGeneratorDialog extends JDialog {
         doGenerate();
 
         pack();
-        setMinimumSize(new Dimension(450, 420));
+        setMinimumSize(new Dimension(470, 440));
         setLocationRelativeTo(getOwner());
     }
 
@@ -155,7 +167,7 @@ public class PasswordGeneratorDialog extends JDialog {
         // JPasswordField stores internally as char[] — setText creates a temporary String
         // but the field's Document model stores char[]. This is the minimal conversion path.
         resultField.setText(new String(generatedPassword));
-        StrengthBarHelper.update(strengthBar, strengthLabel, generatedPassword);
+        strengthMeter.update(generatedPassword);
     }
 
     private void cancelClipboardTimer() {

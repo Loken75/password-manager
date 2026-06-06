@@ -2,6 +2,8 @@ package com.passwordmanager.ui;
 
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.vault.SshKeyEntry;
+import com.passwordmanager.ui.components.Buttons;
+import com.passwordmanager.ui.theme.DesignTokens;
 import com.passwordmanager.util.SecureWiper;
 
 import javax.swing.*;
@@ -17,7 +19,7 @@ public class SshKeyEntryDialog extends JDialog {
     private JTextField titleField;
     private JComboBox<String> keyTypeCombo;
     private JPasswordField privateKeyField;
-    private JCheckBox showPrivateKeyCheck;
+    private JToggleButton revealToggle;
     private JTextArea publicKeyArea;
     private JTextField fingerprintField;
     private JTextArea notesArea;
@@ -35,90 +37,54 @@ public class SshKeyEntryDialog extends JDialog {
     }
 
     private void initComponents() {
-        setLayout(new BorderLayout(10, 10));
-        JPanel form = new JPanel(new GridBagLayout());
-        form.setBorder(BorderFactory.createEmptyBorder(15, 15, 10, 15));
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.anchor = GridBagConstraints.WEST;
+        setLayout(new BorderLayout());
+        JPanel form = new JPanel();
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.setBorder(BorderFactory.createEmptyBorder(
+            DesignTokens.SPACE_XL, DesignTokens.SPACE_XL, DesignTokens.SPACE_LG, DesignTokens.SPACE_XL));
 
-        int row = 0;
+        titleField = new JTextField();
+        form.add(group(lang.getString("entry.title") + " *", titleField));
 
-        // Title (name)
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        form.add(new JLabel(lang.getString("entry.title") + " *"), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
-        titleField = new JTextField(25);
-        form.add(titleField, gbc);
-        gbc.gridwidth = 1;
-
-        // Key type
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        form.add(new JLabel(lang.getString("ssh.key_type")), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
         keyTypeCombo = new JComboBox<>(new String[]{"ED25519", "RSA"});
-        form.add(keyTypeCombo, gbc);
-        gbc.gridwidth = 1;
+        form.add(group(lang.getString("ssh.key_type"), keyTypeCombo));
 
-        // Private key + show toggle
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        form.add(new JLabel(lang.getString("ssh.private_key")), gbc);
-        gbc.gridx = 1; gbc.weightx = 1;
-        privateKeyField = new JPasswordField(25);
+        // Private key row: field + reveal
+        privateKeyField = new JPasswordField();
         echoChar = privateKeyField.getEchoChar();
-        form.add(privateKeyField, gbc);
-        gbc.gridx = 2; gbc.weightx = 0;
-        showPrivateKeyCheck = new JCheckBox(lang.getString("entry.show_password"));
-        form.add(showPrivateKeyCheck, gbc);
+        revealToggle = new JToggleButton(lang.getString("entry.show_password"));
+        revealToggle.setFocusPainted(false);
+        JPanel pkRow = new JPanel(new BorderLayout(DesignTokens.SPACE_SM, 0));
+        pkRow.setOpaque(false);
+        pkRow.add(privateKeyField, BorderLayout.CENTER);
+        pkRow.add(revealToggle, BorderLayout.EAST);
+        form.add(group(lang.getString("ssh.private_key"), pkRow));
 
-        // Public key (multi-line, read-only style but editable for input)
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0; gbc.anchor = GridBagConstraints.NORTHWEST;
-        form.add(new JLabel(lang.getString("ssh.public_key")), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
-        gbc.fill = GridBagConstraints.BOTH;
         publicKeyArea = new JTextArea(3, 25);
         publicKeyArea.setLineWrap(true);
-        form.add(new JScrollPane(publicKeyArea), gbc);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.gridwidth = 1;
-        gbc.anchor = GridBagConstraints.WEST;
+        form.add(group(lang.getString("ssh.public_key"), new JScrollPane(publicKeyArea)));
 
-        // Fingerprint
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        form.add(new JLabel(lang.getString("ssh.fingerprint")), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
-        fingerprintField = new JTextField(25);
-        form.add(fingerprintField, gbc);
-        gbc.gridwidth = 1;
+        fingerprintField = new JTextField();
+        form.add(group(lang.getString("ssh.fingerprint"), fingerprintField));
 
-        // Notes
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0; gbc.anchor = GridBagConstraints.NORTHWEST;
-        form.add(new JLabel(lang.getString("entry.notes")), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2; gbc.weighty = 1;
-        gbc.fill = GridBagConstraints.BOTH;
         notesArea = new JTextArea(3, 25);
         notesArea.setLineWrap(true);
-        form.add(new JScrollPane(notesArea), gbc);
+        form.add(group(lang.getString("entry.notes"), new JScrollPane(notesArea)));
 
         add(form, BorderLayout.CENTER);
 
-        // Buttons
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        // Buttons (ghost cancel + primary save)
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD));
+        btnPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, DesignTokens.outline()));
         JButton cancelBtn = new JButton(lang.getString("common.cancel"));
-        JButton saveBtn = new JButton(lang.getString("common.save"));
+        JButton saveBtn = Buttons.primary(lang.getString("common.save"));
         btnPanel.add(cancelBtn);
         btnPanel.add(saveBtn);
         add(btnPanel, BorderLayout.SOUTH);
 
         // Listeners
-        showPrivateKeyCheck.addActionListener(e ->
-            privateKeyField.setEchoChar(showPrivateKeyCheck.isSelected() ? (char) 0 : echoChar));
+        revealToggle.addActionListener(e ->
+            privateKeyField.setEchoChar(revealToggle.isSelected() ? (char) 0 : echoChar));
 
         cancelBtn.addActionListener(e -> dispose());
 
@@ -134,8 +100,27 @@ public class SshKeyEntryDialog extends JDialog {
         });
 
         pack();
-        setMinimumSize(new Dimension(550, 450));
+        setMinimumSize(new Dimension(540, 520));
         setLocationRelativeTo(getOwner());
+    }
+
+    /** A captioned field group: small muted caption above a full-width control. */
+    private JComponent group(String caption, JComponent comp) {
+        JPanel p = new JPanel();
+        p.setOpaque(false);
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setAlignmentX(Component.LEFT_ALIGNMENT);
+        p.setBorder(BorderFactory.createEmptyBorder(0, 0, DesignTokens.SPACE_MD, 0));
+        JLabel c = new JLabel(caption);
+        c.setFont(c.getFont().deriveFont(Font.BOLD, 12f));
+        c.setForeground(DesignTokens.onSurfaceFaint());
+        c.setAlignmentX(Component.LEFT_ALIGNMENT);
+        comp.setAlignmentX(Component.LEFT_ALIGNMENT);
+        comp.setMaximumSize(new Dimension(Integer.MAX_VALUE, Math.max(comp.getPreferredSize().height, 32)));
+        p.add(c);
+        p.add(Box.createVerticalStrut(6));
+        p.add(comp);
+        return p;
     }
 
     private void populateFields(SshKeyEntry e) {

@@ -3,6 +3,9 @@ package com.passwordmanager.ui;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.vault.PasswordEntry;
 
+import com.passwordmanager.ui.components.Buttons;
+import com.passwordmanager.ui.components.StrengthMeter;
+import com.passwordmanager.ui.theme.DesignTokens;
 import com.passwordmanager.util.SecureWiper;
 
 import javax.swing.*;
@@ -23,13 +26,12 @@ public class EntryDialog extends JDialog {
     private JTextField usernameField;
     private JTextField emailField;
     private JPasswordField passwordField;
-    private JCheckBox showPasswordCheck;
+    private JToggleButton revealToggle;
     private JTextField urlField;
     private JTextArea notesArea;
     private JComboBox<String> categoryCombo;
     private JTextField tagsField;
-    private JProgressBar strengthBar;
-    private JLabel strengthLabel;
+    private StrengthMeter strengthMeter;
     private boolean confirmed = false;
     private PasswordEntry entry;
     private char echoChar;
@@ -44,124 +46,76 @@ public class EntryDialog extends JDialog {
     }
 
     private void initComponents(List<String> categories) {
-        setLayout(new BorderLayout(10, 10));
-        JPanel form = new JPanel(new GridBagLayout());
-        form.setBorder(BorderFactory.createEmptyBorder(15, 15, 10, 15));
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.anchor = GridBagConstraints.WEST;
+        setLayout(new BorderLayout());
+        JPanel form = new JPanel();
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.setBorder(BorderFactory.createEmptyBorder(
+            DesignTokens.SPACE_XL, DesignTokens.SPACE_XL, DesignTokens.SPACE_LG, DesignTokens.SPACE_XL));
 
-        int row = 0;
+        titleField = new JTextField();
+        form.add(group(lang.getString("entry.title") + " *", titleField));
+        usernameField = new JTextField();
+        form.add(group(lang.getString("entry.username"), usernameField));
+        emailField = new JTextField();
+        form.add(group(lang.getString("entry.email"), emailField));
 
-        // Title
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        form.add(new JLabel(lang.getString("entry.title") + " *"), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
-        titleField = new JTextField(25);
-        form.add(titleField, gbc);
-        gbc.gridwidth = 1;
-
-        // Username
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        form.add(new JLabel(lang.getString("entry.username")), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
-        usernameField = new JTextField(25);
-        form.add(usernameField, gbc);
-        gbc.gridwidth = 1;
-
-        // Email
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        form.add(new JLabel(lang.getString("entry.email")), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
-        emailField = new JTextField(25);
-        form.add(emailField, gbc);
-        gbc.gridwidth = 1;
-
-        // Password + show/generate
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        form.add(new JLabel(lang.getString("entry.password") + " *"), gbc);
-        gbc.gridx = 1; gbc.weightx = 1;
-        passwordField = new JPasswordField(20);
+        // Password row: field + reveal + generate
+        passwordField = new JPasswordField();
         echoChar = passwordField.getEchoChar();
-        form.add(passwordField, gbc);
-        gbc.gridx = 2; gbc.weightx = 0;
-        JPanel passButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
-        showPasswordCheck = new JCheckBox(lang.getString("entry.show_password"));
-        JButton generateBtn = new JButton(lang.getString("entry.generate"));
-        passButtons.add(showPasswordCheck);
-        passButtons.add(generateBtn);
-        form.add(passButtons, gbc);
+        revealToggle = new JToggleButton(lang.getString("entry.show_password"));
+        revealToggle.setFocusPainted(false);
+        JButton generateBtn = Buttons.tonal(lang.getString("entry.generate"));
+        JPanel passRow = new JPanel(new BorderLayout(DesignTokens.SPACE_SM, 0));
+        passRow.setOpaque(false);
+        passRow.add(passwordField, BorderLayout.CENTER);
+        JPanel passBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, 0));
+        passBtns.setOpaque(false);
+        passBtns.add(revealToggle);
+        passBtns.add(generateBtn);
+        passRow.add(passBtns, BorderLayout.EAST);
+        form.add(group(lang.getString("entry.password") + " *", passRow));
 
-        // Strength bar
-        row++;
-        gbc.gridx = 1; gbc.gridy = row; gbc.gridwidth = 2;
-        JPanel strengthPanel = new JPanel(new BorderLayout(5, 0));
-        strengthBar = new JProgressBar(0, 100);
-        strengthBar.setPreferredSize(new Dimension(200, 16));
-        strengthBar.setStringPainted(true);
-        strengthLabel = new JLabel(lang.getString("strength.label"));
-        strengthPanel.add(strengthBar, BorderLayout.CENTER);
-        strengthPanel.add(strengthLabel, BorderLayout.EAST);
-        form.add(strengthPanel, gbc);
-        gbc.gridwidth = 1;
+        // Strength meter
+        strengthMeter = new StrengthMeter();
+        strengthMeter.setAlignmentX(Component.LEFT_ALIGNMENT);
+        strengthMeter.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        form.add(strengthMeter);
+        form.add(Box.createVerticalStrut(DesignTokens.SPACE_MD));
 
-        // URL
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        form.add(new JLabel(lang.getString("entry.url")), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
-        urlField = new JTextField(25);
-        form.add(urlField, gbc);
-        gbc.gridwidth = 1;
+        urlField = new JTextField();
+        form.add(group(lang.getString("entry.url"), urlField));
 
-        // Category
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        form.add(new JLabel(lang.getString("entry.category")), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
         categoryCombo = new JComboBox<>();
         if (categories != null) {
             for (String c : categories) categoryCombo.addItem(c);
         }
-        form.add(categoryCombo, gbc);
-        gbc.gridwidth = 1;
+        form.add(group(lang.getString("entry.category"), categoryCombo));
 
-        // Tags
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        form.add(new JLabel(lang.getString("entry.tags")), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
-        tagsField = new JTextField(25);
-        form.add(tagsField, gbc);
-        gbc.gridwidth = 1;
+        tagsField = new JTextField();
+        form.add(group(lang.getString("entry.tags"), tagsField));
 
-        // Notes
-        row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0; gbc.anchor = GridBagConstraints.NORTHWEST;
-        form.add(new JLabel(lang.getString("entry.notes")), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2; gbc.weighty = 1;
-        gbc.fill = GridBagConstraints.BOTH;
         notesArea = new JTextArea(4, 25);
         notesArea.setLineWrap(true);
-        form.add(new JScrollPane(notesArea), gbc);
+        JScrollPane notesScroll = new JScrollPane(notesArea);
+        notesScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        notesScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 96));
+        JComponent notesGroup = group(lang.getString("entry.notes"), notesScroll);
+        form.add(notesGroup);
 
         add(form, BorderLayout.CENTER);
 
-        // Buttons
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        // Buttons (calm: ghost cancel + primary save)
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD));
+        btnPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, DesignTokens.outline()));
         JButton cancelBtn = new JButton(lang.getString("common.cancel"));
-        JButton saveBtn = new JButton(lang.getString("common.save"));
+        JButton saveBtn = Buttons.primary(lang.getString("common.save"));
         btnPanel.add(cancelBtn);
         btnPanel.add(saveBtn);
         add(btnPanel, BorderLayout.SOUTH);
 
         // Listeners
-        showPasswordCheck.addActionListener(e ->
-            passwordField.setEchoChar(showPasswordCheck.isSelected() ? (char) 0 : echoChar));
+        revealToggle.addActionListener(e ->
+            passwordField.setEchoChar(revealToggle.isSelected() ? (char) 0 : echoChar));
 
         generateBtn.addActionListener(e -> {
             PasswordGeneratorDialog gen = new PasswordGeneratorDialog(EntryDialog.this);
@@ -202,7 +156,7 @@ public class EntryDialog extends JDialog {
         });
 
         pack();
-        setMinimumSize(new Dimension(550, 480));
+        setMinimumSize(new Dimension(540, 600));
         setLocationRelativeTo(getOwner());
     }
 
@@ -233,8 +187,27 @@ public class EntryDialog extends JDialog {
 
     private void updateStrength() {
         char[] pwd = passwordField.getPassword();
-        StrengthBarHelper.update(strengthBar, strengthLabel, pwd);
+        strengthMeter.update(pwd);
         SecureWiper.wipe(pwd);
+    }
+
+    /** A captioned field group: small muted caption above a full-width control. */
+    private JComponent group(String caption, JComponent comp) {
+        JPanel p = new JPanel();
+        p.setOpaque(false);
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setAlignmentX(Component.LEFT_ALIGNMENT);
+        p.setBorder(BorderFactory.createEmptyBorder(0, 0, DesignTokens.SPACE_MD, 0));
+        JLabel c = new JLabel(caption);
+        c.setFont(c.getFont().deriveFont(Font.BOLD, 12f));
+        c.setForeground(DesignTokens.onSurfaceFaint());
+        c.setAlignmentX(Component.LEFT_ALIGNMENT);
+        comp.setAlignmentX(Component.LEFT_ALIGNMENT);
+        comp.setMaximumSize(new Dimension(Integer.MAX_VALUE, Math.max(comp.getPreferredSize().height, 32)));
+        p.add(c);
+        p.add(Box.createVerticalStrut(6));
+        p.add(comp);
+        return p;
     }
 
     public boolean isConfirmed() { return confirmed; }

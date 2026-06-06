@@ -62,6 +62,12 @@ All entry types extend the abstract `vault/VaultItem` (id, title, notes, favorit
 
 Import/export is delegated out of `VaultManager` to `VaultImporter`/`VaultExporter` (CSV is RFC 4180 compliant with a `type` column; SSH keys only in JSON/.enc, not CSV). Filtering is in `EntryFilter`. Generic bidirectional sync merge is `sync/EntryMerger` (shared by both clients). The sync orchestration **engine** (`sync/SyncService`, `LocalRepository`, the `*SyncRepository` interfaces, `ConflictStrategy`) also lives in `:core`: desktop builds it via `DesktopSyncFactory`, while Android keeps an equivalent inline implementation in `VaultListViewModel` (documented duplication). Vault JSON (de)serialization uses a bespoke `vault/VaultJsonCodec` (not Gson for the vault body) so password/PIN/SSH-key secrets stay `char[]` end-to-end on save/load.
 
+### Config & storage abstraction
+
+App settings live in `config/AppConfig` (validated setters; holds `StorageMode`, `ThemeMode`, SFTP params, auto-lock/clipboard timers, `faviconsEnabled`, and the **working folder** state — `localVaultDirectory` + a capped `recentWorkspaces` MRU list). Each client persists it: desktop via `config/ConfigManager`, Android via `data/ConfigRepository`/`AndroidConfigRepository`.
+
+`VaultManager` does **not** touch the filesystem directly — it goes through the `vault/store/VaultStore` abstraction, which owns a single configurable "working folder" (Obsidian-style: the user picks where vault files live) and exposes filename-based primitives (bare filenames only, path-traversal rejected). `FileVaultStore` backs desktop and Android internal storage with atomic, owner-only writes; Android also has a SAF (`content://` document-tree) backing via `data/SafVaultStore`/`WorkspaceManager` for user-chosen external folders. Switching or remembering working folders is wired through `LoginFrame`/`SettingsDialog` (desktop) and the login/settings screens (Android).
+
 ### Outbound network calls
 
 Three `:core` services reach the network — relevant for offline behavior, privacy, and tests (mock or guard them): `security/HibpChecker` (Have I Been Pwned breach check via the k-anonymity range API — only a SHA-1 prefix is ever sent), `util/FaviconService` (fetches each site's own `/favicon.ico` directly over HTTPS — no third-party favicon service), and `update/UpdateChecker` (checks for new releases). Everything else, including all crypto and vault I/O, is fully local.

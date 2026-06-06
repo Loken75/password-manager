@@ -51,16 +51,19 @@ public class ConflictResolutionDialog extends JDialog {
         scroll.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         add(scroll, BorderLayout.CENTER);
 
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton resolveBtn = new JButton(lang.getString("sync.merge.resolve"));
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT,
+            com.passwordmanager.ui.theme.DesignTokens.SPACE_SM, com.passwordmanager.ui.theme.DesignTokens.SPACE_MD));
+        btnPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0,
+            com.passwordmanager.ui.theme.DesignTokens.outline()));
+        JButton cancelBtn = new JButton(lang.getString("common.cancel"));
+        cancelBtn.addActionListener(e -> dispose());
+        JButton resolveBtn = com.passwordmanager.ui.components.Buttons.primary(lang.getString("sync.merge.resolve"));
         resolveBtn.addActionListener(e -> {
             confirmed = true;
             dispose();
         });
-        JButton cancelBtn = new JButton(lang.getString("common.cancel"));
-        cancelBtn.addActionListener(e -> dispose());
-        btnPanel.add(resolveBtn);
         btnPanel.add(cancelBtn);
+        btnPanel.add(resolveBtn);
         add(btnPanel, BorderLayout.SOUTH);
     }
 

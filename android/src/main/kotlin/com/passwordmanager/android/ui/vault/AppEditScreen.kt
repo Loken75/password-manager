@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
 import com.passwordmanager.android.ui.components.PasswordField
+import com.passwordmanager.android.ui.theme.appColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +53,7 @@ fun AppEditScreen(
                             Icon(
                                 imageVector = if (state.favorite) Icons.Default.Star else Icons.Default.StarBorder,
                                 contentDescription = stringResource(R.string.entry_toggle_favorite),
-                                tint = if (state.favorite) Color(0xFFFFC107) else MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = if (state.favorite) MaterialTheme.appColors.favorite else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }

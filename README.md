@@ -17,6 +17,7 @@ Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et prot
 - **Favicons** des sites web (recuperes directement depuis `/favicon.ico` du site, en HTTPS, + cache disque — aucun tiers)
 - Import/export unifie (CSV, JSON, coffre chiffre) avec popup parametrable et import par fusion — CSV avec colonne `type` (retrocompatible), JSON gere les 3 listes automatiquement (cles SSH incluses en JSON et .enc, pas en CSV), CSV conforme RFC 4180
 - Synchronisation SFTP **bidirectionnelle** avec fusion par entree et resolution de conflits (tous types d'entrees)
+- **Dossier de travail configurable** (workspace, a la Obsidian) : choix du repertoire des coffres avant connexion et changement depuis les parametres (desktop : n'importe quel dossier, avec migration des coffres existants et liste des dossiers recents ; Android : dossier choisi via le Storage Access Framework)
 - Interface a onglets bilingue francais / anglais
 - Themes Systeme, Clair et Sombre
 - Verrouillage automatique apres inactivite
@@ -87,7 +88,7 @@ run.bat
 |---|---|---|
 | Java (JDK) | 21 ou superieur | Desktop |
 | Android SDK | API 35 | Android |
-| Gradle | 8.11+ (wrapper inclus) | Tous |
+| Gradle | 8.12 (wrapper inclus) | Tous |
 
 ### Architecture multi-module
 
@@ -196,6 +197,7 @@ Apres connexion, l'interface se compose de :
 | Verrouillage ecran eteint | Non | Oui |
 | Synchronisation SFTP bidirectionnelle (tous types) | Oui (cle fichier ou cle du coffre) | Oui |
 | Resolution de conflits (fusion par entree, tous types) | Oui | Oui |
+| Dossier de travail configurable (workspace) | Oui (dossier libre + recents, selecteur au login et parametres) | Oui (via SAF) |
 | Service d'auto-remplissage (mots de passe uniquement) | Non | Oui (API 26+) |
 | URL cliquable dans le detail | Oui | Oui |
 
@@ -248,6 +250,7 @@ Disponible sur **desktop** et **Android**.
 | Effacement presse-papiers (5-120 s) | Oui | Oui |
 | Deverrouillage biometrique | Non | Oui (toggle ON/OFF) |
 | Configuration SFTP | Oui | Oui |
+| Dossier de travail (workspace) | Oui (changement = reconnexion) | Oui (via SAF) |
 
 Changement de mot de passe maitre : seule la DEK est re-chiffree (operation quasi instantanee). Les donnees biometriques sont automatiquement invalidees.
 
@@ -332,7 +335,7 @@ Par conception, aucun mecanisme de recuperation du mot de passe maitre n'existe.
 | Serialisation JSON | Gson | 2.13.2 |
 | Connexion SFTP | JSch (fork mwiede) | 2.27.8 |
 | Tests | JUnit 5 (Jupiter) | 5.14.2 |
-| Build | Gradle (Kotlin DSL) | 8.11 |
+| Build | Gradle (Kotlin DSL) | 8.12 |
 | CI/CD | GitHub Actions | - |
 
 ### Structure multi-module
@@ -343,18 +346,20 @@ password-manager/
 |   +-- crypto/                        # CryptoService, KeyDerivation, VaultSession, PasswordGenerator
 |   +-- vault/                         # VaultItem (abstract), PasswordEntry, AppEntry, SshKeyEntry
 |   |                                  # Vault, BaseVaultService, PasswordService, AppService
-|   |                                  # VaultManager, EntryFilter, VaultImporter, VaultExporter
+|   |                                  # VaultManager, VaultStoreMigrator, EntryFilter, VaultImporter, VaultExporter
 |   |                                  # VaultJsonCodec + JsonCharWriter/JsonCharReader (codec JSON, secrets en char[])
+|   +-- vault/store/                   # VaultStore (abstraction stockage), FileVaultStore
 |   +-- security/                      # HibpChecker (detection de mots de passe compromis)
 |   +-- sync/                          # EntryMerger, SyncService (moteur), LocalRepository,
 |   |                                  # LocalSyncRepository, RemoteSyncRepository, ConflictStrategy
-|   +-- config/                        # AppConfig, ConfigManager, ConfigEncryptor
+|   +-- config/                        # AppConfig, AppVersion, StorageMode, ThemeMode
 |   +-- update/                        # UpdateChecker, UpdateInfo, VersionComparator
 |   +-- util/                          # SecureWiper, FileSecurityUtils, PasswordValidator, FaviconService
-|   +-- i18n/                          # LanguageManager (FR/EN)
 |
 |-- desktop/                           # Interface Swing (Java 17)
 |   +-- ui/                            # LoginFrame, MainFrame, VaultPanel, SecureClipboard, dialogs
+|   +-- config/                        # ConfigManager, ConfigEncryptor (persistance config desktop)
+|   +-- i18n/                          # LanguageManager (FR/EN)
 |   +-- sync/                          # SFTPRepository (client JSch), DesktopSyncFactory
 |   +-- update/                        # DesktopUpdateManager
 |
@@ -369,14 +374,14 @@ password-manager/
 
 ### Tests
 
-**~493 tests** unitaires et d'integration dans `:core`, `:desktop` et `:android` (dont des tests d'integration SFTP reels via un serveur embarque) :
+**~526 tests** unitaires et d'integration dans `:core` (371), `:desktop` (49) et `:android` (106) — dont des tests d'integration SFTP reels via un serveur embarque :
 
 | Module | Classe de test | Tests | Description |
 |---|---|:---:|---|
 | vault | `VaultServiceTest` | 33 | CRUD mots de passe, recherche, tri, favoris, filtre, doublons, categories, timestamps |
 | vault | `VaultImporterTest` | 33 | CSV (separateurs, alias, BOM, sanitisation, favoris, RFC 4180, round-trip multi-type), JSON, limites |
 | security | `SecurityAuditTest` | 31 | IV, KDF, memoire, permissions, format, import/export, generateur |
-| sync | `SyncServiceTest` | 31 | Synchronisation, hash a 3 voies, conflits, mode hors-ligne, mode local (tous types) |
+| sync | `SyncServiceTest` | 33 | Synchronisation, hash a 3 voies, conflits, mode hors-ligne, mode local (tous types) |
 | **android** | `LoginViewModelTest` | 27 | Etat initial, biometrie, selection utilisateur, login, enrollment, creation utilisateur |
 | vault | `VaultTest` | 24 | Constructeurs, add/remove (3 types), dedup par id, unmodifiable views, mutable accessors, wipe, ensureInitialized, settings |
 | sync | `LocalRepositoryTest` | 17 | Path traversal, CRUD, pending, backups |
@@ -385,7 +390,7 @@ password-manager/
 | crypto | `CryptoServiceTest` | 14 | Enveloppe DEK/KEK, chiffrement, AAD, changement mdp, tampering, legacy |
 | update | `VersionComparatorTest` | 13 | Comparaison semantique, pre-release, null, egalite |
 | **android** | `SettingsViewModelTest` | 13 | Configuration initiale, theme, langue, auto-lock, clipboard, toggle biometrique |
-| config | `ConfigEncryptorTest` | 11 | Round-trip, caracteres speciaux, corruption, unicite IV |
+| **desktop** | `ConfigEncryptorTest` | 11 | Round-trip, caracteres speciaux, corruption, unicite IV |
 | **android** | `GeneratorViewModelTest` | 11 | Etat initial, generation, longueur, toggles, force, nettoyage |
 | sync | `EntryMergerTest` | 13 | Fusion generique, conflits exclus du merge (R1), entrees identiques (tous types) |
 | sync | `SFTPRepositoryTest` | 10 | Validation filename sur 4 methodes publiques |
@@ -400,7 +405,7 @@ password-manager/
 | vault | `EntryFilterTest` | 7 | Filtres combines (categorie, force, date, favoris, texte) |
 | crypto | `KeyDerivationTest` | 7 | Generation de cle, unicite du sel, iterations, SecureRandom partage |
 | vault | `AppEntryTest` | 6 | Constructeur, copies defensives pin, wipe, equals/hashCode |
-| i18n | `LanguageManagerTest` | 6 | Singleton, getString, setLanguage, langues disponibles |
+| **desktop** | `LanguageManagerTest` | 6 | Singleton, getString, setLanguage, langues disponibles |
 | **desktop** | `AutoLockManagerTest` | 5 | Idempotence start, cleanup, lifecycle, listener |
 | util | `FaviconServiceTest` | 7 | Extraction domaine, cache disque, favicon null, validation image (anti-HTML) |
 | security | `HibpCheckerTest` | 5 | Null, vide, entree valide, caracteres speciaux, unicode |
@@ -408,7 +413,7 @@ password-manager/
 | **android** | `EntryDetailViewModelTest` | 5 | Chargement, visibilite, suppression |
 | util | `DateUtilsTest` | 5 | ISO 8601, round-trip, parsing valide/invalide/null |
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types, exclusion ambigus |
-| config | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance |
+| **desktop** | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance |
 | vault | `VaultJsonCodecTest` | 8 | Codec JSON maison : round-trip, caracteres pieges, retro-compat Gson, echec propre (R3) |
 | **android** | `SshHostKeyStoreTest` | 10 | Epinglage host-key SFTP : empreinte SHA-256, Match/Unknown/Changed, persistance (C2) |
 | **android** | `AutofillDomainMatcherTest` | 6 | Matching autofill : exact/sous-domaine, rejet parent et look-alike (R10) |
@@ -418,7 +423,7 @@ password-manager/
 | **desktop** | `DesktopSyncFactoryTest` | 2 | Construction du SyncService depuis AppConfig |
 | **desktop** | `MasterPasswordSyncIntegrationTest` | 2 | Propagation du mot de passe maitre, 2 appareils (R4) |
 | **desktop** | `SyncConflictIntegrationTest` | 1 | Conflit expose le vrai distant pour la fusion (R-merge) |
-| | | **~493** | |
+| | | **~526** | |
 
 ---
 

@@ -4,6 +4,9 @@ import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.AppVersion;
 import com.passwordmanager.config.ConfigManager;
 import com.passwordmanager.i18n.LanguageManager;
+import com.passwordmanager.ui.components.Buttons;
+import com.passwordmanager.ui.components.RoundedPanel;
+import com.passwordmanager.ui.theme.DesignTokens;
 import com.passwordmanager.update.DesktopUpdateManager;
 import com.passwordmanager.util.PasswordValidator;
 import com.passwordmanager.vault.VaultLoadResult;
@@ -57,41 +60,58 @@ public class LoginFrame extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
 
-        JPanel mainPanel = new JPanel();
-        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(30, 40, 30, 40));
+        // Calm centered card on a neutral backdrop (design: test_design/PC/01-login.html).
+        JPanel backdrop = new JPanel(new GridBagLayout());
+        backdrop.setBackground(DesignTokens.surfaceContainer());
 
-        // Title
+        // Fixed width, natural height (centered by the backdrop's GridBagLayout).
+        RoundedPanel card = new RoundedPanel() {
+            @Override public Dimension getPreferredSize() {
+                return new Dimension(404, super.getPreferredSize().height);
+            }
+            @Override public Dimension getMaximumSize() {
+                return getPreferredSize();
+            }
+        };
+        card.setArc(18);
+        card.setFillColor(DesignTokens.surface());
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(BorderFactory.createEmptyBorder(34, 36, 30, 36));
+
+        // Logo (app icon on an accent rounded square)
+        JLabel logo = new JLabel();
+        logo.setAlignmentX(Component.CENTER_ALIGNMENT);
+        try {
+            java.awt.Image img = javax.imageio.ImageIO.read(getClass().getResourceAsStream("/icons/icon.png"));
+            if (img != null) logo.setIcon(new ImageIcon(img.getScaledInstance(52, 52, java.awt.Image.SCALE_SMOOTH)));
+        } catch (Exception ignored) {}
+        card.add(logo);
+        card.add(Box.createVerticalStrut(14));
+
         JLabel titleLabel = new JLabel(lang.getString("app.title"));
-        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 22));
+        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 21f));
         titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        mainPanel.add(titleLabel);
-        mainPanel.add(Box.createVerticalStrut(5));
+        card.add(titleLabel);
+        card.add(Box.createVerticalStrut(4));
 
         JLabel subtitleLabel = new JLabel(lang.getString("app.version").replace("{0}", AppVersion.get()));
-        subtitleLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        subtitleLabel.setForeground(DesignTokens.onSurfaceFaint());
         subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        mainPanel.add(subtitleLabel);
-        mainPanel.add(Box.createVerticalStrut(30));
+        card.add(subtitleLabel);
+        card.add(Box.createVerticalStrut(24));
 
-        // Working folder (workspace) selection
-        JPanel workspacePanel = new JPanel(new BorderLayout(10, 0));
-        workspacePanel.setMaximumSize(new Dimension(350, 30));
-        JLabel workspaceLabel = new JLabel(lang.getString("login.workspace"));
-        workspaceLabel.setPreferredSize(new Dimension(140, 25));
+        // Working folder (workspace)
         workspaceCombo = new JComboBox<>();
         workspaceCombo.setToolTipText(appConfig.getLocalVaultDirectory());
         JButton browseWorkspaceBtn = new JButton("...");
-        browseWorkspaceBtn.setMargin(new Insets(0, 6, 0, 6));
+        browseWorkspaceBtn.setMargin(new Insets(0, 8, 0, 8));
         browseWorkspaceBtn.setToolTipText(lang.getString("settings.change_workspace"));
         refreshWorkspaceCombo();
-        JPanel workspaceRight = new JPanel(new BorderLayout(4, 0));
-        workspaceRight.add(workspaceCombo, BorderLayout.CENTER);
-        workspaceRight.add(browseWorkspaceBtn, BorderLayout.EAST);
-        workspacePanel.add(workspaceLabel, BorderLayout.WEST);
-        workspacePanel.add(workspaceRight, BorderLayout.CENTER);
-        mainPanel.add(workspacePanel);
-        mainPanel.add(Box.createVerticalStrut(15));
+        JPanel workspaceRow = new JPanel(new BorderLayout(8, 0));
+        workspaceRow.setOpaque(false);
+        workspaceRow.add(workspaceCombo, BorderLayout.CENTER);
+        workspaceRow.add(browseWorkspaceBtn, BorderLayout.EAST);
+        card.add(fieldGroup(lang.getString("login.workspace"), workspaceRow));
 
         workspaceCombo.addActionListener(e -> {
             if (updatingWorkspaceCombo) return;
@@ -102,84 +122,76 @@ public class LoginFrame extends JFrame {
         });
         browseWorkspaceBtn.addActionListener(e -> doBrowseWorkspace());
 
-        // User selection
-        JPanel userPanel = new JPanel(new BorderLayout(10, 0));
-        userPanel.setMaximumSize(new Dimension(350, 30));
-        JLabel userLabel = new JLabel(lang.getString("login.username"));
-        userLabel.setPreferredSize(new Dimension(140, 25));
+        // User
         userCombo = new JComboBox<>();
         refreshUserList();
-        userPanel.add(userLabel, BorderLayout.WEST);
-        userPanel.add(userCombo, BorderLayout.CENTER);
-        mainPanel.add(userPanel);
-        mainPanel.add(Box.createVerticalStrut(15));
+        card.add(fieldGroup(lang.getString("login.username"), userCombo));
 
-        // Password
-        JPanel passPanel = new JPanel(new BorderLayout(10, 0));
-        passPanel.setMaximumSize(new Dimension(350, 30));
-        JLabel passLabel = new JLabel(lang.getString("login.password"));
-        passLabel.setPreferredSize(new Dimension(140, 25));
+        // Password with inline reveal toggle
         passwordField = new JPasswordField();
-        passPanel.add(passLabel, BorderLayout.WEST);
-        passPanel.add(passwordField, BorderLayout.CENTER);
-        mainPanel.add(passPanel);
-        mainPanel.add(Box.createVerticalStrut(5));
-
-        // Show/hide password checkbox
         char echoChar = passwordField.getEchoChar();
-        JCheckBox showPasswordCheck = new JCheckBox(lang.getString("entry.show_password"));
-        showPasswordCheck.setAlignmentX(Component.CENTER_ALIGNMENT);
-        showPasswordCheck.addActionListener(e -> {
-            passwordField.setEchoChar(showPasswordCheck.isSelected() ? (char) 0 : echoChar);
-        });
-        mainPanel.add(showPasswordCheck);
-        mainPanel.add(Box.createVerticalStrut(15));
+        JToggleButton revealBtn = new JToggleButton(lang.getString("entry.show_password"));
+        revealBtn.setFocusPainted(false);
+        revealBtn.setForeground(DesignTokens.accent());
+        revealBtn.setBorder(BorderFactory.createEmptyBorder(4, 10, 4, 10));
+        revealBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        revealBtn.addActionListener(e ->
+            passwordField.setEchoChar(revealBtn.isSelected() ? (char) 0 : echoChar));
+        JPanel passwordRow = new JPanel(new BorderLayout(8, 0));
+        passwordRow.setOpaque(false);
+        passwordRow.add(passwordField, BorderLayout.CENTER);
+        passwordRow.add(revealBtn, BorderLayout.EAST);
+        card.add(fieldGroup(lang.getString("login.password"), passwordRow));
+        card.add(Box.createVerticalStrut(8));
 
-        // Login button
-        loginButton = new JButton(lang.getString("login.button"));
+        // Login button (primary, full width)
+        loginButton = Buttons.primary(lang.getString("login.button"));
         loginButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        loginButton.setMaximumSize(new Dimension(350, 38));
-        loginButton.setFont(new Font("SansSerif", Font.BOLD, 14));
-        mainPanel.add(loginButton);
-        mainPanel.add(Box.createVerticalStrut(10));
+        loginButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        card.add(loginButton);
+        card.add(Box.createVerticalStrut(12));
 
         // Create user link
-        createUserButton = new JButton(lang.getString("login.create_user"));
+        createUserButton = linkButton(lang.getString("login.create_user"));
         createUserButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        createUserButton.setBorderPainted(false);
-        createUserButton.setContentAreaFilled(false);
-        createUserButton.setForeground(new Color(0, 102, 204));
-        createUserButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        mainPanel.add(createUserButton);
-        mainPanel.add(Box.createVerticalStrut(15));
+        card.add(createUserButton);
+        card.add(Box.createVerticalStrut(10));
 
         // Status
         statusLabel = new JLabel(" ");
-        statusLabel.setForeground(Color.RED);
+        statusLabel.setForeground(DesignTokens.statusWeak());
         statusLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        mainPanel.add(statusLabel);
-        mainPanel.add(Box.createVerticalStrut(15));
+        card.add(statusLabel);
+        card.add(Box.createVerticalStrut(16));
 
-        // Language selector
-        JPanel langPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        langPanel.add(new JLabel(lang.getString("settings.language") + " :"));
+        // Footer: language (left) + check updates (right)
+        JSeparator sep = new JSeparator();
+        sep.setForeground(DesignTokens.outline());
+        sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+        card.add(sep);
+        card.add(Box.createVerticalStrut(12));
+
         languageCombo = new JComboBox<>(new String[]{"Fran\u00e7ais", "English"});
         languageCombo.setSelectedIndex("en".equals(appConfig.getLanguage()) ? 1 : 0);
-        langPanel.add(languageCombo);
-        mainPanel.add(langPanel);
-        mainPanel.add(Box.createVerticalStrut(10));
+        JPanel langWrap = new JPanel(new BorderLayout(8, 0));
+        langWrap.setOpaque(false);
+        JLabel langLabel = new JLabel(lang.getString("settings.language") + " :");
+        langLabel.setForeground(DesignTokens.onSurfaceFaint());
+        langWrap.add(langLabel, BorderLayout.WEST);
+        langWrap.add(languageCombo, BorderLayout.CENTER);
 
-        // Check for updates link
-        JButton checkUpdateBtn = new JButton(lang.getString("update.check"));
-        checkUpdateBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
-        checkUpdateBtn.setBorderPainted(false);
-        checkUpdateBtn.setContentAreaFilled(false);
-        checkUpdateBtn.setForeground(new Color(0, 102, 204));
-        checkUpdateBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        JButton checkUpdateBtn = linkButton(lang.getString("update.check"));
         checkUpdateBtn.addActionListener(e -> new DesktopUpdateManager().checkManually(this));
-        mainPanel.add(checkUpdateBtn);
 
-        setContentPane(mainPanel);
+        JPanel footer = new JPanel(new BorderLayout(12, 0));
+        footer.setOpaque(false);
+        footer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        footer.add(langWrap, BorderLayout.WEST);
+        footer.add(checkUpdateBtn, BorderLayout.EAST);
+        card.add(footer);
+
+        backdrop.add(card);
+        setContentPane(backdrop);
 
         // -- Actions --
         loginButton.addActionListener(e -> doLogin());
@@ -197,9 +209,39 @@ public class LoginFrame extends JFrame {
         });
 
         pack();
-        setMinimumSize(new Dimension(450, 450));
+        setMinimumSize(new Dimension(520, 640));
         setLocationRelativeTo(null);
         setFrameIcon(this);
+    }
+
+    /** A labeled field group: small caption above a full-width control, with bottom spacing. */
+    private JComponent fieldGroup(String caption, JComponent control) {
+        JPanel group = new JPanel();
+        group.setOpaque(false);
+        group.setLayout(new BoxLayout(group, BoxLayout.Y_AXIS));
+        group.setAlignmentX(Component.CENTER_ALIGNMENT);
+        group.setBorder(BorderFactory.createEmptyBorder(0, 0, 14, 0));
+        JLabel cap = new JLabel(caption);
+        cap.setFont(cap.getFont().deriveFont(Font.BOLD, 12f));
+        cap.setForeground(DesignTokens.onSurfaceFaint());
+        cap.setAlignmentX(Component.LEFT_ALIGNMENT);
+        control.setAlignmentX(Component.LEFT_ALIGNMENT);
+        control.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        group.add(cap);
+        group.add(Box.createVerticalStrut(6));
+        group.add(control);
+        return group;
+    }
+
+    /** A borderless accent-colored link-style button. */
+    private JButton linkButton(String text) {
+        JButton b = new JButton(text);
+        b.setBorderPainted(false);
+        b.setContentAreaFilled(false);
+        b.setFocusPainted(false);
+        b.setForeground(DesignTokens.accent());
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return b;
     }
 
     static void setFrameIcon(java.awt.Window frame) {

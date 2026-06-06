@@ -33,12 +33,7 @@ fun PasswordStrengthBar(
     )
 
     val color by animateColorAsState(
-        targetValue = when (strength) {
-            Strength.WEAK -> StrengthWeak
-            Strength.MEDIUM -> StrengthMedium
-            Strength.STRONG -> StrengthStrong
-            Strength.VERY_STRONG -> StrengthVeryStrong
-        },
+        targetValue = strengthColor(strength),
         label = "strength_color"
     )
 

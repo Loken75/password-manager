@@ -6,6 +6,7 @@
 2. [Installation et lancement](#2-installation-et-lancement)
 3. [Premier demarrage](#3-premier-demarrage)
 4. [Connexion](#4-connexion)
+   - 4.1. [Dossier de travail (workspace)](#41-dossier-de-travail-workspace)
 5. [Interface principale](#5-interface-principale)
 6. [Types d'entrees](#6-types-dentrees)
    - 6.1. [Entrees mot de passe (Mots de passe)](#61-entrees-mot-de-passe-mots-de-passe)
@@ -59,7 +60,7 @@ Password Manager est une application multiplateforme permettant de stocker, orga
 #### Prerequis (compilation)
 
 - **Java (JDK) 21** ou superieur
-- **Gradle 8.11+** (wrapper inclus)
+- **Gradle 8.12** (wrapper inclus)
 
 #### Compilation et lancement
 
@@ -135,6 +136,7 @@ L'ecran de connexion propose les actions suivantes :
 | Saisir le mot de passe maitre | Champ masque, valider avec le bouton **Connexion** ou la touche **Entree** |
 | Deverrouiller par empreinte (Android) | Bouton empreinte affiche si la biometrie est activee pour l'utilisateur. Se declenche automatiquement a la selection de l'utilisateur |
 | Afficher / masquer le mot de passe | Case a cocher pour verifier la saisie |
+| Choisir le dossier de travail | Selecteur du repertoire des coffres (voir [4.1](#41-dossier-de-travail-workspace)) |
 | Creer un nouvel utilisateur | Lien en bas du formulaire |
 | Changer la langue | Selecteur Francais / English en bas de l'ecran (effet immediat) |
 | Verifier les mises a jour | Lien en bas de l'ecran, verifie la derniere version sur GitHub |
@@ -142,6 +144,15 @@ L'ecran de connexion propose les actions suivantes :
 ### Protection anti brute-force
 
 Apres **3 tentatives echouees consecutives** pour un meme utilisateur, le formulaire de connexion est temporairement desactive. Le delai augmente progressivement (jusqu'a 30 secondes) avant de pouvoir reessayer. Le compteur est reinitialise apres une connexion reussie. Ce compteur persiste meme apres un verrouillage/deverrouillage de l'application.
+
+### 4.1. Dossier de travail (workspace)
+
+L'application permet de choisir le **dossier ou sont lus et ecrits les coffres** (modele « workspace » a la Obsidian). Ce choix est **global et pre-connexion** : le selecteur de dossier figure sur l'ecran de connexion.
+
+- **Desktop** : une liste deroulante des dossiers recents et un bouton `...` (selecteur de dossier). Au changement, l'application valide l'acces en ecriture, re-scanne les utilisateurs presents et propose de **deplacer** les coffres existants (`vault_*.enc`, `.bak`, `.sync_meta`, `.pending`) vers le nouvel emplacement. Le dossier courant peut aussi etre change via **Parametres > onglet General > Dossier de travail > Changer…** : l'operation deconnecte et renvoie a l'ecran de connexion (jamais de changement a chaud). Les huit derniers dossiers utilises sont memorises.
+- **Android** : le dossier est choisi via le **Storage Access Framework (SAF)**. Le coffre devient alors visible dans les explorateurs de fichiers et **survit a la desinstallation** de l'application. Par defaut, le stockage interne de l'application est utilise. Si la permission sur le dossier choisi est revoquee, l'application retombe sur l'ecran de choix de dossier.
+
+La confidentialite du coffre reste assuree par le chiffrement AES-256-GCM, y compris lorsque le coffre est place hors du bac a sable de l'application.
 
 ---
 
@@ -715,6 +726,8 @@ Le bouton **Tester la connexion** permet de verifier la configuration.
 
 > Sur desktop, la cle SSH peut etre un fichier externe ou une cle stockee dans le coffre-fort (selection via boutons radio dans les parametres SFTP). En mode fichier, la validation requiert que le fichier existe et soit lisible.
 
+> **Verification de l'identite du serveur** : la cle d'hote du serveur SFTP est verifiee pour prevenir les attaques de l'homme du milieu (MITM). Sur desktop, la verification s'appuie sur `~/.ssh/known_hosts` (`StrictHostKeyChecking`). Sur Android, la cle d'hote est **epinglee** : a la premiere connexion, l'utilisateur doit confirmer la cle presentee ; si une cle deja epinglee change ensuite, un avertissement explicite est affiche et la connexion est bloquee.
+
 ### 14.3. Synchronisation manuelle
 
 **Acces** : Outils > Synchroniser maintenant | Barre d'outils
@@ -762,10 +775,14 @@ Lorsque le coffre a ete modifie a la fois localement et sur le serveur, le syste
 |-----------|-------------|---------|
 | Langue | Langue de l'interface | Francais / English |
 | Theme | Apparence visuelle | Systeme / Clair / Sombre |
+| Dossier de travail | Emplacement de stockage des coffres (voir [4.1](#41-dossier-de-travail-workspace)) | Bouton « Changer… » (deconnecte) |
+| Afficher les favicons | Recupere et affiche l'icone (favicon) de chaque site | Active / Desactive (defaut : active) |
 
 Le theme **Systeme** detecte automatiquement le theme clair ou sombre de l'OS.
 
 Le changement de theme prend effet immediatement. Le changement de langue reconstruit l'interface.
+
+Lorsque l'option **Afficher les favicons** est desactivee, aucune icone de site n'est recuperee ni affichee : l'application n'effectue alors **aucune requete reseau** pour les favicons. Les favicons sont sinon recuperes directement depuis le serveur de chaque site (`/favicon.ico`) en HTTPS, sans passer par un service tiers.
 
 ### 15.2. Onglet Securite
 
@@ -979,7 +996,7 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | Dupliquer une entree | Oui (clic droit, mots de passe et applications) | Oui (bouton, mots de passe et applications) |
 | Favoris (etoile, tri prioritaire) | Oui (tous types) | Oui (mots de passe et applications ; pas les cles SSH) |
 | Filtres avances (categorie, force, date, favoris) | Oui | Oui (FilterChips) |
-| Favicons des sites web | Oui (dans la colonne Titre) | Oui (avatar dans la carte d'entree) |
+| Favicons des sites web | Oui (dans la colonne Titre ; desactivable dans les parametres) | Oui (avatar dans la carte d'entree ; desactivable dans les parametres) |
 | Generateur de mots de passe | Oui | Oui |
 | Analyse de securite + HIBP | Oui (entrees mot de passe uniquement) | Oui (entrees mot de passe uniquement) |
 | Import/export unifie (CSV/JSON/.enc) | Fichier > Importer.../Exporter... | Menu overflow > Importer.../Exporter... (SAF) |
@@ -998,6 +1015,8 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | Presse-papiers securise | SecureClipboard (char[], wipe on lostOwnership) | EXTRA_IS_SENSITIVE + clear on screen-off |
 | Anti brute-force | Oui | Oui |
 | Synchronisation SFTP bidirectionnelle | Oui (tous types, EntryMerger + ConflictResolutionDialog) | Oui (tous types) |
+| Verification de la cle d'hote SFTP | known_hosts (StrictHostKeyChecking) | Epinglage + confirmation 1re connexion / alerte MITM |
+| Dossier de travail configurable (workspace) | Oui (dossier libre + recents, selecteur au login et parametres) | Oui (via SAF, visible dans les fichiers, persistant apres desinstallation) |
 | Service d'auto-remplissage (Autofill) | Non | Oui (API 26+, entrees mot de passe uniquement) |
 | Injection de dependances | N/A (gestion manuelle) | Hilt/Dagger |
 | Stockage configuration | `config.properties` chiffre | EncryptedSharedPreferences |

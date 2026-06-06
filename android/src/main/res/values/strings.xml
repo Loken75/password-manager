@@ -305,4 +305,8 @@
     <string name="sync_merge_remote_version">Remote version</string>
     <string name="sync_merge_resolve">Resolve conflicts</string>
     <string name="sync_merge_auto_merged">Changes auto-merged successfully</string>
+    <string name="filter_created_since">Created since</string>
+    <string name="filter_modified_since">Modified since</string>
+    <string name="filter_created_on">Created on</string>
+    <string name="filter_modified_on">Modified on</string>
 </resources>

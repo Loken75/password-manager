@@ -86,6 +86,12 @@ android {
                 "proguard-rules.pro"
             )
         }
+        debug {
+            // Distinct package + label so a debug build installs side-by-side with a
+            // release-signed install (no signature conflict, real app + data untouched).
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
     }
 }
 

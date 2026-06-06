@@ -15,7 +15,10 @@ import javax.inject.Inject
 
 data class AppDetailUiState(
     val entry: AppEntry? = null,
-    val pinVisible: Boolean = false
+    val pinVisible: Boolean = false,
+    // Bumped on every (re)load so StateFlow always emits a distinct value even when the
+    // underlying entry object is mutated in place (e.g. toggling favorite), forcing recomposition.
+    val refreshToken: Long = 0
 )
 
 @HiltViewModel
@@ -29,7 +32,10 @@ class AppDetailViewModel @Inject constructor(
     fun loadEntry(entryId: String) {
         val appService = sessionHolder.vaultService?.getAppService() ?: return
         val entry = appService.search("").find { it.id == entryId }
-        _uiState.value = AppDetailUiState(entry = entry)
+        _uiState.value = _uiState.value.copy(
+            entry = entry,
+            refreshToken = _uiState.value.refreshToken + 1
+        )
     }
 
     fun togglePinVisibility() {

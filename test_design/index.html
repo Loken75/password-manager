@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Maquettes — Calme &amp; confiance</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#0E131A;color:#E7ECF2;font-family:Inter,system-ui,Segoe UI,Roboto,sans-serif;padding:40px}
+h1{font-size:24px;margin:0 0 4px}.sub{color:#9AA6B4;margin:0 0 28px;font-size:14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:30px;max-width:900px}
+h2{font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:#6C7886;border-bottom:1px solid #2A343F;padding-bottom:8px}
+a{display:block;color:#E7ECF2;text-decoration:none;padding:10px 12px;border-radius:10px;font-size:14px;border:1px solid transparent}
+a:hover{background:#171E27;border-color:#2A343F}
+a b{color:#6E92E8;font-variant-numeric:tabular-nums;margin-right:8px}
+.note{max-width:900px;color:#9AA6B4;font-size:13px;margin-top:28px;border-top:1px solid #2A343F;padding-top:16px;line-height:1.6}
+</style></head>
+<body>
+<h1>Maquettes — direction « Calme &amp; confiance »</h1>
+<p class="sub">Accent bleu acier #3B66C9 · couleur réservée aux signaux de sécurité · avatars neutres · monospace pour les secrets. Bouton « Thème sombre/clair » en haut à droite de chaque page.</p>
+<div class="cols">
+  <div>
+    <h2>PC (desktop)</h2>
+    <a href="PC/01-login.html"><b>01</b>Connexion</a>
+    <a href="PC/02-vault-passwords.html"><b>02</b>Coffre · Mots de passe (3 panneaux)</a>
+    <a href="PC/03-vault-applications.html"><b>03</b>Coffre · Applications</a>
+    <a href="PC/04-vault-sshkeys.html"><b>04</b>Coffre · Clés SSH</a>
+    <a href="PC/05-entry-edit.html"><b>05</b>Modifier une entrée</a>
+    <a href="PC/06-generator.html"><b>06</b>Générateur</a>
+    <a href="PC/07-audit.html"><b>07</b>Audit de sécurité</a>
+    <a href="PC/08-settings.html"><b>08</b>Réglages</a>
+    <a href="PC/09-import-export.html"><b>09</b>Import / Export</a>
+    <a href="PC/10-sync-conflict.html"><b>10</b>Conflits de synchronisation</a>
+    <a href="PC/11-change-master.html"><b>11</b>Mot de passe maître</a>
+  </div>
+  <div>
+    <h2>Android (mobile)</h2>
+    <a href="Android/01-login.html"><b>01</b>Connexion</a>
+    <a href="Android/02-vault-passwords.html"><b>02</b>Coffre · Mots de passe</a>
+    <a href="Android/03-vault-applications.html"><b>03</b>Coffre · Applications</a>
+    <a href="Android/04-ssh-keys.html"><b>04</b>Clés SSH</a>
+    <a href="Android/05-entry-detail.html"><b>05</b>Détail mot de passe</a>
+    <a href="Android/06-entry-edit.html"><b>06</b>Modifier mot de passe</a>
+    <a href="Android/07-app-detail.html"><b>07</b>Détail application</a>
+    <a href="Android/08-app-edit.html"><b>08</b>Modifier application</a>
+    <a href="Android/09-ssh-edit.html"><b>09</b>Modifier clé SSH</a>
+    <a href="Android/10-generator.html"><b>10</b>Générateur</a>
+    <a href="Android/11-audit.html"><b>11</b>Audit de sécurité</a>
+    <a href="Android/12-settings.html"><b>12</b>Réglages</a>
+    <a href="Android/13-category-management.html"><b>13</b>Gérer les catégories</a>
+    <a href="Android/14-import-export.html"><b>14</b>Import / Export</a>
+    <a href="Android/15-sync-conflict.html"><b>15</b>Conflits de synchronisation</a>
+    <a href="Android/16-change-master.html"><b>16</b>Mot de passe maître</a>
+  </div>
+</div>
+<p class="note">Maquettes statiques (test_design/) pour valider le design avant implémentation. Le style commun de chaque plateforme est dans <b>PC/pc.css</b> et <b>Android/android.css</b> — pour demander un changement global (couleur, rayon, espacement…), il suffit de pointer la variable concernée. Rien ici n'est branché au code de l'app.</p>
+</body></html>

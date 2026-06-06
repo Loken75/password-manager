@@ -36,7 +36,7 @@ Password Manager est une application multiplateforme (desktop + Android) permett
 - Interface bilingue francais/anglais
 - Themes systeme, clair et sombre
 - Injection de dependances Hilt sur le module Android
-- ~517 tests unitaires et d'integration (core, desktop et Android), plus des tests
+- ~526 tests unitaires et d'integration (core, desktop et Android), plus des tests
   instrumentes Android (Keystore AES-GCM, EncryptedSharedPreferences, smoke Compose)
 
 ---
@@ -47,7 +47,7 @@ Password Manager est une application multiplateforme (desktop + Android) permett
 |-----------|-----------------|-----------------|
 | Java (JDK) | 21 ou superieur | Desktop (build + jlink) |
 | Android SDK | API 35 | Android |
-| Gradle | 8.11+ (wrapper inclus) | Tous |
+| Gradle | 8.12 (wrapper inclus) | Tous |
 
 ### Architecture multi-module
 
@@ -103,8 +103,9 @@ Des scripts de lancement sont fournis dans `scripts/` :
 :core (Java 17, aucune dependance UI)
   |-- crypto/     CryptoService, KeyDerivation, VaultSession, PasswordGenerator, PasswordStrengthAnalyzer
   |-- vault/      Vault, VaultItem (abstract), PasswordEntry, AppEntry, SshKeyEntry,
-  |               VaultManager, VaultService (facade), BaseVaultService<T>, PasswordService,
-  |               AppService, VaultImporter, VaultExporter, EntryFilter, SortField
+  |               VaultManager, VaultStoreMigrator, VaultService (facade), BaseVaultService<T>,
+  |               PasswordService, AppService, VaultImporter, VaultExporter, EntryFilter, SortField
+  |-- vault/store/ VaultStore (abstraction stockage), FileVaultStore (java.nio.file)
   |-- security/   HibpChecker (k-Anonymity API)
   |-- sync/       EntryMerger (fusion generique), SyncService (orchestration), LocalRepository,
   |               LocalSyncRepository, RemoteSyncRepository (interfaces), ConflictStrategy
@@ -124,7 +125,9 @@ Des scripts de lancement sont fournis dans `scripts/` :
 
 :android (Kotlin 2.1, depends on :core, Hilt DI)
   |-- autofill/   PasswordManagerAutofillService (API 26+)
-  |-- data/       AndroidVaultRepository, AndroidConfigRepository, ConfigRepository, SessionHolder, FaviconRepository
+  |-- data/       AndroidVaultRepository, AndroidConfigRepository, ConfigRepository, SessionHolder,
+  |               WorkspaceManager/AndroidWorkspaceManager, SafVaultStore, AndroidSftpRepository,
+  |               BiometricHelper, SshHostKeyStore/SftpHostKeyVerifier, FaviconRepository/FaviconCache
   |-- di/         AppModule (Hilt @Provides @Singleton)
   |-- ui/         Compose screens + @HiltViewModel (login, vault, app, generator, settings, audit, sync)
   |               VaultTabHost (HorizontalPager 2 onglets), AppListVM, AppEditVM, AppDetailVM
@@ -168,9 +171,14 @@ Main
 PasswordManagerApp (Application)
 
 AppModule (@Module @InstallIn(SingletonComponent))
-  +-- @Provides @Singleton AndroidVaultRepository (wraps VaultManager)
+  +-- @Provides CoroutineDispatcher (Dispatchers.IO)
+  +-- @Provides @Singleton WorkspaceManager (-> AndroidWorkspaceManager)
+  +-- @Provides @Singleton AndroidVaultRepository (wraps VaultManager(workspaceManager.currentStore()))
   +-- @Provides @Singleton ConfigRepository (-> AndroidConfigRepository)
   +-- @Provides @Singleton SessionHolder (init + return)
+  +-- @Provides @Singleton BiometricHelper
+  +-- @Provides @Singleton SshHostKeyStore (epinglage host-key SFTP)
+  +-- @Provides @Singleton FaviconService + FaviconRepository
 
 @AndroidEntryPoint
 MainActivity (extends AppCompatActivity, single Activity)
@@ -399,6 +407,9 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 | `VaultLoadResult` | Objet de valeur : `Vault` + `VaultSession` |
 | `SortField` | Enum : `TITLE`, `USERNAME`, `EMAIL`, `URL`, `DATE`, `CATEGORY`, `FAVORITE`, `STRENGTH` |
 | `EntryFilter` | Filtres combines explicitement types pour `PasswordEntry` (categorie, force, date, favoris, texte) |
+| `VaultStore` (package `vault.store`) | Interface d'abstraction du stockage des fichiers de coffre, decouplant `VaultManager` du systeme de fichiers. Primitives sur des noms de fichiers nus (`list`, `exists`, `size`, `read`, `writeAtomic`, `copy`, `delete`, `lastModified`, `pathOf`, `describe`) ; rejet du path traversal. Permet le « dossier de travail » (workspace) configurable |
+| `FileVaultStore` (package `vault.store`) | Implementation `java.nio.file` : ecriture atomique (temp + `ATOMIC_MOVE` avec repli), permissions owner-only via `FileSecurityUtils`. Utilisee par le desktop et par le stockage interne Android |
+| `VaultStoreMigrator` | Deplace les fichiers `vault_*` (coffre + sidecars `.bak`/`.sync_meta`/`.pending`) entre deux `VaultStore` (copie-puis-suppression, sans ecrasement). Partage desktop (changement de dossier) / Android (migration SAF). Retourne `Result(moved, skipped, failed)` |
 
 **VaultManager — details :**
 - Format de fichier v2.0 : enveloppe JSON contenant `version`, `kdf`, `kdf_iterations`, `salt`, `kek_iv`, `encrypted_dek`, `data_iv`, `encrypted_data`
@@ -514,9 +525,11 @@ Les **modeles** de configuration sont dans `:core` ; la **persistance** (`Config
 | `sftpPort` | `sftp.port` | `22` |
 | `sftpUser` | `sftp.user` | `""` |
 | `sftpKeyPath` | `sftp.key_path` | `""` |
-| `sftpVaultKeyId` | `sftp.vault_key_id` | `""` |
+| `sftpVaultKeyId` | `sftp.vault_key_id` (champ modele ; **non persiste** par `ConfigManager`) | `""` |
 | `sftpRemotePath` | `sftp.remote_path` | `"/vault/data"` |
 | `localVaultDirectory` | `local.vault_directory` | `{app.home}/data/vaults` |
+| `recentWorkspaces` | `workspace.recent.<i>` (desktop) | (vide ; historique des dossiers de travail recents, max 8) |
+| `faviconsEnabled` | Android : `favicons_enabled` (**non persiste** par `ConfigManager` desktop) | `true` |
 | `autoLockMinutes` | `security.auto_lock_minutes` | `15` |
 | `clipboardClearSeconds` | `security.clipboard_clear_seconds` | `30` |
 
@@ -524,7 +537,9 @@ Les **modeles** de configuration sont dans `:core` ; la **persistance** (`Config
 
 **ConfigManager — details :**
 - Fichier de configuration : `{app.home}/data/config.properties`
-- Les champs SFTP (`sftp.host`, `sftp.user`, `sftp.key_path`, `sftp.vault_key_id`, `sftp.remote_path`) sont chiffres via `ConfigEncryptor` a l'ecriture et dechiffres a la lecture
+- Les champs SFTP (`sftp.host`, `sftp.user`, `sftp.key_path`, `sftp.remote_path`) sont chiffres via `ConfigEncryptor` a l'ecriture et dechiffres a la lecture (le port reste en clair). Le champ modele `sftpVaultKeyId` n'est pas serialise
+- La liste des dossiers de travail recents est persistee sous les cles `workspace.recent.<i>` (en clair)
+- Le champ `faviconsEnabled` n'est pas persiste par `ConfigManager` (le reglage favicons desktop n'est donc pas conserve entre sessions)
 - Ecriture atomique : fichier `.tmp` -> permissions -> renommage
 - Permissions fichier via `FileSecurityUtils.setOwnerOnlyPermissions()`
 
@@ -532,7 +547,7 @@ Les **modeles** de configuration sont dans `:core` ; la **persistance** (`Config
 
 | Classe | Role |
 |--------|------|
-L'orchestration de synchronisation et ses abstractions vivent desormais dans `:core` (depuis le refactor « Lot E.1a »), ce qui les rend partageables et testables hors UI. Seul le client SFTP concret (`SFTPRepository`, JSch) et la fabrique de configuration (`DesktopSyncFactory`) restent dans `:desktop`. Le client Android reimplemente encore sa synchronisation dans `VaultListViewModel` (migration vers le moteur `:core` planifiee).
+L'orchestration de synchronisation et ses abstractions vivent desormais dans `:core` (depuis le refactor « Lot E.1a »), ce qui les rend partageables et testables hors UI. Seul le client SFTP concret (`SFTPRepository`, JSch) et la fabrique de configuration (`DesktopSyncFactory`) restent dans `:desktop`. Cote Android, le **transport SFTP** a ete extrait dans `AndroidSftpRepository` (module `:android`), qui implemente l'interface `:core` `RemoteSyncRepository` (auparavant duplique inline dans `VaultListViewModel` et `SettingsViewModel`). Seule **l'orchestration** Android (comparaison de hash a trois voies) reste inline dans `VaultListViewModel` (migration vers `SyncService` planifiee).
 
 | Classe | Module | Role |
 |--------|--------|------|
@@ -812,13 +827,14 @@ MainFrame
 ```
 VaultListViewModel
     +-- syncNow() (coroutine Dispatchers.IO)
-            |-- JSch (authentification par cle)
+            |-- AndroidSftpRepository (implemente RemoteSyncRepository :core ;
+            |     JSch + host-key epingle via SftpHostKeyVerifier)
             |-- Comparaison SHA-256 local vs distant
             |-- EntryMerger (fusion bidirectionnelle pour les 3 types)
             +-- Resolution de conflits interactive (ConflictResolutionScreen)
 ```
 
-La synchronisation Android est implementee directement dans `VaultListViewModel`. Choix d'architecture : le moteur `SyncService`/`LocalRepository` deplace dans `:core` (Lot E.1a) est consomme par le **desktop** ; **Android conserve sa propre orchestration inline**, fonctionnellement equivalente (meme `EntryMerger`, dechiffrement du vrai distant via `decryptVaultFile`, adoption d'enveloppe). Les deux plateformes proposent une resolution de conflit interactive. La duplication du protocole entre le moteur `:core` et la sync inline Android est une dette assumee (non bloquante).
+Le **transport SFTP** Android est centralise dans `AndroidSftpRepository` (`AndroidSftpRepository.fromConfig(...)`), qui implemente l'interface `:core` `RemoteSyncRepository` (connexion, transfert, verification de la cle d'hote) — il n'est plus duplique inline dans `VaultListViewModel`/`SettingsViewModel`. En revanche, **l'orchestration** (comparaison a trois voies) reste implementee directement dans `VaultListViewModel`, fonctionnellement equivalente au moteur `:core` (meme `EntryMerger`, dechiffrement du vrai distant via `decryptVaultFile`, adoption d'enveloppe). La duplication de cette orchestration entre `SyncService` (`:core`) et la sync inline Android est une dette assumee (non bloquante).
 
 ### 8.2. Algorithme de synchronisation
 
@@ -906,12 +922,12 @@ Le changement de langue est possible depuis l'ecran de connexion (effet immediat
 
 | Fenetre | Type | Taille | Description |
 |---------|------|--------|-------------|
-| `LoginFrame` | `JFrame` | 450x450 (non-redimensionnable) | Connexion, creation utilisateur, toggle mot de passe, selection de langue |
+| `LoginFrame` | `JFrame` | 450x450 (non-redimensionnable) | Connexion, creation utilisateur, toggle mot de passe, selection de langue, et **selecteur de dossier de travail** (combo des dossiers recents + bouton `...`, migration des coffres entre dossiers via `VaultStoreMigrator`) |
 | `MainFrame` | `JFrame` | 1100x700 (min 900x600) | `JTabbedPane` avec 3 onglets (Mots de passe, Applications, Cles SSH), menus, barre d'outils, barre de statut |
 | `EntryDialog` | `JDialog` (modal) | min 550x480 | Creation/edition d'entree mot de passe avec barre de force |
 | `AppEntryDialog` | `JDialog` (modal) | — | Creation/edition d'entree application |
 | `PasswordGeneratorDialog` | `JDialog` (modal) | min 450x420 | Generateur avec options et barre de force |
-| `SettingsDialog` | `JDialog` (modal) | min 500x450 | Parametres en 3 onglets |
+| `SettingsDialog` | `JDialog` (modal) | min 500x450 | Parametres en 3 onglets ; l'onglet General affiche le dossier de travail courant + bouton « Changer… » (declenche une reconnexion) |
 
 #### Onglet Mots de passe (VaultPanel)
 
@@ -1000,19 +1016,28 @@ Le module `AppModule` (`@Module @InstallIn(SingletonComponent)`) fournit :
 
 | Provider | Type | Description |
 |----------|------|-------------|
-| `provideVaultRepository` | `@Singleton AndroidVaultRepository` | Cree avec `@ApplicationContext.filesDir + "/vaults"` |
+| `provideIoDispatcher` | `CoroutineDispatcher` | `Dispatchers.IO` |
+| `provideWorkspaceManager` | `@Singleton WorkspaceManager` | Retourne `AndroidWorkspaceManager(context, configRepository)` (resout le `VaultStore` du dossier de travail courant) |
+| `provideVaultRepository` | `@Singleton AndroidVaultRepository` | Cree avec le `VaultStore` du workspace courant : `AndroidVaultRepository(workspaceManager.currentStore())` |
 | `provideConfigRepository` | `@Singleton ConfigRepository` | Retourne `AndroidConfigRepository` (implementation de l'interface `ConfigRepository`) |
 | `provideSessionHolder` | `@Singleton SessionHolder` | Appelle `SessionHolder.init(repository)` puis retourne l'objet singleton |
+| `provideBiometricHelper` | `@Singleton BiometricHelper` | Chiffrement biometrique via AndroidKeyStore |
+| `provideSshHostKeyStore` | `@Singleton SshHostKeyStore` | Magasin d'epinglage des cles d'hote SFTP |
+| `provideFaviconService` / `provideFaviconRepository` | `@Singleton` | Recuperation des favicons (cache disque `:core` + cache memoire reactif) |
 
-L'interface `ConfigRepository` abstrait les operations de configuration (theme, langue, auto-lock, clipboard) pour permettre l'injection d'un `FakeConfigRepository` dans les tests.
+L'interface `ConfigRepository` abstrait les operations de configuration (theme, langue, auto-lock, clipboard, favicons, dossier de travail) pour permettre l'injection d'un `FakeConfigRepository` dans les tests.
 
 #### Couche data
 
 | Classe | Role |
 |--------|------|
-| `AndroidVaultRepository` | Encapsule `VaultManager(context.filesDir + "/vaults")` |
-| `ConfigRepository` | Interface de configuration (theme, langue, auto-lock, clipboard, SFTP) |
-| `AndroidConfigRepository` | Implementation via `EncryptedSharedPreferences` (MasterKey AES256-GCM). Inclut les parametres SFTP (host, port, user, key path, remote path, storage mode) |
+| `AndroidVaultRepository` | Encapsule `VaultManager(store)` ou `store` est un `VaultStore` ; le store est interchangeable a l'execution via `useStore(...)` (hors session) pour changer de dossier de travail |
+| `WorkspaceManager` / `AndroidWorkspaceManager` | Resout et persiste le dossier de travail actif (specs opaques : stockage interne, dossier File, futur `saf:<treeUri>`) ; expose `currentStore(): VaultStore` et cloisonne le nommage des cles biometriques par workspace (`biometricAccount`) |
+| `SafVaultStore` | `VaultStore` adosse a un arbre de documents SAF (`content://` via `DocumentFile`/`ContentResolver`) : pas de `pathOf`, pas de permissions POSIX, `.bak` comme filet de securite |
+| `AndroidSftpRepository` | Client SFTP (JSch) implementant l'interface `:core` `RemoteSyncRepository` ; centralise connexion/transfert et verification host-key (`fromConfig(...)`) |
+| `ConfigRepository` | Interface de configuration (theme, langue, auto-lock, clipboard, SFTP, favicons, dossier de travail) |
+| `AndroidConfigRepository` | Implementation via `EncryptedSharedPreferences` (MasterKey AES256-GCM). Inclut les parametres SFTP (host, port, user, key path, remote path, storage mode), le dossier de travail (`vault_workspace`) et l'activation des favicons (`favicons_enabled`) |
+| `FaviconCache` | Cache favicon en memoire, reactif (`StateFlow`), `@Singleton`, partage entre la liste et `EntryEditViewModel` |
 | `SessionHolder` | Singleton thread-safe : tient `Vault`, `VaultSession`, `VaultService` (facade), `username` en memoire. Expose `vaultService` (facade avec acces a `passwordService`, `appService`). Champs `@Volatile`, methodes `@Synchronized`. `isUnlockedFlow: StateFlow<Boolean>` |
 | `SshHostKeyStore` | Magasin d'epinglage des cles d'hote SFTP en zone privee (`filesDir`). Empreinte SHA-256 (format OpenSSH), verdicts `Match`/`Unknown`/`Changed`. Pur (testable JVM) |
 | `SftpHostKeyVerifier` | Connexion JSch en `StrictHostKeyChecking=yes` adossee a `SshHostKeyStore` : leve `UnknownHostKeyException`/`HostKeyChangedException` pour confirmation explicite de l'empreinte au 1er contact (C2) |
@@ -1097,13 +1122,13 @@ update.enabled=true
 ### 12.1. Vue d'ensemble
 
 **Framework** : JUnit 5 (Jupiter) 5.14.2
-**Total** : **~493 tests** (unitaires + integration) repartis sur les 3 modules
+**Total** : **~526 tests** (unitaires + integration) repartis sur les 3 modules
 
 | Module Gradle | Tests | Framework |
 |---|---|---|
-| `:core` | 343 | JUnit 5 (Java) |
-| `:desktop` | 47 | JUnit 5 (Java, dont tests d'integration SFTP reels) |
-| `:android` | 103 | JUnit 5 (Kotlin, JVM local) |
+| `:core` | 371 | JUnit 5 (Java) |
+| `:desktop` | 49 | JUnit 5 (Java, dont tests d'integration SFTP reels) |
+| `:android` | 106 | JUnit 5 (Kotlin, JVM local) |
 
 > Note : les tests d'orchestration de sync (`SyncServiceTest`, `LocalRepositoryTest`) ont migre de `:desktop` vers `:core` avec le moteur (Lot E.1a). La matrice detaillee ci-dessous est **indicative** et peut etre legerement en retard sur les compteurs reels par classe.
 
@@ -1114,7 +1139,7 @@ update.enabled=true
 | vault | `VaultServiceTest` | 33 | CRUD, recherche, tri, favoris, filtre, doublons, categories, timestamps, mots de passe anciens |
 | vault | `VaultImporterTest` | 33 | CSV (separateurs, alias, BOM, sanitisation, favoris, RFC 4180, round-trip multi-type), JSON (malformed, null), limites |
 | security | `SecurityAuditTest` | 31 | IV, KDF, memoire, permissions, format, import/export, generateur |
-| sync (core) | `SyncServiceTest` | 31 | Synchronisation, hash a 3 voies, conflits, mode hors-ligne, mode local, syncAfterMerge |
+| sync (core) | `SyncServiceTest` | 33 | Synchronisation, hash a 3 voies, conflits, mode hors-ligne, mode local, syncAfterMerge |
 | **android** | `LoginViewModelTest` | 27 | Etat initial, biometrie, selection utilisateur, validation, creation, nettoyage onCleared |
 | vault | `VaultTest` | 24 | Constructeurs, add/remove entries (3 types), dedup par id, unmodifiable views, mutable accessors, wipe, ensureInitialized, settings |
 | sync (core) | `LocalRepositoryTest` | 17 | Path traversal, lecture/ecriture/suppression, pending, backups |
@@ -1148,6 +1173,9 @@ update.enabled=true
 | crypto | `PasswordGeneratorTest` | 5 | Longueur, types de caracteres, exclusion ambigus |
 | **desktop** | `ConfigManagerTest` | 3 | Valeurs par defaut, persistance, auto-creation |
 | vault | `VaultJsonCodecTest` | 8 | Codec JSON maison : round-trip, caracteres pieges, tombstone, retro-compat Gson, echec propre (R3) |
+| vault.store | `FileVaultStoreTest` | 13 | Primitives `VaultStore` filesystem : list/exists/read/writeAtomic/copy/delete, rejet du path traversal, permissions |
+| vault | `VaultStoreMigratorTest` | 3 | Migration des fichiers `vault_*` entre deux stores (copie-puis-suppression, sans ecrasement) |
+| vault | `VaultManagerCorruptionTest` | 7 | Chargement de coffres corrompus/tronques : detection et echec propre |
 | crypto/util | `SshHostKeyStoreTest` (android) | 10 | Empreinte SHA-256, parseKeyType, Match/Unknown/Changed, persistance, isolation hote:port (C2) |
 | **android** | `AutofillDomainMatcherTest` | 6 | Matching autofill : exact, sous-domaine, rejet parent/look-alike (R10) |
 | **android** | `PinningHostKeyRepositoryTest` | 4 | Verdicts JSch OK/NOT_INCLUDED/CHANGED (C2) |
@@ -1157,7 +1185,7 @@ update.enabled=true
 | **desktop** | `DesktopSyncFactoryTest` | 2 | Construction du SyncService depuis AppConfig (sans connexion) |
 | **desktop** | `MasterPasswordSyncIntegrationTest` | 2 | Deux appareils : propagation du changement de mot de passe maitre (R4) |
 | **desktop** | `SyncConflictIntegrationTest` | 1 | Conflit expose le VRAI distant pour la fusion (R-merge) |
-| | | **493** | |
+| | | **~526** | |
 
 ### 12.3. Infrastructure de test Android
 
@@ -1168,6 +1196,7 @@ Les tests Android s'executent sur la JVM locale (pas d'emulateur) :
 | `MainDispatcherExtension` | Extension JUnit 5 qui remplace `Dispatchers.Main` par `UnconfinedTestDispatcher` |
 | `FakeConfigRepository` | Implementation de `ConfigRepository` pour les tests (valeurs en memoire) |
 | `FakeBiometricHelper` | Test double de `BiometricHelper` (JVM, pas de KeyStore Android) |
+| `FakeWorkspaceManager` | Test double de `WorkspaceManager` (store en memoire/`@TempDir`, pas de SAF) |
 | `TestSessionHelper` | Cree un vault reel sur un `@TempDir` et deverrouille `SessionHolder` |
 
 Tous les tests utilisant `SessionHolder` ont un `@AfterEach` qui appelle `SessionHolder.lock()` pour garantir l'isolation entre tests.
@@ -1277,14 +1306,15 @@ password-manager/
 |       |   |-- update/                     # UpdateChecker, UpdateInfo, VersionComparator
 |       |   |-- util/                       # SecureWiper, FileSecurityUtils, PasswordValidator, DateUtils,
 |       |   |                               # FaviconService (favicons via /favicon.ico du site, cache disque)
-|       |   +-- vault/                      # Vault, VaultItem (abstract), PasswordEntry, AppEntry, SshKeyEntry,
-|       |                                   # VaultManager, VaultService (facade),
-|       |                                   # BaseVaultService<T>, PasswordService, AppService,
-|       |                                   # VaultImporter, VaultExporter, VaultLoadResult, SortField,
-|       |                                   # EntryFilter (filtres combines builder pattern),
-|       |                                   # VaultJsonCodec + JsonCharWriter/JsonCharReader (codec JSON, secrets en char[], R3)
+|       |   |-- vault/                      # Vault, VaultItem (abstract), PasswordEntry, AppEntry, SshKeyEntry,
+|       |   |                               # VaultManager, VaultStoreMigrator, VaultService (facade),
+|       |   |                               # BaseVaultService<T>, PasswordService, AppService,
+|       |   |                               # VaultImporter, VaultExporter, VaultLoadResult, SortField,
+|       |   |                               # EntryFilter (filtres combines builder pattern),
+|       |   |                               # VaultJsonCodec + JsonCharWriter/JsonCharReader (codec JSON, secrets en char[], R3)
+|       |   +-- vault/store/                 # VaultStore (abstraction stockage), FileVaultStore (java.nio.file, ecriture atomique)
 |       |-- main/resources/update.properties # Configuration du systeme de mise a jour
-|       +-- test/java/com/passwordmanager/  # 343 tests (24 classes, dont SyncServiceTest/LocalRepositoryTest migres)
+|       +-- test/java/com/passwordmanager/  # 371 tests (dont SyncServiceTest/LocalRepositoryTest migres, vault.store)
 |
 |-- desktop/                                # :desktop — interface Swing (Java 17)
 |   |-- build.gradle.kts
@@ -1302,7 +1332,7 @@ password-manager/
 |       |   +-- update/                     # DesktopUpdateManager
 |       |-- main/resources/i18n/            # messages_en.properties, messages_fr.properties
 |       |-- main/resources/icons/           # icon.png
-|       +-- test/java/com/passwordmanager/  # 47 tests (dont integration SFTP reelle + helper SftpTestServer)
+|       +-- test/java/com/passwordmanager/  # 49 tests (dont integration SFTP reelle + helper SftpTestServer)
 |
 +-- android/                                # :android — interface Compose (Kotlin 2.1)
     |-- build.gradle.kts                    # AGP 8.7.3, Compose BOM 2024.12, Hilt 2.54, minSdk 26
@@ -1321,7 +1351,9 @@ password-manager/
         |       |-- autofill/              # PasswordManagerAutofillService (Android Autofill API 26+)
         |       |-- data/                   # AndroidVaultRepository, AndroidConfigRepository,
         |       |                           # ConfigRepository (interface), SessionHolder (@Volatile/@Synchronized),
-        |       |                           # FaviconRepository (wrapper suspend), BiometricHelper (AndroidKeyStore),
+        |       |                           # WorkspaceManager/AndroidWorkspaceManager + SafVaultStore (dossier de travail, SAF),
+        |       |                           # AndroidSftpRepository (RemoteSyncRepository :core),
+        |       |                           # FaviconRepository/FaviconCache, BiometricHelper (AndroidKeyStore),
         |       |                           # SshHostKeyStore + SftpHostKeyVerifier (epinglage host-key SFTP, C2)
         |       |-- di/                     # AppModule (@Module @InstallIn @Provides @Singleton)
         |       |-- update/                # AndroidUpdateManager
@@ -1339,9 +1371,9 @@ password-manager/
         |           |-- sync/              # ConflictResolutionScreen (resolution bidirectionnelle, tous types VaultItem)
         |           +-- components/         # PasswordStrengthBar, PasswordField, EntryCard, AppEntryCard,
         |                                   # ConfirmDialog, ImportExportDialog
-        +-- test/kotlin/com/passwordmanager/android/  # 103 tests (ViewModels + data : SshHostKeyStore, AutofillDomainMatcher, ... + 4 helpers)
+        +-- test/kotlin/com/passwordmanager/android/  # 106 tests (ViewModels + data : SshHostKeyStore, AutofillDomainMatcher, ... + helpers)
             |-- test/                       # MainDispatcherExtension, FakeConfigRepository,
-            |                               # FakeBiometricHelper, TestSessionHelper
+            |                               # FakeBiometricHelper, FakeWorkspaceManager, TestSessionHelper
             +-- ui/                         # LoginVM, GeneratorVM, EntryDetailVM, EntryEditVM,
                                             # SettingsVM, ChangeMasterPasswordVM, SecurityAuditVM
 ```
