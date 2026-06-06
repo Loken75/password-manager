@@ -57,13 +57,9 @@ public class CoffreSettingsPanel extends JPanel {
         header.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(0, 0, 1, 0, DesignTokens.outline()),
             BorderFactory.createEmptyBorder(DesignTokens.SPACE_MD, DesignTokens.SPACE_LG, DesignTokens.SPACE_MD, DesignTokens.SPACE_LG)));
-        JButton backBtn = new JButton("←  " + lang.getString("common.back"));
-        backBtn.setFocusPainted(false);
-        backBtn.addActionListener(e -> { if (onBack != null) onBack.run(); });
         JLabel title = new JLabel(lang.getString("settings.title"));
         title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
-        header.add(backBtn, BorderLayout.WEST);
-        header.add(title, BorderLayout.CENTER);
+        header.add(title, BorderLayout.WEST);
         add(header, BorderLayout.NORTH);
 
         JTabbedPane tabs = new JTabbedPane();
@@ -72,11 +68,14 @@ public class CoffreSettingsPanel extends JPanel {
         tabs.addTab(lang.getString("settings.sync"), buildSync());
         add(tabs, BorderLayout.CENTER);
 
-        // Footer: Apply (primary). Back is in the header.
+        // Footer: Back (tonal) + Apply (primary), side by side.
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD));
         footer.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, DesignTokens.outline()));
+        JButton backBtn = Buttons.tonal(lang.getString("common.back"));
+        backBtn.addActionListener(e -> { if (onBack != null) onBack.run(); });
         JButton applyBtn = Buttons.primary(lang.getString("common.apply"));
         applyBtn.addActionListener(e -> apply());
+        footer.add(backBtn);
         footer.add(applyBtn);
         add(footer, BorderLayout.SOUTH);
     }

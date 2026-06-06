@@ -52,7 +52,10 @@ public class CoffrePasswordsPanel extends JPanel {
     private SortField currentSort = SortField.TITLE;
     private boolean sortAscending = true;
     private boolean favoritesOnly = false;
-    private boolean weakOnly = false;
+    private Strength filterStrength;
+    private java.time.LocalDate createdSince, modifiedSince, createdOn, modifiedOn;
+    private JPanel filterPanel;
+    private final java.util.List<Runnable> filterResetters = new ArrayList<>();
 
     private javax.swing.Timer clipboardTimer;
 
@@ -76,26 +79,54 @@ public class CoffrePasswordsPanel extends JPanel {
         JPanel center = new JPanel(new BorderLayout());
         center.setOpaque(false);
 
-        // Filter chip row
-        JPanel chips = new JPanel(new FlowLayout(FlowLayout.LEFT, DesignTokens.SPACE_SM, DesignTokens.SPACE_SM));
+        // Row 1: chips (left) + sort + filters toggle (right)
+        JPanel chips = new JPanel(new FlowLayout(FlowLayout.LEFT, DesignTokens.SPACE_SM, 0));
         chips.setOpaque(false);
         JToggleButton allChip = chip(lang.getString("filter.all_short"), true);
         JToggleButton favChip = chip(lang.getString("filter.favorites_only"), false);
-        JToggleButton weakChip = chip(lang.getString("strength.weak"), false);
-        ButtonGroup ignoredGroup = new ButtonGroup(); // allow independent toggles; keep refs
-        allChip.addActionListener(e -> { favoritesOnly = false; weakOnly = false; favChip.setSelected(false); weakChip.setSelected(false); allChip.setSelected(true); refresh(); });
-        favChip.addActionListener(e -> { favoritesOnly = favChip.isSelected(); allChip.setSelected(!favoritesOnly && !weakOnly); refresh(); });
-        weakChip.addActionListener(e -> { weakOnly = weakChip.isSelected(); allChip.setSelected(!favoritesOnly && !weakOnly); refresh(); });
-        chips.add(allChip); chips.add(favChip); chips.add(weakChip);
+        allChip.addActionListener(e -> { favoritesOnly = false; favChip.setSelected(false); allChip.setSelected(true); refresh(); });
+        favChip.addActionListener(e -> { favoritesOnly = favChip.isSelected(); allChip.setSelected(!favoritesOnly); refresh(); });
+        chips.add(allChip); chips.add(favChip);
+
+        JComboBox<String> sortCombo = new JComboBox<>(new String[]{
+            lang.getString("entry.title"), lang.getString("entry.username"), lang.getString("entry.email"),
+            lang.getString("entry.url"), lang.getString("entry.category"), lang.getString("strength.label"),
+            lang.getString("entry.updated")
+        });
+        SortField[] sortFields = { SortField.TITLE, SortField.USERNAME, SortField.EMAIL, SortField.URL,
+            SortField.CATEGORY, SortField.STRENGTH, SortField.DATE };
+        sortCombo.addActionListener(e -> { currentSort = sortFields[sortCombo.getSelectedIndex()]; refresh(); });
+        JToggleButton dirBtn = new JToggleButton("↑");
+        dirBtn.setFocusPainted(false);
+        dirBtn.setToolTipText(lang.getString("filter.sort"));
+        dirBtn.addActionListener(e -> { sortAscending = !dirBtn.isSelected(); dirBtn.setText(sortAscending ? "↑" : "↓"); refresh(); });
+        JToggleButton filtersBtn = chip(lang.getString("filter.filters"), false);
+        filtersBtn.addActionListener(e -> { filterPanel.setVisible(filtersBtn.isSelected()); revalidate(); });
+
+        JPanel sortBox = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, 0));
+        sortBox.setOpaque(false);
+        JLabel sortLbl = new JLabel(lang.getString("filter.sort") + " :");
+        sortLbl.setForeground(DesignTokens.onSurfaceFaint());
+        sortBox.add(sortLbl); sortBox.add(sortCombo); sortBox.add(dirBtn); sortBox.add(filtersBtn);
+
+        JPanel row1 = new JPanel(new BorderLayout());
+        row1.setOpaque(false);
+        row1.setBorder(BorderFactory.createEmptyBorder(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD, 0, DesignTokens.SPACE_MD));
+        row1.add(chips, BorderLayout.WEST);
+        row1.add(sortBox, BorderLayout.EAST);
+
+        filterPanel = buildFilterPanel();
 
         // Bento
         bentoRow.setOpaque(false);
         bentoRow.setBorder(BorderFactory.createEmptyBorder(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD, DesignTokens.SPACE_MD, DesignTokens.SPACE_MD));
 
-        JPanel top = new JPanel(new BorderLayout());
+        JPanel top = new JPanel();
         top.setOpaque(false);
-        top.add(chips, BorderLayout.NORTH);
-        top.add(bentoRow, BorderLayout.SOUTH);
+        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
+        top.add(row1);
+        top.add(filterPanel);
+        top.add(bentoRow);
         center.add(top, BorderLayout.NORTH);
 
         // Card list
@@ -143,6 +174,90 @@ public class CoffrePasswordsPanel extends JPanel {
         return b;
     }
 
+    private JPanel buildFilterPanel() {
+        JPanel p = new JPanel(new GridBagLayout());
+        p.setOpaque(false);
+        p.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, DesignTokens.outline()),
+            BorderFactory.createEmptyBorder(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD)));
+        GridBagConstraints g = new GridBagConstraints();
+        g.insets = new Insets(4, 6, 4, 6);
+        g.anchor = GridBagConstraints.WEST;
+        g.fill = GridBagConstraints.HORIZONTAL;
+
+        g.gridx = 0; g.gridy = 0;
+        JLabel sl = new JLabel(lang.getString("filter.strength") + " :");
+        sl.setForeground(DesignTokens.onSurfaceFaint());
+        p.add(sl, g);
+        g.gridx = 1;
+        JComboBox<String> strengthCombo = new JComboBox<>(new String[]{
+            lang.getString("category.all"), lang.getString("strength.weak"), lang.getString("strength.medium"),
+            lang.getString("strength.strong"), lang.getString("strength.very_strong")
+        });
+        strengthCombo.addActionListener(e -> { filterStrength = strengthFromIndex(strengthCombo.getSelectedIndex()); refresh(); });
+        p.add(strengthCombo, g);
+        filterResetters.add(() -> strengthCombo.setSelectedIndex(0));
+
+        addDateFilter(p, g, 1, "filter.created_since", d -> createdSince = d);
+        addDateFilter(p, g, 2, "filter.modified_since", d -> modifiedSince = d);
+        addDateFilter(p, g, 3, "filter.created_on", d -> createdOn = d);
+        addDateFilter(p, g, 4, "filter.modified_on", d -> modifiedOn = d);
+
+        g.gridx = 0; g.gridy = 5; g.gridwidth = 2;
+        JButton clear = new JButton(lang.getString("filter.clear"));
+        clear.addActionListener(e -> clearFilters());
+        p.add(clear, g);
+
+        p.setVisible(false);
+        return p;
+    }
+
+    private void addDateFilter(JPanel p, GridBagConstraints g, int row, String key,
+                               java.util.function.Consumer<java.time.LocalDate> setter) {
+        JCheckBox cb = new JCheckBox(lang.getString(key));
+        JSpinner sp = new JSpinner(new SpinnerDateModel());
+        sp.setEditor(new JSpinner.DateEditor(sp, "yyyy-MM-dd"));
+        sp.setEnabled(false);
+        Runnable upd = () -> { setter.accept(cb.isSelected() ? toLocalDate((java.util.Date) sp.getValue()) : null); refresh(); };
+        cb.addActionListener(e -> { sp.setEnabled(cb.isSelected()); upd.run(); });
+        sp.addChangeListener(e -> { if (cb.isSelected()) upd.run(); });
+        g.gridx = 0; g.gridy = row; p.add(cb, g);
+        g.gridx = 1; p.add(sp, g);
+        filterResetters.add(() -> { cb.setSelected(false); sp.setEnabled(false); });
+    }
+
+    private void clearFilters() {
+        for (Runnable r : filterResetters) r.run();
+        filterStrength = null;
+        createdSince = modifiedSince = createdOn = modifiedOn = null;
+        refresh();
+    }
+
+    private Strength strengthFromIndex(int i) {
+        switch (i) {
+            case 1: return Strength.WEAK;
+            case 2: return Strength.MEDIUM;
+            case 3: return Strength.STRONG;
+            case 4: return Strength.VERY_STRONG;
+            default: return null;
+        }
+    }
+
+    private static java.time.LocalDate toLocalDate(java.util.Date d) {
+        return d.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+    }
+
+    private static java.time.LocalDate dateOf(String iso) {
+        if (iso == null || iso.length() < 10) return null;
+        try { return java.time.LocalDate.parse(iso.substring(0, 10)); } catch (Exception e) { return null; }
+    }
+
+    private static String formatDate(String iso) {
+        if (iso == null) return "";
+        if (iso.length() >= 16 && iso.charAt(10) == 'T') return iso.substring(0, 10) + " " + iso.substring(11, 16);
+        return iso.length() >= 10 ? iso.substring(0, 10) : iso;
+    }
+
     public void setCategory(String category) {
         this.currentCategory = category;
         refresh();
@@ -173,9 +288,24 @@ public class CoffrePasswordsPanel extends JPanel {
 
         EntryFilter.Builder fb = new EntryFilter.Builder();
         if (favoritesOnly) fb.favoritesOnly(true);
-        if (weakOnly) fb.exactStrength(Strength.WEAK);
+        if (filterStrength != null) fb.exactStrength(filterStrength);
         EntryFilter filter = fb.build();
         if (filter.hasActiveFilters()) entries = vaultService.filter(entries, filter);
+
+        // Date filters (UI-side; :core EntryFilter has no date support)
+        if (createdSince != null || modifiedSince != null || createdOn != null || modifiedOn != null) {
+            List<PasswordEntry> f = new ArrayList<>();
+            for (PasswordEntry en : entries) {
+                java.time.LocalDate c = dateOf(en.getCreatedAt());
+                java.time.LocalDate m = dateOf(en.getUpdatedAt());
+                if (createdSince != null && (c == null || c.isBefore(createdSince))) continue;
+                if (modifiedSince != null && (m == null || m.isBefore(modifiedSince))) continue;
+                if (createdOn != null && (c == null || !c.isEqual(createdOn))) continue;
+                if (modifiedOn != null && (m == null || !m.isEqual(modifiedOn))) continue;
+                f.add(en);
+            }
+            entries = f;
+        }
 
         displayed = vaultService.sorted(entries, currentSort);
         if (!sortAscending) java.util.Collections.reverse(displayed);
@@ -414,6 +544,8 @@ public class CoffrePasswordsPanel extends JPanel {
         col.add(catCombo);
 
         if (!isBlank(e.getNotes())) col.add(fieldRow(lang.getString("entry.notes"), e.getNotes(), null));
+        if (!isBlank(e.getCreatedAt())) col.add(fieldRow(lang.getString("entry.created"), formatDate(e.getCreatedAt()), null));
+        if (!isBlank(e.getUpdatedAt())) col.add(fieldRow(lang.getString("entry.updated"), formatDate(e.getUpdatedAt()), null));
 
         JScrollPane sc = new JScrollPane(col);
         sc.setBorder(null);
