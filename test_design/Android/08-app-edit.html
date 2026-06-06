@@ -1,6 +1,192 @@
 <!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8"><title>Android — Modifier application</title>
-<link rel="stylesheet" href="android.css"><script src="../theme-toggle.js"></script></head>
+<style data-inlined="css">
+/* "Calme & confiance" — Android (mobile) mockups. Accent steel blue #3B66C9.
+   Material 3 feel. Light = :root, dark = html.dark. */
+:root{
+  --bg:#EEF1F5; --surface:#FFFFFF; --surface-2:#F4F6F9; --surface-3:#E9EDF2;
+  --border:#E1E6EC; --hairline:#ECEFF3;
+  --text:#1A2230; --text-2:#5C6776; --text-3:#8A93A1;
+  --accent:#3B66C9; --accent-weak:#EAF0FB; --on-accent:#FFFFFF;
+  --strong:#2F9E68; --strong-bg:#E7F4ED;
+  --medium:#B97D08; --medium-bg:#FBF1DD;
+  --weak:#CF4747; --weak-bg:#FBEAEA;
+  --vstrong:#2F6FB0; --vstrong-bg:#E7F0F9;
+  --fav:#C79A33;
+  --shadow:0 1px 2px rgba(20,28,40,.05),0 6px 16px rgba(20,28,40,.07);
+  --shadow-sm:0 1px 2px rgba(20,28,40,.07);
+  --r-card:16px; --r-btn:12px; --r-field:12px;
+}
+html.dark{
+  --bg:#0E131A; --surface:#171E27; --surface-2:#1E2731; --surface-3:#28323E;
+  --border:#2A343F; --hairline:#222C36;
+  --text:#E7ECF2; --text-2:#9AA6B4; --text-3:#6C7886;
+  --accent:#6E92E8; --accent-weak:#1B2940; --on-accent:#0E131A;
+  --strong:#46B883; --strong-bg:#16291F;
+  --medium:#E0A23A; --medium-bg:#2A2113;
+  --weak:#E36464; --weak-bg:#2C1717;
+  --vstrong:#5E93D6; --vstrong-bg:#172435;
+  --fav:#D9B95B;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 26px rgba(0,0,0,.4);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);padding:30px;display:flex;justify-content:center;flex-wrap:wrap;gap:30px;
+  font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:ui-monospace,'SF Mono','JetBrains Mono','Roboto Mono',Consolas,monospace}
+svg{display:block}
+#theme-toggle{position:fixed;top:14px;right:16px;z-index:50;border:1px solid var(--border);
+  background:var(--surface);color:var(--text-2);border-radius:99px;padding:7px 14px;font:600 12px/1 inherit;cursor:pointer;box-shadow:var(--shadow-sm)}
+
+/* Phone frame */
+.phone{width:390px;height:800px;background:var(--surface);border-radius:34px;overflow:hidden;position:relative;
+  box-shadow:var(--shadow);border:1px solid var(--border);display:flex;flex-direction:column}
+.statusbar{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:12px;font-weight:600;color:var(--text-2);flex:0 0 auto}
+.statusbar .dot-cam{position:absolute;left:50%;top:11px;transform:translateX(-50%);width:54px;height:16px;background:#000;border-radius:99px;opacity:.85}
+.screen{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+.scroll{flex:1;overflow:auto;padding:14px 16px 16px}
+
+/* App bars */
+.appbar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--hairline);flex:0 0 auto}
+.appbar .title{font-size:20px;font-weight:700;flex:1}
+.appbar .ic{width:22px;height:22px;color:var(--text-2)}
+.appbar.detail .title{font-size:17px}
+.searchbar{display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--border);border-radius:99px;
+  padding:9px 14px;color:var(--text-3);margin:12px 16px 4px}
+.searchbar input{border:0;outline:0;background:transparent;color:var(--text);font:14px/1 inherit;width:100%}
+
+/* Tabs (Material) */
+.mtabs{display:flex;background:var(--surface);border-bottom:1px solid var(--hairline);flex:0 0 auto}
+.mtabs button{flex:1;border:0;background:transparent;color:var(--text-2);font:600 13px/1 inherit;padding:13px 0;cursor:pointer;border-bottom:2px solid transparent}
+.mtabs button.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* Bottom nav */
+.botnav{display:flex;background:var(--surface);border-top:1px solid var(--hairline);flex:0 0 auto;padding:6px 0 10px}
+.botnav .item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--text-3);font-size:11px;font-weight:600}
+.botnav .item .ic{width:22px;height:22px}
+.botnav .item.active{color:var(--accent)}
+.botnav .item.active .pill{background:var(--accent-weak)}
+.botnav .pill{padding:3px 16px;border-radius:99px;display:flex}
+
+/* FAB */
+.fab{position:absolute;right:18px;bottom:78px;width:56px;height:56px;border-radius:18px;background:var(--accent);color:var(--on-accent);
+  display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);border:0;cursor:pointer;z-index:5}
+
+/* Bento */
+.bento{display:flex;gap:10px;margin-bottom:14px}
+.bento .card{flex:1;background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);padding:13px;box-shadow:var(--shadow-sm)}
+.bento .cap{font-size:9.5px;font-weight:700;letter-spacing:.04em;color:var(--text-3);text-transform:uppercase}
+.bento .big{font-size:22px;font-weight:700;margin:5px 0 2px;letter-spacing:-.02em}
+.bento .sub{font-size:11px;color:var(--text-2)}
+.health-bar{height:5px;border-radius:99px;background:var(--surface-3);margin-top:8px;overflow:hidden;display:flex}
+.health-bar>i{height:100%}
+
+/* Filter chips */
+.chips{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.chip{font-size:12px;font-weight:600;color:var(--text-2);background:var(--surface);border:1px solid var(--border);border-radius:99px;padding:6px 13px}
+.chip.active{background:var(--accent-weak);color:var(--accent);border-color:transparent}
+
+/* Entry cards */
+.label{font-size:11px;font-weight:700;letter-spacing:.07em;color:var(--text-3);text-transform:uppercase;margin:4px 0 10px 2px}
+.cards{display:flex;flex-direction:column;gap:10px}
+.entry{display:flex;align-items:center;gap:13px;background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);
+  padding:13px 14px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+.entry .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:99px}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--surface-3);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex:0 0 auto;margin-left:4px}
+.avatar.lg{width:72px;height:72px;font-size:30px}
+.entry .meta{flex:1;min-width:0}
+.entry .t{font-weight:600;font-size:15px}
+.entry .s{font-size:13px;color:var(--text-2);margin-top:2px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px;white-space:nowrap}
+.badge .dot{width:7px;height:7px;border-radius:50%}
+.b-strong{background:var(--strong-bg);color:var(--strong)} .b-strong .dot{background:var(--strong)}
+.b-medium{background:var(--medium-bg);color:var(--medium)} .b-medium .dot{background:var(--medium)}
+.b-weak{background:var(--weak-bg);color:var(--weak)} .b-weak .dot{background:var(--weak)}
+.b-vstrong{background:var(--vstrong-bg);color:var(--vstrong)} .b-vstrong .dot{background:var(--vstrong)}
+.star{width:20px;height:20px;flex:0 0 auto}
+
+/* Detail */
+.detail-head{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;margin-bottom:6px}
+.detail-head .name{font-size:19px;font-weight:700}
+.field{margin-top:12px}
+.field .k{font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--text-3);text-transform:uppercase;margin-bottom:5px}
+.field .v{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-field);padding:11px 12px;font-size:14px}
+.field .v .grow{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iconbtn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;border:0;background:transparent;color:var(--text-2);cursor:pointer}
+.iconbtn:hover{background:var(--surface-3)}
+
+/* Buttons / forms */
+.btn{border:0;cursor:pointer;border-radius:var(--r-btn);font:600 15px/1 inherit;padding:13px 18px;width:100%}
+.btn-primary{background:var(--accent);color:var(--on-accent)}
+.btn-tonal{background:var(--accent-weak);color:var(--accent)}
+.btn-ghost{background:transparent;color:var(--text-2);border:1px solid var(--border)}
+.lbl{display:block;font-size:12px;font-weight:600;color:var(--text-2);margin:14px 0 6px}
+.inp{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-field);padding:13px 13px;color:var(--text);font:15px/1 inherit;outline:0}
+.inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
+textarea.inp{min-height:80px;resize:vertical;font-family:inherit}
+
+/* Meter */
+.meter .track{height:6px;border-radius:99px;background:var(--surface-3);overflow:hidden}
+.meter .track>i{height:100%}
+.meter .cap{font-size:12px;color:var(--text-2);margin-top:6px;display:flex;justify-content:space-between}
+
+/* Switch / slider */
+.switch{width:44px;height:26px;border-radius:99px;background:var(--surface-3);position:relative;flex:0 0 auto}
+.switch.on{background:var(--accent)}
+.switch i{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff}
+.switch.on i{left:21px}
+.setting{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--hairline)}
+.setting .grow{flex:1}.setting .sname{font-size:15px;font-weight:600}.setting .sdesc{font-size:12.5px;color:var(--text-2);margin-top:2px}
+.slider{height:6px;border-radius:99px;background:var(--surface-3);position:relative;margin:18px 4px}
+.slider>i{position:absolute;left:0;top:0;height:100%;border-radius:99px;background:var(--accent)}
+.slider>b{position:absolute;top:50%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;background:var(--accent);box-shadow:var(--shadow-sm)}
+
+/* Bottom sheet */
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-top-left-radius:24px;border-top-right-radius:24px;
+  padding:10px 18px 22px;box-shadow:0 -8px 30px rgba(0,0,0,.18);z-index:6}
+.sheet .grab{width:36px;height:4px;border-radius:99px;background:var(--surface-3);margin:6px auto 14px}
+.sheet h3{margin:0 0 12px;font-size:17px}
+.scrim{position:absolute;inset:0;background:rgba(10,14,20,.35);z-index:5}
+
+/* Radio row */
+.opt{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--hairline);font-size:14px}
+.radio{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);flex:0 0 auto;position:relative}
+.radio.on{border-color:var(--accent)}.radio.on::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--accent)}
+
+/* Misc */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:50px 20px;text-align:center;color:var(--text-3)}
+.empty .glyph{width:54px;height:54px;color:var(--text-3)}.empty .et{font-size:16px;font-weight:600;color:var(--text)}
+.cap-screen{font-size:13px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px}
+.muted{color:var(--text-2)}.small{font-size:12px}
+.section-card{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);padding:4px 16px;margin-bottom:14px;box-shadow:var(--shadow-sm)}
+.caption{text-align:center;font-size:12px;color:var(--text-3);width:390px}
+
+</style><script data-inlined="toggle">
+// Shared light/dark toggle for the calm "test_design" mockups.
+// Injects a floating button; default theme = dark; choice persisted per browser.
+(function () {
+  function apply(theme) {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }
+  var saved = (function () { try { return localStorage.getItem('calmTheme'); } catch (e) { return null; } }) ()
+    || 'dark';
+  apply(saved);
+  window.addEventListener('DOMContentLoaded', function () {
+    var btn = document.createElement('button');
+    btn.id = 'theme-toggle';
+    function label() { btn.textContent = document.documentElement.classList.contains('dark') ? 'Thème clair' : 'Thème sombre'; }
+    label();
+    btn.addEventListener('click', function () {
+      var dark = !document.documentElement.classList.contains('dark');
+      apply(dark ? 'dark' : 'light');
+      try { localStorage.setItem('calmTheme', dark ? 'dark' : 'light'); } catch (e) {}
+      label();
+    });
+    document.body.appendChild(btn);
+  });
+})();
+
+</script></head>
 <body>
 <div class="phone">
   <div class="statusbar"><span>9:41</span><span class="dot-cam"></span><span>5G ▰▰▰ 84%</span></div>
