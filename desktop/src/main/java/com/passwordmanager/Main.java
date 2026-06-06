@@ -63,7 +63,43 @@ public class Main {
             }
         }
 
-        SwingUtilities.invokeLater(() -> new LoginFrame().setVisible(true));
+        if (Boolean.getBoolean("pm.demo")) {
+            SwingUtilities.invokeLater(() -> launchDemo(config, configManager));
+        } else {
+            SwingUtilities.invokeLater(() -> new LoginFrame().setVisible(true));
+        }
+    }
+
+    /**
+     * Preview/testing only (-Dpm.demo=true): opens the main window directly on a throwaway
+     * in-memory demo vault, bypassing login. Never triggered in normal use.
+     */
+    private static void launchDemo(AppConfig config, ConfigManager configManager) {
+        try {
+            File dir = java.nio.file.Files.createTempDirectory("pm-demo").toFile();
+            char[] master = "Demo!Pass123_X".toCharArray();
+            com.passwordmanager.vault.VaultManager vm =
+                new com.passwordmanager.vault.VaultManager(dir.getAbsolutePath());
+            java.util.List<String> cats = java.util.List.of("Travail", "Banque", "Réseaux sociaux", "Autre");
+            vm.createVault("demo", master.clone(), cats);
+            com.passwordmanager.vault.VaultLoadResult r = vm.loadVault("demo", master.clone());
+            com.passwordmanager.vault.Vault vault = r.getVault();
+            com.passwordmanager.vault.VaultService vs = new com.passwordmanager.vault.VaultService(vault);
+            vs.addEntry(new com.passwordmanager.vault.PasswordEntry("github.com", "alice", "alice@example.com",
+                "Tr0ub4dour&3xpl0it!Zq".toCharArray(), "https://github.com", "2FA activé", "Travail", java.util.List.of("dev")));
+            vs.addEntry(new com.passwordmanager.vault.PasswordEntry("banque-x", "alice", null,
+                "1234".toCharArray(), "https://banque-x.fr", null, "Banque", null));
+            vs.addEntry(new com.passwordmanager.vault.PasswordEntry("reddit.com", "a_l", null,
+                "redditpass1".toCharArray(), "https://reddit.com", null, "Réseaux sociaux", null));
+            vs.addEntry(new com.passwordmanager.vault.PasswordEntry("proton.me", "alice", "alice@example.com",
+                "S3cure&Vault!2026x".toCharArray(), "https://proton.me", null, "Travail", null));
+            vault.addAppEntry(new com.passwordmanager.vault.AppEntry("Netflix", "alice_home", "4821".toCharArray(), "Compte familial"));
+            config.setLocalVaultDirectory(dir.getAbsolutePath());
+            new com.passwordmanager.ui.MainFrame(vault, "demo", r.getSession(), vm, config, configManager).setVisible(true);
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Demo launch failed", e);
+            new LoginFrame().setVisible(true);
+        }
     }
 
     /**
