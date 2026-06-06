@@ -54,7 +54,7 @@ public class MainFrame extends JFrame {
     private static final String VIEW_SSH = "ssh";
 
     private CoffrePasswordsPanel coffrePasswordsPanel;
-    private AppPanel appPanel;
+    private CoffreAppsPanel appPanel;
     private SshKeyPanel sshKeyPanel;
     private JPanel contentCards;
     private CardLayout contentLayout;
@@ -127,8 +127,8 @@ public class MainFrame extends JFrame {
             coffrePasswordsPanel.setFaviconsEnabled(appConfig.isFaviconsEnabled());
         } catch (Exception ignored) {}
 
-        appPanel = new AppPanel(vaultService.getAppService(), appConfig.getClipboardClearSeconds());
-        appPanel.setOnVaultChanged(() -> { saveVault(); statusLabel.setText(getStatusText()); refreshTypeCounts(); });
+        appPanel = new CoffreAppsPanel(vaultService.getAppService(), appConfig.getClipboardClearSeconds(),
+            () -> { saveVault(); statusLabel.setText(getStatusText()); refreshTypeCounts(); });
 
         sshKeyPanel = new SshKeyPanel(vaultService.getSshKeyService(), appConfig.getClipboardClearSeconds());
         sshKeyPanel.setOnVaultChanged(() -> { saveVault(); statusLabel.setText(getStatusText()); refreshTypeCounts(); });
@@ -164,7 +164,9 @@ public class MainFrame extends JFrame {
         add(statusBar, BorderLayout.SOUTH);
 
         installKeyBindings();
-        switchView(VIEW_PASSWORDS);
+        String startView = System.getProperty("pm.view");
+        switchView("apps".equals(startView) ? VIEW_APPS
+            : "ssh".equals(startView) ? VIEW_SSH : VIEW_PASSWORDS);
 
         // Size the window to fit all components (pack) so nothing is clipped and there is
         // no horizontal scroll; also avoids the blank-first-paint issue on XWayland.
@@ -321,6 +323,11 @@ public class MainFrame extends JFrame {
         typeButtons.forEach((k, b) -> styleNav(b, k.equals(view)));
         if (categorySection != null) categorySection.setVisible(VIEW_PASSWORDS.equals(view));
         if (VIEW_PASSWORDS.equals(view)) refreshSideCategories();
+        if (toolbarSearch != null) {
+            JTextField sf = activeSearchField();
+            String txt = sf != null ? sf.getText() : "";
+            if (!txt.equals(toolbarSearch.getText())) toolbarSearch.setText(txt);
+        }
         revalidate();
         repaint();
     }
@@ -420,8 +427,15 @@ public class MainFrame extends JFrame {
     }
 
     private void onSearch() {
-        if (coffrePasswordsPanel != null) {
-            coffrePasswordsPanel.getSearchField().setText(toolbarSearch.getText());
+        JTextField target = activeSearchField();
+        if (target != null) target.setText(toolbarSearch.getText());
+    }
+
+    private JTextField activeSearchField() {
+        switch (currentView) {
+            case VIEW_PASSWORDS: return coffrePasswordsPanel.getSearchField();
+            case VIEW_APPS: return appPanel.getSearchField();
+            default: return null; // SSH keys panel keeps its own internal search
         }
     }
 
@@ -822,7 +836,7 @@ public class MainFrame extends JFrame {
 
     private void refreshAllPanels() {
         coffrePasswordsPanel.refresh();
-        appPanel.refreshEntries();
+        appPanel.refresh();
         sshKeyPanel.refreshEntries();
         refreshSideCategories();
         refreshTypeCounts();
