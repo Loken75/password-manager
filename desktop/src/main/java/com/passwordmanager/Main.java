@@ -5,7 +5,6 @@ import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.passwordmanager.config.AppConfig;
 import com.passwordmanager.config.ConfigManager;
-import com.passwordmanager.config.ThemeMode;
 import com.passwordmanager.ui.LoginFrame;
 
 import javax.swing.*;
