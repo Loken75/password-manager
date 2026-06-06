@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.passwordmanager.android.R
+import com.passwordmanager.android.ui.components.BentoDashboard
 import com.passwordmanager.android.ui.components.ConfirmDialog
 import com.passwordmanager.android.ui.components.EntryCard
 import com.passwordmanager.android.ui.components.ExportDialog
@@ -328,6 +329,11 @@ fun VaultListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // Bento dashboard (health / weak / total) — only when not selecting/searching
+            if (!state.isSelectionMode && state.entries.isNotEmpty()) {
+                BentoDashboard(state.entries)
+            }
+
             // Category dropdown filter
             if (state.categories.isNotEmpty()) {
                 var categoryExpanded by remember { mutableStateOf(false) }
