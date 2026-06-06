@@ -67,6 +67,14 @@ public class EntryCardPanel extends RoundedPanel {
         JPanel east = new JPanel();
         east.setOpaque(false);
         east.setLayout(new BoxLayout(east, BoxLayout.X_AXIS));
+        // Discreet category label (secondary info: muted, no chip background)
+        if (category != null && !category.isBlank()) {
+            JLabel cat = new JLabel(category);
+            cat.setFont(cat.getFont().deriveFont(11f));
+            cat.setForeground(DesignTokens.onSurfaceFaint());
+            east.add(cat);
+            east.add(Box.createHorizontalStrut(DesignTokens.SPACE_MD));
+        }
         if (strength != null) {
             StatusBadge badge = new StatusBadge();
             badge.setStrength(strength, strengthLabel);
