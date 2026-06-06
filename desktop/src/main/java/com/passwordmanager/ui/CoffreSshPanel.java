@@ -268,6 +268,10 @@ public class CoffreSshPanel extends JPanel {
         if (e.getNotes() != null && !e.getNotes().isBlank()) {
             col.add(fieldRow(lang.getString("entry.notes"), e.getNotes(), null));
         }
+        if (e.getCreatedAt() != null && !e.getCreatedAt().isBlank())
+            col.add(fieldRow(lang.getString("entry.created"), formatDate(e.getCreatedAt()), null));
+        if (e.getUpdatedAt() != null && !e.getUpdatedAt().isBlank())
+            col.add(fieldRow(lang.getString("entry.updated"), formatDate(e.getUpdatedAt()), null));
 
         JScrollPane sc = new JScrollPane(col);
         sc.setBorder(null);
@@ -627,6 +631,12 @@ public class CoffreSshPanel extends JPanel {
             case KeyPair.ECDSA: return "ECDSA";
             default: return "UNKNOWN";
         }
+    }
+
+    private static String formatDate(String iso) {
+        if (iso == null) return "";
+        if (iso.length() >= 16 && iso.charAt(10) == 'T') return iso.substring(0, 10) + " " + iso.substring(11, 16);
+        return iso.length() >= 10 ? iso.substring(0, 10) : iso;
     }
 
     private static String normalizePemContent(String content) {

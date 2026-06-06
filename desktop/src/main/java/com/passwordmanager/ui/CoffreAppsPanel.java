@@ -40,6 +40,12 @@ public class CoffreAppsPanel extends JPanel {
     private List<AppEntry> displayed = new ArrayList<>();
     private final java.util.LinkedHashSet<String> selectedIds = new java.util.LinkedHashSet<>();
     private String anchorId;
+    private SortField currentSort = SortField.TITLE;
+    private boolean sortAscending = true;
+    private boolean favoritesOnly = false;
+    private java.time.LocalDate createdSince, modifiedSince, createdOn, modifiedOn;
+    private JPanel filterPanel;
+    private final java.util.List<Runnable> filterResetters = new ArrayList<>();
     private javax.swing.Timer clipboardTimer;
 
     public CoffreAppsPanel(AppService appService, int clipboardClearSeconds, Runnable onVaultChanged) {
@@ -74,7 +80,50 @@ public class CoffreAppsPanel extends JPanel {
         detailHost.setPreferredSize(new Dimension(360, 0));
         clearDetail();
 
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scroll, detailHost);
+        // Top controls: chips + sort + filters
+        JPanel chips = new JPanel(new FlowLayout(FlowLayout.LEFT, DesignTokens.SPACE_SM, 0));
+        chips.setOpaque(false);
+        JToggleButton allChip = chip(lang.getString("filter.all_short"), true);
+        JToggleButton favChip = chip(lang.getString("filter.favorites_only"), false);
+        allChip.addActionListener(e -> { favoritesOnly = false; favChip.setSelected(false); allChip.setSelected(true); refresh(); });
+        favChip.addActionListener(e -> { favoritesOnly = favChip.isSelected(); allChip.setSelected(!favoritesOnly); refresh(); });
+        chips.add(allChip); chips.add(favChip);
+
+        JComboBox<String> sortCombo = new JComboBox<>(new String[]{
+            lang.getString("entry.title"), lang.getString("entry.username"), lang.getString("entry.updated") });
+        SortField[] sortFields = { SortField.TITLE, SortField.USERNAME, SortField.DATE };
+        sortCombo.addActionListener(e -> { currentSort = sortFields[sortCombo.getSelectedIndex()]; refresh(); });
+        JToggleButton dirBtn = new JToggleButton("↑");
+        dirBtn.setFocusPainted(false);
+        dirBtn.addActionListener(e -> { sortAscending = !dirBtn.isSelected(); dirBtn.setText(sortAscending ? "↑" : "↓"); refresh(); });
+        JToggleButton filtersBtn = chip(lang.getString("filter.filters"), false);
+        filtersBtn.addActionListener(e -> { filterPanel.setVisible(filtersBtn.isSelected()); revalidate(); });
+        JPanel sortBox = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, 0));
+        sortBox.setOpaque(false);
+        JLabel sortLbl = new JLabel(lang.getString("filter.sort") + " :");
+        sortLbl.setForeground(DesignTokens.onSurfaceFaint());
+        sortBox.add(sortLbl); sortBox.add(sortCombo); sortBox.add(dirBtn); sortBox.add(filtersBtn);
+
+        JPanel row1 = new JPanel(new BorderLayout());
+        row1.setOpaque(false);
+        row1.setBorder(BorderFactory.createEmptyBorder(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD));
+        row1.add(chips, BorderLayout.WEST);
+        row1.add(sortBox, BorderLayout.EAST);
+
+        filterPanel = buildFilterPanel();
+
+        JPanel top = new JPanel();
+        top.setOpaque(false);
+        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
+        top.add(row1);
+        top.add(filterPanel);
+
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.setOpaque(false);
+        centerPanel.add(top, BorderLayout.NORTH);
+        centerPanel.add(scroll, BorderLayout.CENTER);
+
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, centerPanel, detailHost);
         split.setResizeWeight(1.0);
         split.setBorder(null);
         split.setContinuousLayout(true);
@@ -89,8 +138,20 @@ public class CoffreAppsPanel extends JPanel {
 
     public void refresh() {
         String query = searchField.getText() == null ? "" : searchField.getText().trim();
-        List<AppEntry> entries = query.isEmpty() ? appService.getActiveList() : appService.search(query);
-        displayed = appService.sorted(new ArrayList<>(entries), SortField.TITLE);
+        List<AppEntry> entries = new ArrayList<>(query.isEmpty() ? appService.getActiveList() : appService.search(query));
+        if (favoritesOnly) entries.removeIf(e -> !e.isFavorite());
+        if (createdSince != null || modifiedSince != null || createdOn != null || modifiedOn != null) {
+            entries.removeIf(e -> {
+                java.time.LocalDate c = dateOf(e.getCreatedAt()), m = dateOf(e.getUpdatedAt());
+                if (createdSince != null && (c == null || c.isBefore(createdSince))) return true;
+                if (modifiedSince != null && (m == null || m.isBefore(modifiedSince))) return true;
+                if (createdOn != null && (c == null || !c.isEqual(createdOn))) return true;
+                if (modifiedOn != null && (m == null || !m.isEqual(modifiedOn))) return true;
+                return false;
+            });
+        }
+        displayed = appService.sorted(entries, currentSort);
+        if (!sortAscending) java.util.Collections.reverse(displayed);
 
         selectedIds.removeIf(id -> entryById(id) == null);
         if (selectedIds.isEmpty() && !displayed.isEmpty()) {
@@ -221,6 +282,10 @@ public class CoffreAppsPanel extends JPanel {
         if (e.getNotes() != null && !e.getNotes().isBlank()) {
             col.add(fieldRow(lang.getString("entry.notes"), e.getNotes(), null));
         }
+        if (e.getCreatedAt() != null && !e.getCreatedAt().isBlank())
+            col.add(fieldRow(lang.getString("entry.created"), formatDate(e.getCreatedAt()), null));
+        if (e.getUpdatedAt() != null && !e.getUpdatedAt().isBlank())
+            col.add(fieldRow(lang.getString("entry.updated"), formatDate(e.getUpdatedAt()), null));
 
         JScrollPane sc = new JScrollPane(col);
         sc.setBorder(null);
@@ -420,6 +485,71 @@ public class CoffreAppsPanel extends JPanel {
     }
 
     private void notifyChanged() { if (onVaultChanged != null) onVaultChanged.run(); }
+
+    private JToggleButton chip(String text, boolean selected) {
+        JToggleButton b = new JToggleButton(text, selected);
+        b.setFocusPainted(false);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.setBorder(BorderFactory.createEmptyBorder(5, 12, 5, 12));
+        return b;
+    }
+
+    private JPanel buildFilterPanel() {
+        JPanel p = new JPanel(new GridBagLayout());
+        p.setOpaque(false);
+        p.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, DesignTokens.outline()),
+            BorderFactory.createEmptyBorder(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD)));
+        GridBagConstraints g = new GridBagConstraints();
+        g.insets = new Insets(4, 6, 4, 6);
+        g.anchor = GridBagConstraints.WEST;
+        g.fill = GridBagConstraints.HORIZONTAL;
+        addDateFilter(p, g, 0, "filter.created_since", d -> createdSince = d);
+        addDateFilter(p, g, 1, "filter.modified_since", d -> modifiedSince = d);
+        addDateFilter(p, g, 2, "filter.created_on", d -> createdOn = d);
+        addDateFilter(p, g, 3, "filter.modified_on", d -> modifiedOn = d);
+        g.gridx = 0; g.gridy = 4; g.gridwidth = 2;
+        JButton clear = new JButton(lang.getString("filter.clear"));
+        clear.addActionListener(e -> clearFilters());
+        p.add(clear, g);
+        p.setVisible(false);
+        return p;
+    }
+
+    private void addDateFilter(JPanel p, GridBagConstraints g, int row, String key,
+                               java.util.function.Consumer<java.time.LocalDate> setter) {
+        JCheckBox cb = new JCheckBox(lang.getString(key));
+        JSpinner sp = new JSpinner(new SpinnerDateModel());
+        sp.setEditor(new JSpinner.DateEditor(sp, "yyyy-MM-dd"));
+        sp.setEnabled(false);
+        Runnable upd = () -> { setter.accept(cb.isSelected() ? toLocalDate((java.util.Date) sp.getValue()) : null); refresh(); };
+        cb.addActionListener(e -> { sp.setEnabled(cb.isSelected()); upd.run(); });
+        sp.addChangeListener(e -> { if (cb.isSelected()) upd.run(); });
+        g.gridx = 0; g.gridy = row; p.add(cb, g);
+        g.gridx = 1; p.add(sp, g);
+        filterResetters.add(() -> { cb.setSelected(false); sp.setEnabled(false); });
+    }
+
+    private void clearFilters() {
+        for (Runnable r : filterResetters) r.run();
+        createdSince = modifiedSince = createdOn = modifiedOn = null;
+        refresh();
+    }
+
+    private static java.time.LocalDate toLocalDate(java.util.Date d) {
+        return d.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+    }
+
+    private static java.time.LocalDate dateOf(String iso) {
+        if (iso == null || iso.length() < 10) return null;
+        try { return java.time.LocalDate.parse(iso.substring(0, 10)); } catch (Exception e) { return null; }
+    }
+
+    private static String formatDate(String iso) {
+        if (iso == null) return "";
+        if (iso.length() >= 16 && iso.charAt(10) == 'T') return iso.substring(0, 10) + " " + iso.substring(11, 16);
+        return iso.length() >= 10 ? iso.substring(0, 10) : iso;
+    }
 
     /** A vertical-scroll panel that tracks the viewport width (no horizontal scrollbar). */
     private static class VScrollPanel extends JPanel implements Scrollable {
