@@ -309,4 +309,10 @@
     <string name="filter_modified_since">Modifié depuis</string>
     <string name="filter_created_on">Créé le</string>
     <string name="filter_modified_on">Modifié le</string>
+    <string name="vault_filter">Filtrer</string>
+    <string name="filter_title">Filtres</string>
+    <string name="filter_reset">Réinitialiser</string>
+    <string name="filter_dates">Dates</string>
+    <string name="filter_favorites_only">Favoris uniquement</string>
+    <string name="filter_show_results">Voir %1$d résultats</string>
 </resources>

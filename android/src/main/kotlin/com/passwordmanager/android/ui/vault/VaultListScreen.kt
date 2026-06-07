@@ -2,8 +2,6 @@ package com.passwordmanager.android.ui.vault
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -22,17 +20,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import com.passwordmanager.android.R
 import com.passwordmanager.android.ui.components.BentoDashboard
 import com.passwordmanager.android.ui.components.ConfirmDialog
 import com.passwordmanager.android.ui.components.DateFilterChip
 import com.passwordmanager.android.ui.components.EntryCard
+import com.passwordmanager.android.ui.components.FilterSection
+import com.passwordmanager.android.ui.components.FilterSheet
 import com.passwordmanager.android.ui.components.ExportDialog
 import com.passwordmanager.android.ui.components.ImportDialog
 import com.passwordmanager.android.ui.sync.ConflictResolutionScreen
 import com.passwordmanager.vault.SortField
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun VaultListScreen(
     onEntryClick: (String) -> Unit,
@@ -135,6 +136,17 @@ fun VaultListScreen(
 
     var menuExpanded by remember { mutableStateOf(false) }
     var sortMenuExpanded by remember { mutableStateOf(false) }
+    var showFilterSheet by remember { mutableStateOf(false) }
+
+    val activeFilterCount = listOf(
+        state.selectedCategory != null,
+        state.favoritesOnly,
+        state.selectedStrength != null,
+        state.createdSince != null,
+        state.modifiedSince != null,
+        state.createdOn != null,
+        state.modifiedOn != null
+    ).count { it }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -228,6 +240,19 @@ fun VaultListScreen(
                                         sortMenuExpanded = false
                                     }
                                 )
+                            }
+                        }
+
+                        // Filter sheet trigger (badge shows the number of active filters)
+                        BadgedBox(
+                            badge = {
+                                if (activeFilterCount > 0) {
+                                    Badge { Text(activeFilterCount.toString()) }
+                                }
+                            }
+                        ) {
+                            IconButton(onClick = { showFilterSheet = true }) {
+                                Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.vault_filter))
                             }
                         }
 
@@ -336,131 +361,6 @@ fun VaultListScreen(
             if (!state.isSelectionMode && state.entries.isNotEmpty()) {
                 BentoDashboard(state.entries)
             }
-
-            // Category dropdown filter
-            if (state.categories.isNotEmpty()) {
-                var categoryExpanded by remember { mutableStateOf(false) }
-                val selectedLabel = state.selectedCategory
-                    ?: stringResource(R.string.category_all)
-
-                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    ExposedDropdownMenuBox(
-                        expanded = categoryExpanded,
-                        onExpandedChange = { categoryExpanded = it }
-                    ) {
-                        OutlinedTextField(
-                            value = selectedLabel,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(stringResource(R.string.entry_category)) },
-                            trailingIcon = {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded)
-                            },
-                            modifier = Modifier.fillMaxWidth().menuAnchor(),
-                            singleLine = true
-                        )
-                        ExposedDropdownMenu(
-                            expanded = categoryExpanded,
-                            onDismissRequest = { categoryExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.category_all)) },
-                                onClick = {
-                                    viewModel.selectCategory(null)
-                                    categoryExpanded = false
-                                }
-                            )
-                            state.categories.forEach { category ->
-                                DropdownMenuItem(
-                                    text = { Text(category) },
-                                    onClick = {
-                                        viewModel.selectCategory(category)
-                                        categoryExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Favorites and strength filter chips
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = state.favoritesOnly,
-                    onClick = { viewModel.toggleFavoritesFilter() },
-                    label = { Text(stringResource(R.string.entry_favorite)) },
-                    leadingIcon = {
-                        Icon(
-                            if (state.favoritesOnly) Icons.Default.Star else Icons.Default.StarBorder,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                )
-                // Strength filter
-                Box {
-                    var strengthExpanded by remember { mutableStateOf(false) }
-                    FilterChip(
-                        selected = state.selectedStrength != null,
-                        onClick = { strengthExpanded = true },
-                        label = {
-                            Text(
-                                state.selectedStrength?.let { strength ->
-                                    when (strength) {
-                                        com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.WEAK -> stringResource(R.string.strength_weak)
-                                        com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.MEDIUM -> stringResource(R.string.strength_medium)
-                                        com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.STRONG -> stringResource(R.string.strength_strong)
-                                        com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.VERY_STRONG -> stringResource(R.string.strength_very_strong)
-                                    }
-                                } ?: stringResource(R.string.filter_strength)
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(18.dp))
-                        }
-                    )
-                    DropdownMenu(expanded = strengthExpanded, onDismissRequest = { strengthExpanded = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.category_all)) },
-                            onClick = { viewModel.selectStrength(null); strengthExpanded = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.strength_weak)) },
-                            onClick = { viewModel.selectStrength(com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.WEAK); strengthExpanded = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.strength_medium)) },
-                            onClick = { viewModel.selectStrength(com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.MEDIUM); strengthExpanded = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.strength_strong)) },
-                            onClick = { viewModel.selectStrength(com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.STRONG); strengthExpanded = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.strength_very_strong)) },
-                            onClick = { viewModel.selectStrength(com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.VERY_STRONG); strengthExpanded = false }
-                        )
-                    }
-                }
-            }
-
-            // Date filters (parity with desktop)
-            Row(
-                modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                DateFilterChip(stringResource(R.string.filter_created_since), state.createdSince, viewModel::setCreatedSince)
-                DateFilterChip(stringResource(R.string.filter_modified_since), state.modifiedSince, viewModel::setModifiedSince)
-                DateFilterChip(stringResource(R.string.filter_created_on), state.createdOn, viewModel::setCreatedOn)
-                DateFilterChip(stringResource(R.string.filter_modified_on), state.modifiedOn, viewModel::setModifiedOn)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
 
             // Entry list or empty state
             if (state.entries.isEmpty()) {
@@ -632,6 +532,80 @@ fun VaultListScreen(
             onConfirm = { viewModel.confirmHostKey() },
             onDismiss = { viewModel.dismissHostKeyPrompt() }
         )
+    }
+
+    // Filters bottom sheet — applied live; the CTA reflects the running result count
+    if (showFilterSheet) {
+        FilterSheet(
+            resultCount = state.entries.size,
+            activeFilterCount = activeFilterCount,
+            onReset = { viewModel.clearAllFilters() },
+            onDismiss = { showFilterSheet = false }
+        ) {
+            if (state.categories.isNotEmpty()) {
+                FilterSection(stringResource(R.string.entry_category)) {
+                    FilterChip(
+                        selected = state.selectedCategory == null,
+                        onClick = { viewModel.selectCategory(null) },
+                        label = { Text(stringResource(R.string.category_all)) }
+                    )
+                    state.categories.forEach { category ->
+                        FilterChip(
+                            selected = state.selectedCategory == category,
+                            onClick = { viewModel.selectCategory(category) },
+                            label = { Text(category) }
+                        )
+                    }
+                }
+            }
+
+            FilterSection(stringResource(R.string.entry_favorite)) {
+                FilterChip(
+                    selected = state.favoritesOnly,
+                    onClick = { viewModel.toggleFavoritesFilter() },
+                    label = { Text(stringResource(R.string.filter_favorites_only)) },
+                    leadingIcon = {
+                        Icon(
+                            if (state.favoritesOnly) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                )
+            }
+
+            FilterSection(stringResource(R.string.filter_strength)) {
+                val strengths = com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.values()
+                FilterChip(
+                    selected = state.selectedStrength == null,
+                    onClick = { viewModel.selectStrength(null) },
+                    label = { Text(stringResource(R.string.category_all)) }
+                )
+                strengths.forEach { strength ->
+                    FilterChip(
+                        selected = state.selectedStrength == strength,
+                        onClick = { viewModel.selectStrength(strength) },
+                        label = {
+                            Text(
+                                when (strength) {
+                                    com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.WEAK -> stringResource(R.string.strength_weak)
+                                    com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.MEDIUM -> stringResource(R.string.strength_medium)
+                                    com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.STRONG -> stringResource(R.string.strength_strong)
+                                    com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.VERY_STRONG -> stringResource(R.string.strength_very_strong)
+                                }
+                            )
+                        }
+                    )
+                }
+            }
+
+            FilterSection(stringResource(R.string.filter_dates)) {
+                DateFilterChip(stringResource(R.string.filter_created_since), state.createdSince, viewModel::setCreatedSince)
+                DateFilterChip(stringResource(R.string.filter_modified_since), state.modifiedSince, viewModel::setModifiedSince)
+                DateFilterChip(stringResource(R.string.filter_created_on), state.createdOn, viewModel::setCreatedOn)
+                DateFilterChip(stringResource(R.string.filter_modified_on), state.modifiedOn, viewModel::setModifiedOn)
+            }
+        }
     }
 }
 

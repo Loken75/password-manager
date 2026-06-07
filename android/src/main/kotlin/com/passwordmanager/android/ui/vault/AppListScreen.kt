@@ -3,11 +3,10 @@ package com.passwordmanager.android.ui.vault
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -23,9 +22,11 @@ import com.passwordmanager.android.R
 import com.passwordmanager.android.ui.components.AppEntryCard
 import com.passwordmanager.android.ui.components.ConfirmDialog
 import com.passwordmanager.android.ui.components.DateFilterChip
+import com.passwordmanager.android.ui.components.FilterSection
+import com.passwordmanager.android.ui.components.FilterSheet
 import com.passwordmanager.vault.SortField
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AppListScreen(
     onEntryClick: (String) -> Unit,
@@ -57,6 +58,15 @@ fun AppListScreen(
     LaunchedEffect(Unit) { viewModel.refreshEntries() }
 
     var sortMenuExpanded by remember { mutableStateOf(false) }
+    var showFilterSheet by remember { mutableStateOf(false) }
+
+    val activeFilterCount = listOf(
+        state.favoritesOnly,
+        state.createdSince != null,
+        state.modifiedSince != null,
+        state.createdOn != null,
+        state.modifiedOn != null
+    ).count { it }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -130,6 +140,19 @@ fun AppListScreen(
                                 )
                             }
                         }
+
+                        // Filter sheet trigger (badge shows the number of active filters)
+                        BadgedBox(
+                            badge = {
+                                if (activeFilterCount > 0) {
+                                    Badge { Text(activeFilterCount.toString()) }
+                                }
+                            }
+                        ) {
+                            IconButton(onClick = { showFilterSheet = true }) {
+                                Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.vault_filter))
+                            }
+                        }
                     }
                 )
             }
@@ -184,38 +207,6 @@ fun AppListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Favorites filter chip
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = state.favoritesOnly,
-                    onClick = { viewModel.toggleFavoritesFilter() },
-                    label = { Text(stringResource(R.string.entry_favorite)) },
-                    leadingIcon = {
-                        Icon(
-                            if (state.favoritesOnly) Icons.Default.Star else Icons.Default.StarBorder,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                )
-            }
-
-            // Date filters (parity with desktop)
-            Row(
-                modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                DateFilterChip(stringResource(R.string.filter_created_since), state.createdSince, viewModel::setCreatedSince)
-                DateFilterChip(stringResource(R.string.filter_modified_since), state.modifiedSince, viewModel::setModifiedSince)
-                DateFilterChip(stringResource(R.string.filter_created_on), state.createdOn, viewModel::setCreatedOn)
-                DateFilterChip(stringResource(R.string.filter_modified_on), state.modifiedOn, viewModel::setModifiedOn)
-            }
-
             // Entry list or empty state
             if (state.entries.isEmpty()) {
                 Box(
@@ -319,6 +310,38 @@ fun AppListScreen(
             },
             onDismiss = { showBulkDeleteDialog = false }
         )
+    }
+
+    // Filters bottom sheet — applied live; the CTA reflects the running result count
+    if (showFilterSheet) {
+        FilterSheet(
+            resultCount = state.entries.size,
+            activeFilterCount = activeFilterCount,
+            onReset = { viewModel.clearAllFilters() },
+            onDismiss = { showFilterSheet = false }
+        ) {
+            FilterSection(stringResource(R.string.entry_favorite)) {
+                FilterChip(
+                    selected = state.favoritesOnly,
+                    onClick = { viewModel.toggleFavoritesFilter() },
+                    label = { Text(stringResource(R.string.filter_favorites_only)) },
+                    leadingIcon = {
+                        Icon(
+                            if (state.favoritesOnly) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                )
+            }
+
+            FilterSection(stringResource(R.string.filter_dates)) {
+                DateFilterChip(stringResource(R.string.filter_created_since), state.createdSince, viewModel::setCreatedSince)
+                DateFilterChip(stringResource(R.string.filter_modified_since), state.modifiedSince, viewModel::setModifiedSince)
+                DateFilterChip(stringResource(R.string.filter_created_on), state.createdOn, viewModel::setCreatedOn)
+                DateFilterChip(stringResource(R.string.filter_modified_on), state.modifiedOn, viewModel::setModifiedOn)
+            }
+        }
     }
 }
 

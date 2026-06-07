@@ -249,6 +249,22 @@ class VaultListViewModel @Inject constructor(
         refreshEntries()
     }
 
+    /** Reset every filter (category, favorites, strength, dates) while keeping search and sort. */
+    fun clearAllFilters() {
+        _uiState.update {
+            it.copy(
+                selectedCategory = null,
+                favoritesOnly = false,
+                selectedStrength = null,
+                createdSince = null,
+                modifiedSince = null,
+                createdOn = null,
+                modifiedOn = null
+            )
+        }
+        refreshEntries()
+    }
+
     fun deleteEntry(entryId: String) {
         val service = sessionHolder.vaultService ?: return
         if (service.deleteEntry(entryId)) {

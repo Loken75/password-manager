@@ -120,6 +120,20 @@ class AppListViewModel @Inject constructor(
         refreshEntries()
     }
 
+    /** Reset every filter (favorites, dates) while keeping search and sort. */
+    fun clearAllFilters() {
+        _uiState.update {
+            it.copy(
+                favoritesOnly = false,
+                createdSince = null,
+                modifiedSince = null,
+                createdOn = null,
+                modifiedOn = null
+            )
+        }
+        refreshEntries()
+    }
+
     fun toggleFavorite(entryId: String) {
         val appService = getAppService() ?: return
         appService.toggleFavorite(entryId)
