@@ -36,7 +36,7 @@ Password Manager est une application multiplateforme (desktop + Android) permett
 - Interface bilingue francais/anglais
 - Themes systeme, clair et sombre
 - Injection de dependances Hilt sur le module Android
-- ~526 tests unitaires et d'integration (core, desktop et Android), plus des tests
+- ~529 tests unitaires et d'integration (core, desktop et Android), plus des tests
   instrumentes Android (Keystore AES-GCM, EncryptedSharedPreferences, smoke Compose)
 
 ---
@@ -1122,12 +1122,12 @@ update.enabled=true
 ### 12.1. Vue d'ensemble
 
 **Framework** : JUnit 5 (Jupiter) 5.14.2
-**Total** : **~526 tests** (unitaires + integration) repartis sur les 3 modules
+**Total** : **~529 tests** (unitaires + integration) repartis sur les 3 modules
 
 | Module Gradle | Tests | Framework |
 |---|---|---|
 | `:core` | 371 | JUnit 5 (Java) |
-| `:desktop` | 49 | JUnit 5 (Java, dont tests d'integration SFTP reels) |
+| `:desktop` | 52 | JUnit 5 (Java, dont tests d'integration SFTP reels) |
 | `:android` | 106 | JUnit 5 (Kotlin, JVM local) |
 
 > Note : les tests d'orchestration de sync (`SyncServiceTest`, `LocalRepositoryTest`) ont migre de `:desktop` vers `:core` avec le moteur (Lot E.1a). La matrice detaillee ci-dessous est **indicative** et peut etre legerement en retard sur les compteurs reels par classe.
@@ -1185,7 +1185,7 @@ update.enabled=true
 | **desktop** | `DesktopSyncFactoryTest` | 2 | Construction du SyncService depuis AppConfig (sans connexion) |
 | **desktop** | `MasterPasswordSyncIntegrationTest` | 2 | Deux appareils : propagation du changement de mot de passe maitre (R4) |
 | **desktop** | `SyncConflictIntegrationTest` | 1 | Conflit expose le VRAI distant pour la fusion (R-merge) |
-| | | **~526** | |
+| | | **~529** | |
 
 ### 12.3. Infrastructure de test Android
 

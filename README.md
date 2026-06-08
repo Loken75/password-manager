@@ -374,7 +374,7 @@ password-manager/
 
 ### Tests
 
-**~526 tests** unitaires et d'integration dans `:core` (371), `:desktop` (49) et `:android` (106) — dont des tests d'integration SFTP reels via un serveur embarque :
+**~529 tests** unitaires et d'integration dans `:core` (371), `:desktop` (52) et `:android` (106) — dont des tests d'integration SFTP reels via un serveur embarque :
 
 | Module | Classe de test | Tests | Description |
 |---|---|:---:|---|

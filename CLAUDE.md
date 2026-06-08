@@ -74,7 +74,7 @@ Three `:core` services reach the network — relevant for offline behavior, priv
 
 ### Client structure
 
-- **Desktop** (`desktop/src/main/java/com/passwordmanager/`): Swing UI under `ui/` (`LoginFrame`, `MainFrame`, `VaultPanel`, dialogs, `SecureClipboard`), sync under `sync/` (`SFTPRepository` JSch client + `DesktopSyncFactory`; the orchestration engine itself lives in `:core`). Entry point `Main.java`.
+- **Desktop** (`desktop/src/main/java/com/passwordmanager/`): Swing UI under `ui/` (`LoginFrame`, `MainFrame`, the per-tab `CoffrePasswordsPanel`/`CoffreAppsPanel`/`CoffreSshPanel`/`CoffreSettingsPanel`, dialogs, `SecureClipboard`, plus `ui/theme/` token-derived FlatLaf theming and reusable `ui/components/` from the calm UI redesign), `i18n/LanguageManager` for localization, sync under `sync/` (`SFTPRepository` JSch client + `DesktopSyncFactory`; the orchestration engine itself lives in `:core`). Entry point `Main.java`.
 - **Android** (`android/src/main/kotlin/com/passwordmanager/android/`): MVVM + Compose. `data/` wraps `:core` (`AndroidVaultRepository`, `SessionHolder`, `BiometricHelper`, repositories, plus `SshHostKeyStore`/`SftpHostKeyVerifier` for SFTP host-key pinning); `di/AppModule.kt` is the single Hilt module; `ui/<feature>/` holds screens + ViewModels; `autofill/` is the Autofill API service. ViewModels wipe secrets in `onCleared()`.
 
 Both clients keep secrets in `char[]`, clear the clipboard on a timer/lock, and authenticate SFTP by SSH key only. Thread-safety is explicit (`synchronized` services, `@Volatile`/`volatile` session state) — preserve it when editing those paths.

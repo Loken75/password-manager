@@ -256,7 +256,7 @@ Temurin JDK 21 (Eclipse Adoptium). Le JDK (pas le JRE) est necessaire car
 - run: ./gradlew :core:test :desktop:test
 ```
 
-Execute les ~390 tests unitaires et d'integration (core + desktop, dont l'integration SFTP reelle). Si les tests echouent,
+Execute les ~420 tests unitaires et d'integration (core + desktop, dont l'integration SFTP reelle). Si les tests echouent,
 le build s'arrete et la release n'est pas creee.
 
 > **Note** : on specifie `:core:test :desktop:test` et non `test` pour eviter
@@ -579,7 +579,7 @@ Aucune installation de Java n'est requise : le JRE est embarque.
 | **JDK desktop**     | Temurin 21 (build + jlink)                                   |
 | **JDK Android**     | Temurin 17 (AGP 8.7.3)                                       |
 | **Build system**    | Gradle 8.12 (wrapper), multi-module `:core`/`:desktop`/`:android` |
-| **Tests desktop**   | `:core:test` + `:desktop:test` sur chaque OS desktop (~390 tests) |
+| **Tests desktop**   | `:core:test` + `:desktop:test` sur chaque OS desktop (~420 tests) |
 | **Taille desktop**  | ~20-25 Mo (JAR 2 Mo + JRE compresse ~57 Mo / par OS)        |
 | **Taille APK**      | ~5-10 Mo (release, signe)                                    |
 | **Checksums**       | SHA256SUMS.txt genere et publie avec chaque release          |
