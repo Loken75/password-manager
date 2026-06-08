@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,7 +31,6 @@ import com.passwordmanager.android.ui.components.PasswordField
 import com.passwordmanager.android.update.AndroidUpdateManager
 import com.passwordmanager.android.update.UpdateResult
 import com.passwordmanager.update.UpdateInfo
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,16 +88,12 @@ fun LoginScreen(
         }
     }
 
-    val coroutineScope = rememberCoroutineScope()
-    var isCheckingUpdate by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var showUpdateDialog by remember { mutableStateOf(false) }
 
     // Snackbar for user created success
     val snackbarHostState = remember { SnackbarHostState() }
     val userCreatedMsg = stringResource(R.string.login_user_created)
-    val upToDateMsg = stringResource(R.string.update_up_to_date)
-    val updateErrorMsg = stringResource(R.string.update_error)
 
     LaunchedEffect(state.createSuccess) {
         if (state.createSuccess) {
@@ -113,11 +109,26 @@ fun LoginScreen(
         }
     }
 
+    // Automatically check for updates once when the login screen appears.
+    // If one is available, surface the dialog (and keep the top-right icon visible);
+    // when up to date or offline we stay silent.
+    LaunchedEffect(Unit) {
+        val result = AndroidUpdateManager.checkForUpdate()
+        if (result is UpdateResult.Available) {
+            updateInfo = result.info
+            showUpdateDialog = true
+        }
+    }
+
     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+        ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
                 .padding(horizontal = 32.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -135,7 +146,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = stringResource(R.string.app_title),
+                text = stringResource(R.string.app_brand),
                 style = MaterialTheme.typography.headlineLarge
             )
 
@@ -310,43 +321,24 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Check for updates button
-            TextButton(
-                onClick = {
-                    isCheckingUpdate = true
-                    coroutineScope.launch {
-                        when (val result = AndroidUpdateManager.checkForUpdate()) {
-                            is UpdateResult.Available -> {
-                                updateInfo = result.info
-                                showUpdateDialog = true
-                            }
-                            is UpdateResult.UpToDate -> {
-                                snackbarHostState.showSnackbar(upToDateMsg)
-                            }
-                            is UpdateResult.Error -> {
-                                snackbarHostState.showSnackbar(updateErrorMsg)
-                            }
-                        }
-                        isCheckingUpdate = false
-                    }
-                },
-                enabled = !isCheckingUpdate
-            ) {
-                if (isCheckingUpdate) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.update_checking))
-                } else {
-                    Text(stringResource(R.string.update_check))
-                }
-            }
-
             Spacer(modifier = Modifier.weight(1f))
+        }
+
+        // Update available icon (top-right) — visible while an update is detected
+        if (updateInfo != null) {
+            IconButton(
+                onClick = { showUpdateDialog = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+            ) {
+                Icon(
+                    Icons.Default.Autorenew,
+                    contentDescription = stringResource(R.string.update_available_icon),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
         }
     }
 

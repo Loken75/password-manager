@@ -24,6 +24,7 @@ import com.passwordmanager.android.ui.components.ConfirmDialog
 import com.passwordmanager.android.ui.components.DateFilterChip
 import com.passwordmanager.android.ui.components.FilterSection
 import com.passwordmanager.android.ui.components.FilterSheet
+import com.passwordmanager.android.ui.components.VaultPageSelector
 import com.passwordmanager.vault.SortField
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -32,10 +33,16 @@ fun AppListScreen(
     onEntryClick: (String) -> Unit,
     onNewEntry: () -> Unit,
     onLock: () -> Unit,
+    onSelectPage: (Int) -> Unit = {},
+    isCurrentPage: Boolean = true,
     viewModel: AppListViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Shared with the Passwords page (same ViewModelStoreOwner under TAB_VAULT):
+    // powers the overflow menu's vault-wide import/export/sync actions.
+    val vaultActionsViewModel: VaultListViewModel = hiltViewModel()
 
     var entryToDelete by remember { mutableStateOf<String?>(null) }
     var showBulkDeleteDialog by remember { mutableStateOf(false) }
@@ -53,6 +60,10 @@ fun AppListScreen(
             viewModel.clearMessage()
         }
     }
+
+    // Snackbar feedback for the shared vault-wide actions (import/export/sync),
+    // gated by isCurrentPage so only the visible page consumes each message.
+    VaultActionsMessageEffect(vaultActionsViewModel, snackbarHostState, active = isCurrentPage)
 
     // Refresh when returning from edit/detail
     LaunchedEffect(Unit) { viewModel.refreshEntries() }
@@ -98,11 +109,7 @@ fun AppListScreen(
                 )
             } else {
                 TopAppBar(
-                    title = {
-                        Text(
-                            "${stringResource(R.string.tab_applications)} — ${state.entries.size} ${stringResource(R.string.vault_entries)}"
-                        )
-                    },
+                    title = { VaultPageSelector(selectedIndex = 1, onSelect = onSelectPage) },
                     actions = {
                         IconButton(onClick = { viewModel.toggleSearch() }) {
                             Icon(Icons.Default.Search, contentDescription = stringResource(R.string.vault_search))
@@ -153,6 +160,9 @@ fun AppListScreen(
                                 Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.vault_filter))
                             }
                         }
+
+                        // Overflow menu (import/export/sync/lock) — shared with Passwords
+                        VaultActionsMenu(viewModel = vaultActionsViewModel, onLock = onLock)
                     }
                 )
             }

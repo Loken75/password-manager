@@ -3,7 +3,6 @@ package com.passwordmanager.android.ui.navigation
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
@@ -403,40 +402,33 @@ private fun VaultTabHost(
     onNewAppEntry: () -> Unit,
     onLock: () -> Unit
 ) {
-    val tabs = listOf(
-        stringResource(R.string.tab_passwords),
-        stringResource(R.string.tab_applications)
-    )
-    val pagerState = rememberPagerState(pageCount = { tabs.size })
+    val pagerState = rememberPagerState(pageCount = { 2 })
     val coroutineScope = rememberCoroutineScope()
+    // Page switching is now driven by the top-bar VaultPageSelector dropdown
+    // on each screen (swipe is still available via the pager).
+    val onSelectPage: (Int) -> Unit = { index ->
+        coroutineScope.launch { pagerState.animateScrollToPage(index) }
+    }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = pagerState.currentPage) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = pagerState.currentPage == index,
-                    onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
-                    text = { Text(title) }
-                )
-            }
-        }
-
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize()
-        ) { page ->
-            when (page) {
-                0 -> VaultListScreen(
-                    onEntryClick = onPasswordEntryClick,
-                    onNewEntry = onNewPasswordEntry,
-                    onLock = onLock
-                )
-                1 -> AppListScreen(
-                    onEntryClick = onAppEntryClick,
-                    onNewEntry = onNewAppEntry,
-                    onLock = onLock
-                )
-            }
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxSize()
+    ) { page ->
+        when (page) {
+            0 -> VaultListScreen(
+                onEntryClick = onPasswordEntryClick,
+                onNewEntry = onNewPasswordEntry,
+                onLock = onLock,
+                onSelectPage = onSelectPage,
+                isCurrentPage = pagerState.currentPage == 0
+            )
+            1 -> AppListScreen(
+                onEntryClick = onAppEntryClick,
+                onNewEntry = onNewAppEntry,
+                onLock = onLock,
+                onSelectPage = onSelectPage,
+                isCurrentPage = pagerState.currentPage == 1
+            )
         }
     }
 }

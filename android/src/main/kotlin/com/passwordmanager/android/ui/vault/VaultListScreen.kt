@@ -1,7 +1,5 @@
 package com.passwordmanager.android.ui.vault
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -28,8 +26,7 @@ import com.passwordmanager.android.ui.components.DateFilterChip
 import com.passwordmanager.android.ui.components.EntryCard
 import com.passwordmanager.android.ui.components.FilterSection
 import com.passwordmanager.android.ui.components.FilterSheet
-import com.passwordmanager.android.ui.components.ExportDialog
-import com.passwordmanager.android.ui.components.ImportDialog
+import com.passwordmanager.android.ui.components.VaultPageSelector
 import com.passwordmanager.android.ui.sync.ConflictResolutionScreen
 import com.passwordmanager.vault.SortField
 
@@ -39,102 +36,25 @@ fun VaultListScreen(
     onEntryClick: (String) -> Unit,
     onNewEntry: () -> Unit,
     onLock: () -> Unit,
+    onSelectPage: (Int) -> Unit = {},
+    isCurrentPage: Boolean = true,
     viewModel: VaultListViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Dialog states
-    var showImportDialog by remember { mutableStateOf(false) }
-    var showExportDialog by remember { mutableStateOf(false) }
     var entryToDelete by remember { mutableStateOf<String?>(null) }
     var showBulkCategoryDialog by remember { mutableStateOf(false) }
     var showBulkDeleteDialog by remember { mutableStateOf(false) }
 
-    // For encrypted import: store password until file is picked
-    var pendingEncPassword by remember { mutableStateOf<CharArray?>(null) }
-    var pendingEncImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
-
-    // Import/Export launchers
-    val importCsvLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri -> uri?.let { viewModel.importCsv(it) } }
-
-    val importJsonLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri -> uri?.let { viewModel.importJson(it) } }
-
-    val importEncLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri -> uri?.let { pendingEncImportUri = it } }
-
-    val exportCsvLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/csv")
-    ) { uri -> uri?.let { viewModel.exportCsv(it) } }
-
-    val exportJsonLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri -> uri?.let { viewModel.exportJson(it) } }
-
-    val exportBackupLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/octet-stream")
-    ) { uri -> uri?.let { viewModel.exportBackup(it) } }
-
-    // When both URI and password are available, perform import
-    LaunchedEffect(pendingEncImportUri, pendingEncPassword) {
-        val uri = pendingEncImportUri
-        val pwd = pendingEncPassword
-        if (uri != null && pwd != null) {
-            viewModel.importEncryptedVault(uri, pwd)
-            pendingEncImportUri = null
-            // pwd is wiped inside importEncryptedVault; clear the reference
-            pendingEncPassword = null
-        }
-    }
-
-    // Wipe password if import is cancelled (URI never picked)
-    DisposableEffect(Unit) {
-        onDispose {
-            pendingEncPassword?.let { com.passwordmanager.util.SecureWiper.wipe(it) }
-        }
-    }
-
-    // Message strings for snackbar
-    val importSuccessTemplate = stringResource(R.string.import_success)
-    val importErrorStr = stringResource(R.string.import_error)
-    val exportSuccessStr = stringResource(R.string.export_success)
-    val exportErrorStr = stringResource(R.string.export_error)
-    val passwordCopiedStr = stringResource(R.string.password_copied)
-    val syncSuccessStr = stringResource(R.string.sync_success)
-    val syncErrorStr = stringResource(R.string.sync_error)
-    val syncAutoMergedStr = stringResource(R.string.sync_merge_auto_merged)
-
-    // Handle messages
-    LaunchedEffect(state.message) {
-        state.message?.let { msg ->
-            val text = when {
-                msg.startsWith("import_success:") -> {
-                    val count = msg.substringAfter(":").toIntOrNull() ?: 0
-                    importSuccessTemplate.replace("%1\$d", count.toString())
-                }
-                msg == "import_error" -> importErrorStr
-                msg == "export_success" -> exportSuccessStr
-                msg == "export_error" -> exportErrorStr
-                msg == "password_copied" -> passwordCopiedStr
-                msg == "sync_success" -> syncSuccessStr
-                msg == "sync_error" -> syncErrorStr
-                msg == "sync_merge_auto" -> syncAutoMergedStr
-                else -> msg
-            }
-            snackbarHostState.showSnackbar(text)
-            viewModel.clearMessage()
-        }
-    }
+    // Snackbar feedback for vault-wide actions (import/export/sync, password copied).
+    // Gated by isCurrentPage so the shared ViewModel's message is consumed only once.
+    VaultActionsMessageEffect(viewModel, snackbarHostState, active = isCurrentPage)
 
     // Refresh when returning from edit/detail
     LaunchedEffect(Unit) { viewModel.refreshEntries() }
 
-    var menuExpanded by remember { mutableStateOf(false) }
     var sortMenuExpanded by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
 
@@ -179,11 +99,7 @@ fun VaultListScreen(
                 )
             } else {
                 TopAppBar(
-                    title = {
-                        Text(
-                            "${stringResource(R.string.app_title)} — ${state.entries.size} ${stringResource(R.string.vault_entries)}"
-                        )
-                    },
+                    title = { VaultPageSelector(selectedIndex = 0, onSelect = onSelectPage) },
                     actions = {
                         IconButton(onClick = { viewModel.toggleSearch() }) {
                             Icon(Icons.Default.Search, contentDescription = stringResource(R.string.vault_search))
@@ -256,47 +172,8 @@ fun VaultListScreen(
                             }
                         }
 
-                        // Overflow menu
-                        Box {
-                            IconButton(onClick = { menuExpanded = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.vault_menu))
-                            }
-                            DropdownMenu(
-                                expanded = menuExpanded,
-                                onDismissRequest = { menuExpanded = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_import)) },
-                                    onClick = {
-                                        menuExpanded = false
-                                        showImportDialog = true
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_export)) },
-                                    onClick = {
-                                        menuExpanded = false
-                                        showExportDialog = true
-                                    }
-                                )
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    leadingIcon = { Icon(Icons.Default.Sync, contentDescription = null) },
-                                    text = { Text(stringResource(R.string.menu_sync_now)) },
-                                    enabled = state.isSyncEnabled,
-                                    onClick = {
-                                        menuExpanded = false
-                                        viewModel.syncNow()
-                                    }
-                                )
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                                    text = { Text(stringResource(R.string.menu_lock)) },
-                                    onClick = { menuExpanded = false; onLock() }
-                                )
-                            }
-                        }
+                        // Overflow menu (import/export/sync/lock) — shared with Applications
+                        VaultActionsMenu(viewModel = viewModel, onLock = onLock)
                     }
                 )
             }
@@ -357,7 +234,7 @@ fun VaultListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Bento dashboard (health / weak / total) — only when not selecting/searching
+            // Bento dashboard (total / health / weak) — only when not selecting/searching
             if (!state.isSelectionMode && state.entries.isNotEmpty()) {
                 BentoDashboard(state.entries)
             }
@@ -441,29 +318,6 @@ fun VaultListScreen(
                 }
             }
         }
-    }
-
-    // Import dialog
-    if (showImportDialog) {
-        ImportDialog(
-            onDismiss = { showImportDialog = false },
-            onImportCsv = { importCsvLauncher.launch(arrayOf("text/*")) },
-            onImportJson = { importJsonLauncher.launch(arrayOf("application/json", "text/*")) },
-            onImportEncrypted = { password ->
-                pendingEncPassword = password
-                importEncLauncher.launch(arrayOf("application/octet-stream", "*/*"))
-            }
-        )
-    }
-
-    // Export dialog
-    if (showExportDialog) {
-        ExportDialog(
-            onDismiss = { showExportDialog = false },
-            onExportCsv = { exportCsvLauncher.launch("vault_export.csv") },
-            onExportJson = { exportJsonLauncher.launch("vault_export.json") },
-            onExportEncrypted = { exportBackupLauncher.launch("vault_backup.enc") }
-        )
     }
 
     // Delete confirmation dialog

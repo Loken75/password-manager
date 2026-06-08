@@ -2,6 +2,8 @@
 <resources>
     <!-- Application -->
     <string name="app_title">Gestionnaire de Mots de Passe</string>
+    <!-- Brand name, never translated (shown on the login screen) -->
+    <string name="app_brand">Password Manager</string>
     <string name="app_version">V%1$s</string>
 
     <!-- Login -->
@@ -177,6 +179,7 @@
     <string name="vault_search_empty_subtitle">Aucune entrée ne correspond à votre recherche</string>
     <string name="vault_sort">Trier</string>
     <string name="vault_menu">Menu</string>
+    <string name="vault_select_page">Changer de page</string>
 
     <!-- Detail sections -->
     <string name="detail_section_info">Informations</string>
@@ -192,6 +195,12 @@
     <string name="audit_old_passwords">Mots de passe anciens (> %1$d jours)</string>
     <string name="audit_no_issues">Aucun problème détecté</string>
     <string name="audit_issues_found">%1$d problème(s) détecté(s)</string>
+
+    <!-- Dashboard (bento stats) -->
+    <string name="dashboard_security">Sécurité</string>
+    <string name="dashboard_tip_entries">Nombre total d\'entrées enregistrées dans ce coffre.</string>
+    <string name="dashboard_tip_security">Note de sécurité globale, calculée à partir de la force moyenne de vos mots de passe (sur 20).</string>
+    <string name="dashboard_tip_force">Nombre de mots de passe jugés faibles, à renforcer en priorité.</string>
 
     <!-- Multi-select -->
     <string name="vault_select_all">Tout sélectionner</string>
@@ -239,6 +248,7 @@
     <string name="update_checking">Vérification…</string>
     <string name="update_up_to_date">Vous êtes à jour !</string>
     <string name="update_error">Impossible de vérifier les mises à jour</string>
+    <string name="update_available_icon">Mise à jour disponible</string>
 
     <!-- Favoris -->
     <string name="entry_favorite">Favoris</string>

@@ -2,6 +2,8 @@
 <resources>
     <!-- Application -->
     <string name="app_title">Password Manager</string>
+    <!-- Brand name, never translated (shown on the login screen) -->
+    <string name="app_brand">Password Manager</string>
     <string name="app_version">V%1$s</string>
 
     <!-- Login -->
@@ -177,6 +179,7 @@
     <string name="vault_search_empty_subtitle">No entries match your search</string>
     <string name="vault_sort">Sort</string>
     <string name="vault_menu">Menu</string>
+    <string name="vault_select_page">Switch page</string>
 
     <!-- Detail sections -->
     <string name="detail_section_info">Information</string>
@@ -192,6 +195,12 @@
     <string name="audit_old_passwords">Old passwords (> %1$d days)</string>
     <string name="audit_no_issues">No issues detected</string>
     <string name="audit_issues_found">%1$d issue(s) detected</string>
+
+    <!-- Dashboard (bento stats) -->
+    <string name="dashboard_security">Security</string>
+    <string name="dashboard_tip_entries">Total number of entries stored in this vault.</string>
+    <string name="dashboard_tip_security">Overall security score, based on the average strength of your passwords (out of 20).</string>
+    <string name="dashboard_tip_force">Number of passwords rated weak that you should strengthen first.</string>
 
     <!-- Multi-select -->
     <string name="vault_select_all">Select all</string>
@@ -239,6 +248,7 @@
     <string name="update_checking">Checking…</string>
     <string name="update_up_to_date">You are up to date!</string>
     <string name="update_error">Unable to check for updates</string>
+    <string name="update_available_icon">Update available</string>
 
     <!-- Favorites -->
     <string name="entry_favorite">Favorites</string>
