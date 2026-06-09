@@ -5,7 +5,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.passwordmanager.android.BuildConfig
 import com.passwordmanager.android.data.ConfigRepository
+import com.passwordmanager.android.data.DebugSampleData
 import com.passwordmanager.android.data.SessionHolder
 import com.passwordmanager.vault.AppEntry
 import com.passwordmanager.vault.AppService
@@ -25,6 +27,8 @@ data class AppListUiState(
     val entries: List<AppEntry> = emptyList(),
     val searchQuery: String = "",
     val sortField: SortField = SortField.TITLE,
+    /** false = ascending, true = descending (reverses the sorted order). */
+    val sortDescending: Boolean = false,
     val isSearchActive: Boolean = false,
     val isSelectionMode: Boolean = false,
     val selectedEntryIds: Set<String> = emptySet(),
@@ -48,6 +52,11 @@ class AppListViewModel @Inject constructor(
     val uiState: StateFlow<AppListUiState> = _uiState.asStateFlow()
 
     init {
+        // Debug builds: ensure varied sample data is present (idempotent, shared with the
+        // passwords page) so the Applications list is populated even if this VM inits first.
+        if (BuildConfig.DEBUG && DebugSampleData.ensureSamples(sessionHolder)) {
+            viewModelScope.launch(Dispatchers.IO) { sessionHolder.save() }
+        }
         refreshEntries()
     }
 
@@ -59,7 +68,8 @@ class AppListViewModel @Inject constructor(
 
         val entries = appService.search(_uiState.value.searchQuery)
 
-        val sorted = appService.sorted(entries, _uiState.value.sortField)
+        // Favorites stay grouped first in both directions; only the in-block order flips.
+        val sorted = appService.sorted(entries, _uiState.value.sortField, _uiState.value.sortDescending)
 
         val filtered = if (_uiState.value.favoritesOnly) {
             sorted.filter { it.isFavorite }
@@ -112,6 +122,11 @@ class AppListViewModel @Inject constructor(
 
     fun setSortField(field: SortField) {
         _uiState.update { it.copy(sortField = field) }
+        refreshEntries()
+    }
+
+    fun toggleSortDirection() {
+        _uiState.update { it.copy(sortDescending = !it.sortDescending) }
         refreshEntries()
     }
 

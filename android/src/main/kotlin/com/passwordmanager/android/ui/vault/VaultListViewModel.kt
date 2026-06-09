@@ -7,8 +7,10 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.graphics.Bitmap
+import com.passwordmanager.android.BuildConfig
 import com.passwordmanager.android.data.AndroidSftpRepository
 import com.passwordmanager.android.data.ConfigRepository
+import com.passwordmanager.android.data.DebugSampleData
 import com.passwordmanager.android.data.FaviconCache
 import com.passwordmanager.android.data.FaviconRepository
 import com.passwordmanager.android.data.HostKeyChangedException
@@ -39,15 +41,22 @@ import kotlin.coroutines.cancellation.CancellationException
 
 data class VaultListUiState(
     val entries: List<PasswordEntry> = emptyList(),
+    /** Full (unfiltered) password list — used by the dashboard so its stats/score
+     *  reflect the whole vault (and match the Audit screen), not the current filter. */
+    val allEntries: List<PasswordEntry> = emptyList(),
     val categories: List<String> = emptyList(),
-    val selectedCategory: String? = null,
+    /** Categories to keep; empty = no category filter (show all). Multi-select. */
+    val selectedCategories: Set<String> = emptySet(),
     val searchQuery: String = "",
     val sortField: SortField = SortField.TITLE,
+    /** false = ascending, true = descending (reverses the sorted order). */
+    val sortDescending: Boolean = false,
     val isSearchActive: Boolean = false,
     val isSelectionMode: Boolean = false,
     val selectedEntryIds: Set<String> = emptySet(),
     val favoritesOnly: Boolean = false,
-    val selectedStrength: com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength? = null,
+    /** Strengths to keep; empty = no strength filter (show all). Multi-select. */
+    val selectedStrengths: Set<com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength> = emptySet(),
     val createdSince: java.time.LocalDate? = null,
     val modifiedSince: java.time.LocalDate? = null,
     val createdOn: java.time.LocalDate? = null,
@@ -92,6 +101,11 @@ class VaultListViewModel @Inject constructor(
                 }
             }
         }
+        // Debug builds: ensure varied sample data is present to exercise sorts/filters.
+        // Idempotent (adds only missing samples), so it tops up on every debug launch.
+        if (BuildConfig.DEBUG && DebugSampleData.ensureSamples(sessionHolder)) {
+            viewModelScope.launch(Dispatchers.IO) { sessionHolder.save() }
+        }
         refreshEntries()
     }
 
@@ -99,39 +113,34 @@ class VaultListViewModel @Inject constructor(
         val service = sessionHolder.vaultService ?: return
         val vault = sessionHolder.vault ?: return
 
-        val entries = when {
-            _uiState.value.searchQuery.isNotBlank() ->
-                service.search(_uiState.value.searchQuery)
-            _uiState.value.selectedCategory != null ->
-                service.getByCategory(_uiState.value.selectedCategory)
-            else -> service.search("")
-        }
+        val s = _uiState.value
+        val allEntries = service.search("")
+        val entries = if (s.searchQuery.isNotBlank()) service.search(s.searchQuery) else allEntries
 
-        val sorted = service.sorted(entries, _uiState.value.sortField)
+        // Favorites stay grouped first in both directions; only the in-block order flips.
+        val sorted = service.sorted(entries, s.sortField, s.sortDescending)
 
-        val filtered = if (_uiState.value.favoritesOnly) {
-            sorted.filter { it.isFavorite }
-        } else {
-            sorted
-        }
+        // Category filter (multi-select): empty set = show all categories.
+        val categoryFiltered = if (s.selectedCategories.isEmpty()) sorted
+            else sorted.filter { it.category in s.selectedCategories }
 
-        val strengthFiltered = if (_uiState.value.selectedStrength != null) {
-            filtered.filter { entry ->
+        val filtered = if (s.favoritesOnly) categoryFiltered.filter { it.isFavorite } else categoryFiltered
+
+        // Strength filter (multi-select): empty set = show all strengths.
+        val strengthFiltered = if (s.selectedStrengths.isEmpty()) filtered
+            else filtered.filter { entry ->
                 val pw = entry.password
                 if (pw != null) {
-                    val s = com.passwordmanager.crypto.PasswordStrengthAnalyzer.analyze(pw)
+                    val st = com.passwordmanager.crypto.PasswordStrengthAnalyzer.analyze(pw)
                     com.passwordmanager.util.SecureWiper.wipe(pw)
-                    s == _uiState.value.selectedStrength
+                    st in s.selectedStrengths
                 } else false
             }
-        } else {
-            filtered
-        }
 
         val dateFiltered = applyDateFilters(strengthFiltered)
 
         _uiState.update {
-            it.copy(entries = dateFiltered, categories = vault.categories, refreshToken = it.refreshToken + 1)
+            it.copy(entries = dateFiltered, allEntries = allEntries, categories = vault.categories, refreshToken = it.refreshToken + 1)
         }
         loadFavicons(dateFiltered)
     }
@@ -222,13 +231,22 @@ class VaultListViewModel @Inject constructor(
         refreshEntries()
     }
 
-    fun selectCategory(category: String?) {
-        _uiState.update { it.copy(selectedCategory = category) }
+    /** Add/remove a category from the multi-select filter. */
+    fun toggleCategory(category: String) {
+        _uiState.update { st ->
+            val next = st.selectedCategories.toMutableSet().apply { if (!add(category)) remove(category) }
+            st.copy(selectedCategories = next)
+        }
         refreshEntries()
     }
 
     fun setSortField(field: SortField) {
         _uiState.update { it.copy(sortField = field) }
+        refreshEntries()
+    }
+
+    fun toggleSortDirection() {
+        _uiState.update { it.copy(sortDescending = !it.sortDescending) }
         refreshEntries()
     }
 
@@ -244,8 +262,12 @@ class VaultListViewModel @Inject constructor(
         refreshEntries()
     }
 
-    fun selectStrength(strength: com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength?) {
-        _uiState.update { it.copy(selectedStrength = strength) }
+    /** Add/remove a strength level from the multi-select filter. */
+    fun toggleStrength(strength: com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength) {
+        _uiState.update { st ->
+            val next = st.selectedStrengths.toMutableSet().apply { if (!add(strength)) remove(strength) }
+            st.copy(selectedStrengths = next)
+        }
         refreshEntries()
     }
 
@@ -253,9 +275,9 @@ class VaultListViewModel @Inject constructor(
     fun clearAllFilters() {
         _uiState.update {
             it.copy(
-                selectedCategory = null,
+                selectedCategories = emptySet(),
                 favoritesOnly = false,
-                selectedStrength = null,
+                selectedStrengths = emptySet(),
                 createdSince = null,
                 modifiedSince = null,
                 createdOn = null,

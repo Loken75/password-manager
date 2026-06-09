@@ -5,7 +5,10 @@ public enum SortField {
     USERNAME,
     EMAIL,
     URL,
+    /** Modification date (updatedAt), most recent first. */
     DATE,
+    /** Creation date (createdAt), most recent first. */
+    CREATED,
     CATEGORY,
     FAVORITE,
     STRENGTH

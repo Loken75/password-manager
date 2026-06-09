@@ -60,6 +60,10 @@ public class VaultService {
         return passwordService.sorted(entries, sortBy);
     }
 
+    public synchronized List<PasswordEntry> sorted(List<PasswordEntry> entries, SortField sortBy, boolean descending) {
+        return passwordService.sorted(entries, sortBy, descending);
+    }
+
     public synchronized List<PasswordEntry> filter(List<PasswordEntry> entries, EntryFilter filter) {
         return passwordService.filter(entries, filter);
     }

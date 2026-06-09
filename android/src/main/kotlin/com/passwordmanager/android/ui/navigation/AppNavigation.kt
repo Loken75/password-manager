@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
@@ -137,6 +138,13 @@ fun AppNavigation() {
                             label = { Text(stringResource(tab.labelResId)) }
                         )
                     }
+                    // Logout action (not a destination): locks the session, which routes back to login
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = { SessionHolder.lock() },
+                        icon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null) },
+                        label = { Text(stringResource(R.string.nav_logout)) }
+                    )
                 }
             }
         }
@@ -165,8 +173,7 @@ fun AppNavigation() {
                     onPasswordEntryClick = { entryId -> navController.navigate(Routes.entryDetail(entryId)) },
                     onNewPasswordEntry = { navController.navigate(Routes.entryEdit()) },
                     onAppEntryClick = { entryId -> navController.navigate(Routes.appDetail(entryId)) },
-                    onNewAppEntry = { navController.navigate(Routes.appEdit()) },
-                    onLock = { SessionHolder.lock() }
+                    onNewAppEntry = { navController.navigate(Routes.appEdit()) }
                 )
             }
 
@@ -399,8 +406,7 @@ private fun VaultTabHost(
     onPasswordEntryClick: (String) -> Unit,
     onNewPasswordEntry: () -> Unit,
     onAppEntryClick: (String) -> Unit,
-    onNewAppEntry: () -> Unit,
-    onLock: () -> Unit
+    onNewAppEntry: () -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { 2 })
     val coroutineScope = rememberCoroutineScope()
@@ -418,14 +424,12 @@ private fun VaultTabHost(
             0 -> VaultListScreen(
                 onEntryClick = onPasswordEntryClick,
                 onNewEntry = onNewPasswordEntry,
-                onLock = onLock,
                 onSelectPage = onSelectPage,
                 isCurrentPage = pagerState.currentPage == 0
             )
             1 -> AppListScreen(
                 onEntryClick = onAppEntryClick,
                 onNewEntry = onNewAppEntry,
-                onLock = onLock,
                 onSelectPage = onSelectPage,
                 isCurrentPage = pagerState.currentPage == 1
             )

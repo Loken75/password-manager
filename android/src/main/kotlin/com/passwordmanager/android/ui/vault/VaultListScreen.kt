@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -35,7 +37,6 @@ import com.passwordmanager.vault.SortField
 fun VaultListScreen(
     onEntryClick: (String) -> Unit,
     onNewEntry: () -> Unit,
-    onLock: () -> Unit,
     onSelectPage: (Int) -> Unit = {},
     isCurrentPage: Boolean = true,
     viewModel: VaultListViewModel = hiltViewModel()
@@ -59,9 +60,9 @@ fun VaultListScreen(
     var showFilterSheet by remember { mutableStateOf(false) }
 
     val activeFilterCount = listOf(
-        state.selectedCategory != null,
+        state.selectedCategories.isNotEmpty(),
         state.favoritesOnly,
-        state.selectedStrength != null,
+        state.selectedStrengths.isNotEmpty(),
         state.createdSince != null,
         state.modifiedSince != null,
         state.createdOn != null,
@@ -114,48 +115,46 @@ fun VaultListScreen(
                                 expanded = sortMenuExpanded,
                                 onDismissRequest = { sortMenuExpanded = false }
                             ) {
+                                // Direction toggle (keeps the menu open so the field can be picked next)
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_sort_name)) },
-                                    onClick = {
-                                        viewModel.setSortField(SortField.TITLE)
-                                        sortMenuExpanded = false
-                                    }
+                                    leadingIcon = {
+                                        Icon(
+                                            if (state.sortDescending) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    text = {
+                                        Text(stringResource(
+                                            if (state.sortDescending) R.string.menu_sort_descending
+                                            else R.string.menu_sort_ascending
+                                        ))
+                                    },
+                                    onClick = { viewModel.toggleSortDirection() }
                                 )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_sort_username)) },
-                                    onClick = {
-                                        viewModel.setSortField(SortField.USERNAME)
-                                        sortMenuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_sort_email)) },
-                                    onClick = {
-                                        viewModel.setSortField(SortField.EMAIL)
-                                        sortMenuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_sort_url)) },
-                                    onClick = {
-                                        viewModel.setSortField(SortField.URL)
-                                        sortMenuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_sort_date)) },
-                                    onClick = {
-                                        viewModel.setSortField(SortField.DATE)
-                                        sortMenuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_sort_category)) },
-                                    onClick = {
-                                        viewModel.setSortField(SortField.CATEGORY)
-                                        sortMenuExpanded = false
-                                    }
-                                )
+                                HorizontalDivider()
+                                listOf(
+                                    SortField.TITLE to R.string.menu_sort_name,
+                                    SortField.USERNAME to R.string.menu_sort_username,
+                                    SortField.EMAIL to R.string.menu_sort_email,
+                                    SortField.URL to R.string.menu_sort_url,
+                                    SortField.CREATED to R.string.menu_sort_created,
+                                    SortField.DATE to R.string.menu_sort_modified,
+                                    SortField.CATEGORY to R.string.menu_sort_category,
+                                    SortField.STRENGTH to R.string.menu_sort_strength
+                                ).forEach { (field, labelRes) ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(labelRes)) },
+                                        trailingIcon = {
+                                            if (state.sortField == field) {
+                                                Icon(Icons.Default.Check, contentDescription = null)
+                                            }
+                                        },
+                                        onClick = {
+                                            viewModel.setSortField(field)
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
 
@@ -172,8 +171,8 @@ fun VaultListScreen(
                             }
                         }
 
-                        // Overflow menu (import/export/sync/lock) — shared with Applications
-                        VaultActionsMenu(viewModel = viewModel, onLock = onLock)
+                        // Overflow menu (import/export/sync) — shared with Applications
+                        VaultActionsMenu(viewModel = viewModel)
                     }
                 )
             }
@@ -234,9 +233,10 @@ fun VaultListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Bento dashboard (total / health / weak) — only when not selecting/searching
-            if (!state.isSelectionMode && state.entries.isNotEmpty()) {
-                BentoDashboard(state.entries)
+            // Bento dashboard — vault-wide stats (full list, so the score matches the Audit
+            // screen regardless of the active filter/search). Hidden only in selection mode.
+            if (!state.isSelectionMode && state.allEntries.isNotEmpty()) {
+                BentoDashboard(state.allEntries)
             }
 
             // Entry list or empty state
@@ -396,23 +396,6 @@ fun VaultListScreen(
             onReset = { viewModel.clearAllFilters() },
             onDismiss = { showFilterSheet = false }
         ) {
-            if (state.categories.isNotEmpty()) {
-                FilterSection(stringResource(R.string.entry_category)) {
-                    FilterChip(
-                        selected = state.selectedCategory == null,
-                        onClick = { viewModel.selectCategory(null) },
-                        label = { Text(stringResource(R.string.category_all)) }
-                    )
-                    state.categories.forEach { category ->
-                        FilterChip(
-                            selected = state.selectedCategory == category,
-                            onClick = { viewModel.selectCategory(category) },
-                            label = { Text(category) }
-                        )
-                    }
-                }
-            }
-
             FilterSection(stringResource(R.string.entry_favorite)) {
                 FilterChip(
                     selected = state.favoritesOnly,
@@ -428,17 +411,26 @@ fun VaultListScreen(
                 )
             }
 
+            if (state.categories.isNotEmpty()) {
+                FilterSection(stringResource(R.string.entry_category)) {
+                    // Multi-select: no category selected = all shown.
+                    state.categories.forEach { category ->
+                        FilterChip(
+                            selected = category in state.selectedCategories,
+                            onClick = { viewModel.toggleCategory(category) },
+                            label = { Text(category) }
+                        )
+                    }
+                }
+            }
+
             FilterSection(stringResource(R.string.filter_strength)) {
                 val strengths = com.passwordmanager.crypto.PasswordStrengthAnalyzer.Strength.values()
-                FilterChip(
-                    selected = state.selectedStrength == null,
-                    onClick = { viewModel.selectStrength(null) },
-                    label = { Text(stringResource(R.string.category_all)) }
-                )
+                // Multi-select: no strength selected = all shown.
                 strengths.forEach { strength ->
                     FilterChip(
-                        selected = state.selectedStrength == strength,
-                        onClick = { viewModel.selectStrength(strength) },
+                        selected = strength in state.selectedStrengths,
+                        onClick = { viewModel.toggleStrength(strength) },
                         label = {
                             Text(
                                 when (strength) {
@@ -454,10 +446,10 @@ fun VaultListScreen(
             }
 
             FilterSection(stringResource(R.string.filter_dates)) {
-                DateFilterChip(stringResource(R.string.filter_created_since), state.createdSince, viewModel::setCreatedSince)
-                DateFilterChip(stringResource(R.string.filter_modified_since), state.modifiedSince, viewModel::setModifiedSince)
                 DateFilterChip(stringResource(R.string.filter_created_on), state.createdOn, viewModel::setCreatedOn)
+                DateFilterChip(stringResource(R.string.filter_created_since), state.createdSince, viewModel::setCreatedSince)
                 DateFilterChip(stringResource(R.string.filter_modified_on), state.modifiedOn, viewModel::setModifiedOn)
+                DateFilterChip(stringResource(R.string.filter_modified_since), state.modifiedSince, viewModel::setModifiedSince)
             }
         }
     }
@@ -470,6 +462,9 @@ private fun SearchBar(
     onQueryChange: (String) -> Unit,
     onClose: () -> Unit
 ) {
+    // Focus the field as soon as the search bar appears so the keyboard shows immediately.
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
     TopAppBar(
         title = {
             OutlinedTextField(
@@ -477,7 +472,9 @@ private fun SearchBar(
                 onValueChange = onQueryChange,
                 placeholder = { Text(stringResource(R.string.vault_search)) },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
             )
         },
         navigationIcon = {

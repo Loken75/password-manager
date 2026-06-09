@@ -30,34 +30,39 @@ public class AppService extends BaseVaultService<AppEntry> {
     }
 
     public synchronized List<AppEntry> sorted(List<AppEntry> entries, SortField sortBy) {
+        return sorted(entries, sortBy, false);
+    }
+
+    /**
+     * Sorts entries with favorites ALWAYS grouped first (two blocks: favorites, then the rest),
+     * each block ordered by {@code sortBy}. {@code descending} reverses only the in-block field
+     * order — it never moves favorites below non-favorites.
+     */
+    public synchronized List<AppEntry> sorted(List<AppEntry> entries, SortField sortBy, boolean descending) {
         List<AppEntry> sorted = new ArrayList<>(entries);
-        Comparator<AppEntry> comp;
+        Comparator<AppEntry> field;
         switch (sortBy) {
             case USERNAME:
-                comp = (a, b) -> safe(a.getUsername()).compareToIgnoreCase(safe(b.getUsername()));
+                field = (a, b) -> safe(a.getUsername()).compareToIgnoreCase(safe(b.getUsername()));
                 break;
             case DATE:
-                comp = (a, b) -> safe(b.getUpdatedAt()).compareTo(safe(a.getUpdatedAt()));
+                field = (a, b) -> safe(b.getUpdatedAt()).compareTo(safe(a.getUpdatedAt()));
+                break;
+            case CREATED:
+                field = (a, b) -> safe(b.getCreatedAt()).compareTo(safe(a.getCreatedAt()));
                 break;
             case FAVORITE:
-                comp = (a, b) -> Boolean.compare(b.isFavorite(), a.isFavorite());
-                break;
             default:
-                comp = (a, b) -> safe(a.getTitle()).compareToIgnoreCase(safe(b.getTitle()));
+                // Favorites are already floated first below; secondary order is by title.
+                field = (a, b) -> safe(a.getTitle()).compareToIgnoreCase(safe(b.getTitle()));
         }
-        if (sortBy == SortField.FAVORITE) {
-            Comparator<AppEntry> withTitle = (a, b) -> {
-                int favCmp = comp.compare(a, b);
-                return favCmp != 0 ? favCmp : safe(a.getTitle()).compareToIgnoreCase(safe(b.getTitle()));
-            };
-            sorted.sort(withTitle);
-        } else {
-            Comparator<AppEntry> withFavorites = (a, b) -> {
-                int favCmp = Boolean.compare(b.isFavorite(), a.isFavorite());
-                return favCmp != 0 ? favCmp : comp.compare(a, b);
-            };
-            sorted.sort(withFavorites);
-        }
+        Comparator<AppEntry> directed = descending ? field.reversed() : field;
+        // Favorites are always grouped first, regardless of sort direction.
+        Comparator<AppEntry> withFavorites = (a, b) -> {
+            int favCmp = Boolean.compare(b.isFavorite(), a.isFavorite());
+            return favCmp != 0 ? favCmp : directed.compare(a, b);
+        };
+        sorted.sort(withFavorites);
         return sorted;
     }
 }

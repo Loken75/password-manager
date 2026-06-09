@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.DropdownMenu
@@ -30,18 +29,17 @@ import com.passwordmanager.android.ui.components.ImportDialog
 import com.passwordmanager.util.SecureWiper
 
 /**
- * Shared vault overflow menu (Import / Export / Sync / Lock) plus its import/export
+ * Shared vault overflow menu (Import / Export / Sync) plus its import/export
  * dialogs and file pickers. All actions operate on the whole vault, so this is reused
  * by both the Passwords and Applications pages with the same shared [VaultListViewModel]
- * instance — no duplicated import/export/sync logic.
+ * instance — no duplicated import/export/sync logic. (Logging out is the bottom-bar "Quit".)
  *
  * Place this inside a TopAppBar `actions` slot. The snackbar feedback is handled
  * separately by [VaultActionsMessageEffect] so it survives selection/search modes.
  */
 @Composable
 fun VaultActionsMenu(
-    viewModel: VaultListViewModel,
-    onLock: () -> Unit
+    viewModel: VaultListViewModel
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -128,12 +126,6 @@ fun VaultActionsMenu(
                     menuExpanded = false
                     viewModel.syncNow()
                 }
-            )
-            HorizontalDivider()
-            DropdownMenuItem(
-                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                text = { Text(stringResource(R.string.menu_lock)) },
-                onClick = { menuExpanded = false; onLock() }
             )
         }
     }

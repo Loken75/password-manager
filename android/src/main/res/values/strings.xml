@@ -127,7 +127,12 @@
     <string name="menu_sort_email">Sort by email</string>
     <string name="menu_sort_url">Sort by URL</string>
     <string name="menu_sort_date">Sort by date</string>
+    <string name="menu_sort_created">Sort by creation date</string>
+    <string name="menu_sort_modified">Sort by modification date</string>
     <string name="menu_sort_category">Sort by category</string>
+    <string name="menu_sort_strength">Sort by strength</string>
+    <string name="menu_sort_ascending">Ascending</string>
+    <string name="menu_sort_descending">Descending</string>
 
     <!-- Import/Export -->
     <string name="import_title">Import</string>
@@ -171,6 +176,7 @@
     <string name="nav_generator">Generator</string>
     <string name="nav_audit">Audit</string>
     <string name="nav_settings">Settings</string>
+    <string name="nav_logout">Quit</string>
 
     <!-- Empty states -->
     <string name="vault_empty">Your vault is empty</string>
@@ -198,7 +204,10 @@
 
     <!-- Dashboard (bento stats) -->
     <string name="dashboard_security">Security</string>
+    <string name="dashboard_favorites">Favorites</string>
+    <string name="dashboard_weak_caption">Weak</string>
     <string name="dashboard_tip_entries">Total number of entries stored in this vault.</string>
+    <string name="dashboard_tip_favorites">Number of entries marked as favorite.</string>
     <string name="dashboard_tip_security">Overall security score, based on the average strength of your passwords (out of 20).</string>
     <string name="dashboard_tip_force">Number of passwords rated weak that you should strengthen first.</string>
 
@@ -259,7 +268,32 @@
     <string name="audit_breach_count">%1$d password(s) found in data breaches</string>
     <string name="audit_breach_checking">Checking against known breaches…</string>
     <string name="audit_breach_error">Could not check breaches (network error)</string>
-    <string name="audit_check_now">Check now</string>
+    <string name="audit_check_now">Check</string>
+    <string name="audit_breach_hint">Tap “Check” to scan your passwords against known breaches.</string>
+
+    <!-- Audit — sections & stats -->
+    <string name="audit_overview">Overview</string>
+    <string name="audit_at_risk">At risk</string>
+    <string name="audit_strengths">Strengths</string>
+    <string name="audit_composition">Composition</string>
+    <string name="audit_completeness">Completeness</string>
+    <string name="audit_activity">Activity</string>
+    <string name="audit_strong_passwords">Strong passwords</string>
+    <string name="audit_stat_score">Score</string>
+    <string name="audit_stat_to_fix">To fix</string>
+    <string name="audit_stat_strong">Strong</string>
+    <string name="audit_stat_unique">Unique</string>
+    <string name="audit_stat_categories">Categories</string>
+    <string name="audit_stat_favorites">Favorites</string>
+    <string name="audit_stat_no_url">No URL</string>
+    <string name="audit_stat_no_email">No email</string>
+    <string name="audit_stat_added">Added (30d)</string>
+    <string name="audit_stat_modified">Modified (30d)</string>
+    <string name="audit_stat_oldest">Oldest</string>
+    <string name="audit_age_days">%1$d d</string>
+    <string name="audit_age_months">%1$d mo</string>
+    <string name="audit_age_years">%1$d y</string>
+    <string name="audit_age_none">—</string>
 
     <!-- Biometric -->
     <string name="biometric_enroll_title">Enable biometric unlock</string>
@@ -323,6 +357,6 @@
     <string name="filter_title">Filters</string>
     <string name="filter_reset">Reset</string>
     <string name="filter_dates">Dates</string>
-    <string name="filter_favorites_only">Favorites only</string>
+    <string name="filter_favorites_only">Favorites</string>
     <string name="filter_show_results">View %1$d results</string>
 </resources>

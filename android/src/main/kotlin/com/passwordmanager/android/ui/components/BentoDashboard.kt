@@ -48,13 +48,12 @@ private const val TIP_TIMEOUT_MS = 5_000L
  */
 @Composable
 fun BentoDashboard(entries: List<PasswordEntry>, modifier: Modifier = Modifier) {
-    var weak = 0
     var points = 0
     for (e in entries) {
         val p = e.password ?: continue
         try {
             when (PasswordStrengthAnalyzer.analyze(p)) {
-                Strength.WEAK -> { weak++; points += 25 }
+                Strength.WEAK -> points += 25
                 Strength.MEDIUM -> points += 55
                 Strength.STRONG -> points += 85
                 Strength.VERY_STRONG -> points += 100
@@ -64,6 +63,7 @@ fun BentoDashboard(entries: List<PasswordEntry>, modifier: Modifier = Modifier) 
         }
     }
     val total = entries.size
+    val favorites = entries.count { it.isFavorite }
     val score = if (total == 0) 100 else (points / total.toFloat()).roundToInt()
     // Security is shown as a mark out of 20 (nearest), e.g. 75/100 -> 15/20.
     val score20 = (score / 5.0).roundToInt()
@@ -95,22 +95,22 @@ fun BentoDashboard(entries: List<PasswordEntry>, modifier: Modifier = Modifier) 
         )
         bentoCard(
             modifier = Modifier.weight(1f),
-            caption = stringResource(R.string.dashboard_security),
-            value = "$score20/20",
-            sub = "$total ${stringResource(R.string.vault_entries)}",
-            valueColor = scoreColor,
-            tip = stringResource(R.string.dashboard_tip_security),
+            caption = stringResource(R.string.dashboard_favorites),
+            value = favorites.toString(),
+            sub = "",
+            valueColor = MaterialTheme.colorScheme.onSurface,
+            tip = stringResource(R.string.dashboard_tip_favorites),
             tipVisible = activeTip == 1,
             onClick = { activeTip = if (activeTip == 1) null else 1 },
             onDismissTip = { activeTip = null }
         )
         bentoCard(
             modifier = Modifier.weight(1f),
-            caption = stringResource(R.string.strength_weak),
-            value = weak.toString(),
-            sub = stringResource(R.string.filter_strength),
-            valueColor = if (weak > 0) MaterialTheme.appColors.statusWeak else MaterialTheme.colorScheme.onSurfaceVariant,
-            tip = stringResource(R.string.dashboard_tip_force),
+            caption = stringResource(R.string.dashboard_security),
+            value = "$score20/20",
+            sub = "",
+            valueColor = scoreColor,
+            tip = stringResource(R.string.dashboard_tip_security),
             tipVisible = activeTip == 2,
             onClick = { activeTip = if (activeTip == 2) null else 2 },
             onDismissTip = { activeTip = null }

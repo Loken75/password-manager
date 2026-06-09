@@ -13,6 +13,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -32,7 +34,6 @@ import com.passwordmanager.vault.SortField
 fun AppListScreen(
     onEntryClick: (String) -> Unit,
     onNewEntry: () -> Unit,
-    onLock: () -> Unit,
     onSelectPage: (Int) -> Unit = {},
     isCurrentPage: Boolean = true,
     viewModel: AppListViewModel = hiltViewModel()
@@ -124,27 +125,42 @@ fun AppListScreen(
                                 expanded = sortMenuExpanded,
                                 onDismissRequest = { sortMenuExpanded = false }
                             ) {
+                                // Direction toggle (keeps the menu open so the field can be picked next)
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_sort_name)) },
-                                    onClick = {
-                                        viewModel.setSortField(SortField.TITLE)
-                                        sortMenuExpanded = false
-                                    }
+                                    leadingIcon = {
+                                        Icon(
+                                            if (state.sortDescending) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    text = {
+                                        Text(stringResource(
+                                            if (state.sortDescending) R.string.menu_sort_descending
+                                            else R.string.menu_sort_ascending
+                                        ))
+                                    },
+                                    onClick = { viewModel.toggleSortDirection() }
                                 )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_sort_username)) },
-                                    onClick = {
-                                        viewModel.setSortField(SortField.USERNAME)
-                                        sortMenuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_sort_date)) },
-                                    onClick = {
-                                        viewModel.setSortField(SortField.DATE)
-                                        sortMenuExpanded = false
-                                    }
-                                )
+                                HorizontalDivider()
+                                listOf(
+                                    SortField.TITLE to R.string.menu_sort_name,
+                                    SortField.USERNAME to R.string.menu_sort_username,
+                                    SortField.CREATED to R.string.menu_sort_created,
+                                    SortField.DATE to R.string.menu_sort_modified
+                                ).forEach { (field, labelRes) ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(labelRes)) },
+                                        trailingIcon = {
+                                            if (state.sortField == field) {
+                                                Icon(Icons.Default.Check, contentDescription = null)
+                                            }
+                                        },
+                                        onClick = {
+                                            viewModel.setSortField(field)
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
 
@@ -161,8 +177,8 @@ fun AppListScreen(
                             }
                         }
 
-                        // Overflow menu (import/export/sync/lock) — shared with Passwords
-                        VaultActionsMenu(viewModel = vaultActionsViewModel, onLock = onLock)
+                        // Overflow menu (import/export/sync) — shared with Passwords
+                        VaultActionsMenu(viewModel = vaultActionsViewModel)
                     }
                 )
             }
@@ -346,10 +362,10 @@ fun AppListScreen(
             }
 
             FilterSection(stringResource(R.string.filter_dates)) {
-                DateFilterChip(stringResource(R.string.filter_created_since), state.createdSince, viewModel::setCreatedSince)
-                DateFilterChip(stringResource(R.string.filter_modified_since), state.modifiedSince, viewModel::setModifiedSince)
                 DateFilterChip(stringResource(R.string.filter_created_on), state.createdOn, viewModel::setCreatedOn)
+                DateFilterChip(stringResource(R.string.filter_created_since), state.createdSince, viewModel::setCreatedSince)
                 DateFilterChip(stringResource(R.string.filter_modified_on), state.modifiedOn, viewModel::setModifiedOn)
+                DateFilterChip(stringResource(R.string.filter_modified_since), state.modifiedSince, viewModel::setModifiedSince)
             }
         }
     }
@@ -362,6 +378,9 @@ private fun AppSearchBar(
     onQueryChange: (String) -> Unit,
     onClose: () -> Unit
 ) {
+    // Focus the field as soon as the search bar appears so the keyboard shows immediately.
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
     TopAppBar(
         title = {
             OutlinedTextField(
@@ -369,7 +388,9 @@ private fun AppSearchBar(
                 onValueChange = onQueryChange,
                 placeholder = { Text(stringResource(R.string.vault_search)) },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
             )
         },
         navigationIcon = {

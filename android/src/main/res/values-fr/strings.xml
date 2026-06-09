@@ -127,7 +127,12 @@
     <string name="menu_sort_email">Trier par email</string>
     <string name="menu_sort_url">Trier par site</string>
     <string name="menu_sort_date">Trier par date</string>
+    <string name="menu_sort_created">Trier par date de création</string>
+    <string name="menu_sort_modified">Trier par date de modification</string>
     <string name="menu_sort_category">Trier par catégorie</string>
+    <string name="menu_sort_strength">Trier par force</string>
+    <string name="menu_sort_ascending">Croissant</string>
+    <string name="menu_sort_descending">Décroissant</string>
 
     <!-- Import/Export -->
     <string name="import_title">Importer</string>
@@ -171,6 +176,7 @@
     <string name="nav_generator">Générateur</string>
     <string name="nav_audit">Audit</string>
     <string name="nav_settings">Paramètres</string>
+    <string name="nav_logout">Quitter</string>
 
     <!-- Empty states -->
     <string name="vault_empty">Votre coffre est vide</string>
@@ -198,7 +204,10 @@
 
     <!-- Dashboard (bento stats) -->
     <string name="dashboard_security">Sécurité</string>
+    <string name="dashboard_favorites">Favoris</string>
+    <string name="dashboard_weak_caption">Faible(s)</string>
     <string name="dashboard_tip_entries">Nombre total d\'entrées enregistrées dans ce coffre.</string>
+    <string name="dashboard_tip_favorites">Nombre d\'entrées marquées comme favorites.</string>
     <string name="dashboard_tip_security">Note de sécurité globale, calculée à partir de la force moyenne de vos mots de passe (sur 20).</string>
     <string name="dashboard_tip_force">Nombre de mots de passe jugés faibles, à renforcer en priorité.</string>
 
@@ -259,7 +268,32 @@
     <string name="audit_breach_count">%1$d mot(s) de passe trouvé(s) dans des fuites de données</string>
     <string name="audit_breach_checking">Vérification des fuites connues…</string>
     <string name="audit_breach_error">Impossible de vérifier les fuites (erreur réseau)</string>
-    <string name="audit_check_now">Vérifier maintenant</string>
+    <string name="audit_check_now">Vérifier</string>
+    <string name="audit_breach_hint">Appuyez sur « Vérifier » pour analyser vos mots de passe contre les fuites connues.</string>
+
+    <!-- Audit — sections & stats -->
+    <string name="audit_overview">Vue d\'ensemble</string>
+    <string name="audit_at_risk">À risque</string>
+    <string name="audit_strengths">Points forts</string>
+    <string name="audit_composition">Composition</string>
+    <string name="audit_completeness">Complétude</string>
+    <string name="audit_activity">Activité</string>
+    <string name="audit_strong_passwords">Mots de passe forts</string>
+    <string name="audit_stat_score">Score</string>
+    <string name="audit_stat_to_fix">À corriger</string>
+    <string name="audit_stat_strong">Forts</string>
+    <string name="audit_stat_unique">Uniques</string>
+    <string name="audit_stat_categories">Catégories</string>
+    <string name="audit_stat_favorites">Favoris</string>
+    <string name="audit_stat_no_url">Sans URL</string>
+    <string name="audit_stat_no_email">Sans email</string>
+    <string name="audit_stat_added">Ajoutés (30 j)</string>
+    <string name="audit_stat_modified">Modifiés (30 j)</string>
+    <string name="audit_stat_oldest">Plus ancien</string>
+    <string name="audit_age_days">%1$d j</string>
+    <string name="audit_age_months">%1$d mois</string>
+    <string name="audit_age_years">%1$d ans</string>
+    <string name="audit_age_none">—</string>
 
     <!-- Biométrie -->
     <string name="biometric_enroll_title">Activer le déverrouillage biométrique</string>
@@ -323,6 +357,6 @@
     <string name="filter_title">Filtres</string>
     <string name="filter_reset">Réinitialiser</string>
     <string name="filter_dates">Dates</string>
-    <string name="filter_favorites_only">Favoris uniquement</string>
+    <string name="filter_favorites_only">Favoris</string>
     <string name="filter_show_results">Voir %1$d résultats</string>
 </resources>
