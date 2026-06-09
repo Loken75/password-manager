@@ -139,7 +139,7 @@ L'ecran de connexion propose les actions suivantes :
 | Choisir le dossier de travail | Selecteur du repertoire des coffres (voir [4.1](#41-dossier-de-travail-workspace)) |
 | Creer un nouvel utilisateur | Lien en bas du formulaire |
 | Changer la langue | Selecteur Francais / English en bas de l'ecran (effet immediat) |
-| Verifier les mises a jour | Lien en bas de l'ecran, verifie la derniere version sur GitHub |
+| Mise a jour disponible | Detectee automatiquement a l'ouverture de l'ecran ; un dialog s'affiche et une icone reste accessible en haut a droite (voir [19](#19-verification-des-mises-a-jour)) |
 
 ### Protection anti brute-force
 
@@ -214,12 +214,13 @@ Affiche en bas de la fenetre :
 
 Apres connexion, l'interface Android se compose de :
 
-- **TopAppBar** avec titre, icone de recherche et menu overflow (importer..., exporter..., synchroniser (desactive en mode local), audit de securite, parametres, verrouiller)
-- **TabRow + HorizontalPager** avec deux onglets : **Mots de passe** et **Applications**. L'utilisateur peut naviguer entre les onglets par swipe ou en appuyant sur les titres d'onglets.
-- **Dropdown categorie** pour le filtrage (visible uniquement sur l'onglet Mots de passe) : liste deroulante "Toutes les categories" + categories existantes
+- **TopAppBar** avec un **selecteur de page deroulant** (**Mots de passe** / **Applications**), icone de recherche, tri, filtres et menu overflow (importer..., exporter..., synchroniser (desactive en mode local)) — le menu overflow est disponible sur les **deux** pages
+- **HorizontalPager** : on bascule entre **Mots de passe** et **Applications** par swipe horizontal ou via le selecteur de page de la TopAppBar
+- **Filtres** (feuille du bas, appliques en direct) : **multi-selection** par type — favoris, categories (page Mots de passe), force (page Mots de passe) — plus des filtres de dates. Aucun chip selectionne = tout est affiche ; il n'y a plus d'option "Toutes les categories"
 - **Liste scrollable** (LazyColumn) des entrees adaptee a l'onglet actif, avec favicon (ou avatar lettre), titre, et champs specifiques au type d'entree
 - **Selection multiple** : appui long sur une entree pour activer le mode selection, checkbox sur chaque entree, menu "Actions..." (changement de categorie pour les mots de passe, ajout/retrait des favoris, suppression en masse avec confirmation)
 - **FAB** (bouton flottant) pour creer une nouvelle entree du type correspondant a l'onglet actif
+- **Barre de navigation du bas** : Coffre, Generateur, Audit, Parametres, et **Quitter** (deconnexion : verrouille la session et renvoie a l'ecran de connexion)
 - **Navigation** par ecrans : detail, edition, generateur, parametres, changement de mot de passe maitre, audit
 
 La navigation suit le pattern Android standard : appui sur le bouton retour pour revenir a l'ecran precedent.
@@ -228,7 +229,7 @@ La navigation suit le pattern Android standard : appui sur le bouton retour pour
 
 ## 6. Types d'entrees
 
-Le coffre-fort gere trois types d'entrees. Les mots de passe, applications et cles SSH sont affiches dans des onglets dedies (desktop : JTabbedPane avec 3 onglets, Android : TabRow + HorizontalPager pour mots de passe et applications, ecran dedie pour les cles SSH).
+Le coffre-fort gere trois types d'entrees. Les mots de passe, applications et cles SSH sont affiches dans des vues dediees (desktop : JTabbedPane avec 3 onglets, Android : selecteur de page deroulant + HorizontalPager pour mots de passe et applications, ecran dedie pour les cles SSH).
 
 ### 6.1. Entrees mot de passe (Mots de passe)
 
@@ -410,6 +411,8 @@ Les options de tri disponibles dependent du type d'entree :
 
 Sur le desktop, cliquer sur un en-tete de colonne du tableau applique directement le tri correspondant.
 
+Sur **Android**, le menu de tri scinde le tri par date en **« date de creation »** et **« date de modification »**, et propose un **basculeur de sens** (croissant / decroissant) applicable a chaque critere. Les **favoris restent toujours regroupes en premier** quel que soit le critere et le sens : on trie en deux blocs (favoris, puis le reste), seul l'ordre intra-bloc s'inverse.
+
 ### 8.3. Filtres de securite
 
 **Menu** : Affichage
@@ -423,7 +426,7 @@ Ces filtres s'appliquent uniquement aux entrees mot de passe.
 
 ### 8.4. Filtrage par categorie
 
-Le filtre par categorie (panneau lateral desktop, dropdown Android) s'applique uniquement aux entrees mot de passe. Il n'est pas affiche sur l'onglet Applications.
+Le filtre par categorie (panneau lateral desktop, feuille de filtres Android) s'applique uniquement aux entrees mot de passe. Il n'est pas affiche sur la page Applications. Sur Android, la categorie (comme la force) est **multi-selectionnable** : plusieurs categories peuvent etre cochees simultanement ; aucune cochee = toutes les categories affichees.
 
 ### 8.5. Actualiser
 
@@ -485,7 +488,7 @@ Les favoris fonctionnent pour les deux types d'entrees (mots de passe et applica
 
 ### Tri par favoris
 
-Les entrees favorites apparaissent automatiquement **en premier** dans la liste, quel que soit le critere de tri selectionne.
+Les entrees favorites apparaissent automatiquement **en premier** dans la liste, quel que soit le critere de tri selectionne (et, sur Android, quel que soit le sens croissant/decroissant).
 
 ### Filtrage par favoris
 
@@ -538,7 +541,17 @@ Un indicateur de force du mot de passe est affiche en temps reel.
 
 L'analyse de securite s'applique exclusivement aux **entrees mot de passe**. Les entrees application ne sont pas evaluees par l'audit.
 
-L'analyse examine les entrees mot de passe du coffre et genere un rapport visuel comprenant quatre sections colorees :
+L'analyse examine les entrees mot de passe du coffre et genere un rapport visuel.
+
+Sur **desktop**, le rapport comprend quatre sections colorees (faibles, reutilises, anciens, compromis HIBP).
+
+Sur **Android**, la page est organisee en sections thematiques :
+- **Vue d'ensemble** : cartes **Score** (/20, identique a la carte « Securite » du tableau de bord), **A corriger** (total des problemes) et **Forts**.
+- **A risque** : callouts repliables **Faibles**, **Reutilises**, **Anciens (> N jours)**, **Compromis (HIBP)** — chacun depliant la liste des entrees concernees.
+- **Points forts** : liste des **mots de passe forts** + **% de mots de passe uniques**.
+- **Composition** : **Categories** (nombre distinct utilise), **Favoris**.
+- **Completude** : entrees **sans URL**, **sans email**.
+- **Activite** : **Ajoutes (30 j)**, **Modifies (30 j)**, **Plus ancien** (age du plus vieux mot de passe).
 
 ### 12.1. Mots de passe faibles
 
@@ -559,7 +572,7 @@ Liste les entrees dont le mot de passe n'a pas ete modifie depuis plus de **180 
 
 Verifie si vos mots de passe apparaissent dans des fuites de donnees connues via l'API **Have I Been Pwned** (HIBP).
 
-- **Declenchement manuel** : bouton "Verifier" dans la section HIBP du rapport d'audit (necessite une connexion internet)
+- **Declenchement manuel** : bouton "Verifier" dans la section HIBP du rapport d'audit (necessite une connexion internet). Sur Android, cette section est un **callout repliable** comme les autres ; appuyer sur "Verifier" lance l'analyse et deplie la section pour afficher la progression et les resultats
 - **Confidentialite preservee** : seuls les 5 premiers caracteres du hash SHA-1 sont envoyes a l'API (modele k-Anonymity)
 - **Resultat** : nombre de fois que le mot de passe a ete retrouve dans des fuites (0 = sur, >0 = compromis)
 - **Gestion memoire** : le hash est manipule en `char[]` et efface apres utilisation
@@ -582,7 +595,7 @@ Le resultat affiche le nombre total de problemes detectes, ou confirme qu'aucun 
 
 L'import et l'export se font via une **popup unifiee** (desktop et Android) qui propose le choix du format : CSV, JSON ou sauvegarde chiffree (.enc). Les trois types d'entrees sont pris en charge (mots de passe et applications en CSV/JSON/.enc ; cles SSH en JSON et .enc uniquement).
 
-**Acces** : Fichier > Importer... / Exporter... (desktop) | Menu overflow > Importer... / Exporter... (Android)
+**Acces** : Fichier > Importer... / Exporter... (desktop) | Menu overflow > Importer... / Exporter... (Android, depuis les pages Mots de passe **et** Applications)
 
 ### 13.1. Import CSV
 
@@ -910,8 +923,9 @@ L'application verifie automatiquement la disponibilite de nouvelles versions via
 
 ### 19.2. Android
 
-- **Verification automatique** : au lancement de l'ecran principal
-- **Notification** : une boite de dialogue s'affiche si une mise a jour est disponible, avec les options **Telecharger** (ouvre le navigateur vers la page GitHub) ou **Plus tard**
+- **Verification automatique** : a l'ouverture de l'ecran de connexion
+- **Notification** : une boite de dialogue s'affiche automatiquement si une mise a jour est disponible, avec les options **Telecharger** (ouvre le navigateur vers la page GitHub) ou **Plus tard**
+- **Icone de mise a jour** : tant qu'une version plus recente est disponible (et non installee), une icone reste affichee en haut a droite de l'ecran de connexion ; un appui rouvre la boite de dialogue
 
 ### 19.3. Securite
 
@@ -991,23 +1005,23 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | Entrees mot de passe | Oui (onglet Mots de passe) | Oui (onglet Mots de passe) |
 | Entrees application | Oui (onglet Applications) | Oui (onglet Applications) |
 | Entrees cle SSH | Oui (CRUD complet, favoris, generation, import fichier/texte — onglet dedie) | Oui (creation, generation, import fichier/texte, suppression — Parametres > Gerer les cles SSH ; pas d'edition ni de favoris) |
-| Navigation par onglets | JTabbedPane (3 onglets) | TabRow + HorizontalPager (2 onglets) + ecran dedie SSH |
+| Navigation entre types | JTabbedPane (3 onglets) | Selecteur de page deroulant + HorizontalPager (2 pages) + ecran dedie SSH |
 | CRUD entrees | Oui (tous types) | Oui (tous types) |
 | Dupliquer une entree | Oui (clic droit, mots de passe et applications) | Oui (bouton, mots de passe et applications) |
 | Favoris (etoile, tri prioritaire) | Oui (tous types) | Oui (mots de passe et applications ; pas les cles SSH) |
-| Filtres avances (categorie, force, date, favoris) | Oui | Oui (FilterChips) |
+| Filtres avances (categorie, force, date, favoris) | Oui | Oui (FilterChips, categorie et force **multi-selection**) |
 | Favicons des sites web | Oui (dans la colonne Titre ; desactivable dans les parametres) | Oui (avatar dans la carte d'entree ; desactivable dans les parametres) |
 | Generateur de mots de passe | Oui | Oui |
 | Analyse de securite + HIBP | Oui (entrees mot de passe uniquement) | Oui (entrees mot de passe uniquement) |
 | Import/export unifie (CSV/JSON/.enc) | Fichier > Importer.../Exporter... | Menu overflow > Importer.../Exporter... (SAF) |
 | Import sauvegarde chiffree | Oui | Oui |
 | Recherche en temps reel | Oui (champs adaptes au type d'entree) | Oui (champs adaptes au type d'entree) |
-| Tri | En-tetes cliquables + menu Affichage (criteres adaptes au type) | Menu overflow tri |
-| Filtrage par categorie | Panneau lateral (mots de passe uniquement) | Dropdown (mots de passe uniquement) |
+| Tri | En-tetes cliquables + menu Affichage (criteres adaptes au type) | Menu de tri (incl. force, dates creation/modification) + sens croissant/decroissant ; favoris toujours en tete |
+| Filtrage par categorie | Panneau lateral (mots de passe uniquement) | Feuille de filtres, multi-selection (mots de passe uniquement) |
 | Selection multiple + operations en masse | Oui (menu "Actions..." : supprimer, categorie, favoris) | Oui (appui long + menu "Actions..." : supprimer, categorie, favoris) |
 | Menu contextuel (clic droit) | Oui (actions adaptees au type d'entree) | Non |
 | Gestion des categories | Ajout et suppression via panneau lateral | Ecran dedie (Parametres > Gerer les categories) |
-| Verification des mises a jour | Auto (5 min) + manuel (ecran connexion) | Au lancement (dialog) |
+| Verification des mises a jour | Auto (5 min) + manuel (ecran connexion) | Auto a l'ouverture de la connexion (dialog + icone persistante) |
 | URL cliquable dans le detail | Oui (Desktop.browse) | Oui (UriHandler) |
 | Themes Systeme/Clair/Sombre | FlatLaf | Material 3 (Dynamic Colors Android 12+) |
 | Verrouillage automatique | Oui (evenements AWT) | Oui (ProcessLifecycleOwner) |

@@ -127,10 +127,11 @@ Des scripts de lancement sont fournis dans `scripts/` :
   |-- autofill/   PasswordManagerAutofillService (API 26+)
   |-- data/       AndroidVaultRepository, AndroidConfigRepository, ConfigRepository, SessionHolder,
   |               WorkspaceManager/AndroidWorkspaceManager, SafVaultStore, AndroidSftpRepository,
-  |               BiometricHelper, SshHostKeyStore/SftpHostKeyVerifier, FaviconRepository/FaviconCache
+  |               BiometricHelper, SshHostKeyStore/SftpHostKeyVerifier, FaviconRepository/FaviconCache,
+  |               DebugSampleData (builds debug only: seed idempotent d'exemples varies pour tester tris/filtres)
   |-- di/         AppModule (Hilt @Provides @Singleton)
   |-- ui/         Compose screens + @HiltViewModel (login, vault, app, generator, settings, audit, sync)
-  |               VaultTabHost (HorizontalPager 2 onglets), AppListVM, AppEditVM, AppDetailVM
+  |               VaultTabHost (HorizontalPager 2 pages + selecteur deroulant), AppListVM, AppEditVM, AppDetailVM
   +-- update/     AndroidUpdateManager
 ```
 
@@ -187,7 +188,7 @@ MainActivity (extends AppCompatActivity, single Activity)
   +-- AppNavigation (NavHost)
         |-- LoginScreen / @HiltViewModel LoginViewModel
         |     +-- @Inject AndroidVaultRepository, SessionHolder
-        |-- VaultListScreen (VaultTabHost + HorizontalPager, 2 onglets)
+        |-- VaultListScreen (VaultTabHost + HorizontalPager, 2 pages via selecteur deroulant)
         |     |-- VaultListViewModel (@Inject SessionHolder, @ApplicationContext)
         |     +-- AppListScreen / @HiltViewModel AppListViewModel
         |           +-- @Inject SessionHolder
@@ -405,7 +406,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 | `VaultImporter` | Import CSV/JSON avec parseur RFC 4180 et support multi-type. Detection automatique du separateur et alias multilingues |
 | `VaultJsonCodec` | (De)serialisation JSON maison du coffre, secrets en `char[]` de bout en bout (aucun `String` en clair). Parseur tolerant retro-compatible avec les coffres ecrits par Gson. Helpers `JsonCharWriter`/`JsonCharReader` |
 | `VaultLoadResult` | Objet de valeur : `Vault` + `VaultSession` |
-| `SortField` | Enum : `TITLE`, `USERNAME`, `EMAIL`, `URL`, `DATE`, `CATEGORY`, `FAVORITE`, `STRENGTH` |
+| `SortField` | Enum : `TITLE`, `USERNAME`, `EMAIL`, `URL`, `DATE` (modification), `CREATED` (creation), `CATEGORY`, `FAVORITE`, `STRENGTH` |
 | `EntryFilter` | Filtres combines explicitement types pour `PasswordEntry` (categorie, force, date, favoris, texte) |
 | `VaultStore` (package `vault.store`) | Interface d'abstraction du stockage des fichiers de coffre, decouplant `VaultManager` du systeme de fichiers. Primitives sur des noms de fichiers nus (`list`, `exists`, `size`, `read`, `writeAtomic`, `copy`, `delete`, `lastModified`, `pathOf`, `describe`) ; rejet du path traversal. Permet le « dossier de travail » (workspace) configurable |
 | `FileVaultStore` (package `vault.store`) | Implementation `java.nio.file` : ecriture atomique (temp + `ATOMIC_MOVE` avec repli), permissions owner-only via `FileSecurityUtils`. Utilisee par le desktop et par le stockage interne Android |
@@ -467,13 +468,13 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 
 **PasswordService (extends BaseVaultService\<PasswordEntry\>) — details :**
 - Recherche etendue sur identifiant, email, URL, categorie et tags
-- Tri : `TITLE`, `USERNAME`, `EMAIL`, `URL` (alphabetique croissant, insensible a la casse), `DATE` (plus recent en premier), `CATEGORY` (alphabetique croissant, insensible a la casse), `FAVORITE` (favoris en premier, titre en secondaire), `STRENGTH` (par force du mot de passe via `PasswordStrengthAnalyzer.ordinal()`, effacement securise du clone dans `finally`)
+- Tri : `TITLE`, `USERNAME`, `EMAIL`, `URL` (alphabetique croissant, insensible a la casse), `DATE` (modification, plus recent en premier), `CREATED` (creation, plus recent en premier), `CATEGORY` (alphabetique croissant, insensible a la casse), `FAVORITE` (favoris en premier, titre en secondaire), `STRENGTH` (par force du mot de passe via `PasswordStrengthAnalyzer.ordinal()`, effacement securise du clone dans `finally`)
 - `findDuplicatePasswords()` : utilise des hashes SHA-256 des mots de passe comme cles (evite de stocker le clair comme cle de Map). Chaque clone `getPassword()` est efface dans un bloc `finally`
 - `findOldPasswords(int days)` : compare les timestamps `updatedAt` au seuil configure
 - `bulkChangeCategory(List<String> entryIds, String newCategory)` : reassignation de categorie en masse
 - `addCategory(String)` / `removeCategory(String)` : gestion des categories du coffre
 - `filter(List<PasswordEntry>, EntryFilter)` : filtrage combine via `EntryFilter` (categorie, force, date, favoris, texte)
-- `sorted()` : tri avec favoris en priorite (primaire : `Boolean.compare(b.isFavorite(), a.isFavorite())`)
+- `sorted(entries, sortBy)` / `sorted(entries, sortBy, descending)` : tri avec **favoris toujours en premier** (primaire : `Boolean.compare(b.isFavorite(), a.isFavorite())`). La surcharge `descending` inverse uniquement l'ordre du champ **a l'interieur de chaque bloc** (favoris / non-favoris) — elle ne fait jamais descendre les favoris. `AppService.sorted` expose la meme surcharge ; Android s'en sert pour le basculeur croissant/decroissant
 
 **AppService (extends BaseVaultService\<AppEntry\>) — details :**
 - Recherche etendue sur username
@@ -969,9 +970,9 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`), detruit la sessi
 
 | Ecran | Composable | ViewModel | Description |
 |-------|-----------|-----------|-------------|
-| Login | `LoginScreen` | `LoginViewModel` | Dropdown utilisateurs, creation, anti brute-force, deverrouillage biometrique |
-| Liste | `VaultListScreen` | `VaultListViewModel` | `VaultTabHost` avec `HorizontalPager` (2 onglets : mots de passe, applications). Recherche, dropdown categories, tri, import/export unifie, selection multiple, favicons asynchrones, sync SFTP |
-| Liste apps | `AppListScreen` | `AppListViewModel` | Onglet applications : recherche, selection multiple, operations en masse |
+| Login | `LoginScreen` | `LoginViewModel` | Dropdown utilisateurs, creation, anti brute-force, deverrouillage biometrique, detection auto des mises a jour (dialog + icone en haut a droite) |
+| Liste | `VaultListScreen` | `VaultListViewModel` | `VaultTabHost` avec `HorizontalPager` (2 pages : mots de passe, applications) selectionnees via un menu deroulant (`VaultPageSelector`) dans la TopAppBar. Recherche, filtres **multi-selection** (categories, force, dates, favoris), tri (incl. force et dates creation/modification, sens croissant/decroissant), menu d'actions partage (`VaultActionsMenu` : import/export/sync), selection multiple, favicons asynchrones, sync SFTP |
+| Liste apps | `AppListScreen` | `AppListViewModel` | Page applications : recherche, tri, filtres, selection multiple, operations en masse, et le meme menu d'actions partage (`VaultActionsMenu`) que les mots de passe (instance `VaultListViewModel` partagee) |
 | Detail | `EntryDetailScreen` | `EntryDetailViewModel` | Lecture seule (identifiant, email), URL cliquable, copier, supprimer |
 | Detail app | `AppDetailScreen` | `AppDetailViewModel` | Lecture seule application, copier username/pin, supprimer |
 | Edition | `EntryEditScreen` | `EntryEditViewModel` | Formulaire CRUD (identifiant, email), lien generateur |
@@ -981,7 +982,7 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`), detruit la sessi
 | Categories | `CategoryManagementScreen` | `CategoryManagementViewModel` | Ajout/suppression de categories avec validation et cascade |
 | Mot de passe | `ChangeMasterPasswordScreen` | `ChangeMasterPasswordViewModel` | Ancien/nouveau/confirmer, invalidation biometrique |
 | Cles SSH | `SshKeyManagementScreen` | `SshKeyManagementViewModel` | CRUD cles SSH (titre, cle privee, cle publique, type, empreinte) |
-| Audit | `SecurityAuditScreen` | `SecurityAuditViewModel` | Faibles, dupliques, anciens, compromis HIBP |
+| Audit | `SecurityAuditScreen` | `SecurityAuditViewModel` | Page en sections thematiques : **Vue d'ensemble** (cartes Score /20, A corriger, Forts), **A risque** (callouts repliables Faibles, Reutilises, Anciens, Compromis HIBP — bouton "Verifier" qui lance l'analyse et deplie), **Points forts** (liste forts + % uniques), **Composition** (categories, favoris), **Completude** (sans URL, sans email), **Activite** (ajoutes/modifies 30 j, plus ancien). `runAudit()` fait une seule passe de force (effacement securise des clones) et calcule toutes les stats |
 | Conflits | `ConflictResolutionScreen` | — | Resolution de conflits sync (vue cote-a-cote local/distant, tous types VaultItem) |
 
 #### Composants reutilisables (`ui/components/`)
@@ -989,6 +990,8 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`), detruit la sessi
 | Composant | Role |
 |-----------|------|
 | `PasswordStrengthBar` | Barre animee de force (rouge/orange/vert/bleu) |
+| `BentoDashboard` | Rangee de statistiques en haut de la page mots de passe : **Entrees** (total), **Favoris** (nombre de favoris) et **Securite** (note sur 20, derivee de la force moyenne). Calcule sur **tout le coffre** (liste complete `allEntries`, pas la vue filtree), donc le score est identique a celui de l'ecran Audit. Un appui sur une carte affiche une bulle d'explication (refermee au tap exterieur ou apres 5 s) |
+| `VaultPageSelector` | Menu deroulant de la TopAppBar pour basculer entre les pages **Mots de passe** et **Applications** (pilote le `HorizontalPager`) ; remplace l'ancienne `TabRow` |
 | `PasswordField` | OutlinedTextField avec toggle visibilite |
 | `EntryCard` | Carte mot de passe pour la liste (favicon ou avatar lettre, titre, username ou URL en sous-titre, categorie, etoile favori, barre de force). Support selection multiple (checkbox, long press). Swipe gauche = supprimer, swipe droit = copier mot de passe |
 | `AppEntryCard` | Carte application pour la liste (avatar lettre, titre, username en sous-titre, etoile favori). Support selection multiple. Swipe gauche = supprimer, swipe droit = copier pin |
@@ -999,7 +1002,7 @@ Un `Runtime.addShutdownHook` efface le coffre (`vault.wipe()`), detruit la sessi
 
 Navigation a deux niveaux definie dans `AppNavigation.kt` :
 
-**Onglets (BottomNavBar)** : `TAB_VAULT` (avec `VaultTabHost` / `HorizontalPager` 2 onglets), `TAB_GENERATOR`, `TAB_AUDIT`, `TAB_SETTINGS`.
+**Onglets (BottomNavBar)** : `TAB_VAULT` (avec `VaultTabHost` / `HorizontalPager` 2 pages, selectionnees via le menu deroulant `VaultPageSelector`), `TAB_GENERATOR`, `TAB_AUDIT`, `TAB_SETTINGS`, plus une action **Quitter** (icone porte de sortie) qui n'est pas une destination : elle appelle `SessionHolder.lock()` (deconnexion → retour au login). Le verrouillage n'est donc plus dans le menu overflow.
 
 **Routes modales** : `ENTRY_DETAIL(entryId)`, `ENTRY_EDIT(entryId?)`, `APP_DETAIL(entryId)`, `APP_EDIT(entryId?)`, `GENERATOR(returnPassword)`, `CHANGE_MASTER_PASSWORD`, `CATEGORY_MANAGEMENT`, `SSH_KEY_MANAGEMENT`.
 
@@ -1102,8 +1105,9 @@ Le systeme de verification des mises a jour repose sur trois couches :
 
 ### 11.5. AndroidUpdateManager
 
-- Verification au lancement via `LaunchedEffect` + coroutine `Dispatchers.IO`
-- `AlertDialog` Material 3 avec boutons "Telecharger" / "Plus tard"
+- Verification automatique a l'ouverture de l'ecran de connexion via `LaunchedEffect` + coroutine `Dispatchers.IO`
+- `AlertDialog` Material 3 affiche automatiquement a la detection, avec boutons "Telecharger" / "Plus tard"
+- Icone de mise a jour (`Autorenew`) en haut a droite de l'ecran de connexion tant qu'une version est disponible ; un appui rouvre le dialog
 - "Telecharger" ouvre le navigateur via `Intent.ACTION_VIEW` (apres validation de l'URL)
 
 ### 11.6. Configuration (`update.properties`)

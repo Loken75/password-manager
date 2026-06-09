@@ -29,7 +29,7 @@ Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et prot
 - **Desktop** : selection multiple, menu "Actions..." (suppression, categorie, favoris en masse) et menu contextuel (clic droit)
 - **Desktop** : boutons de copie en ligne dans le panneau de details (identifiant, email, pseudo, mot de passe, URL)
 - **Android** : application native Jetpack Compose / Material 3 avec injection de dependances Hilt (APK)
-- **Android** : HorizontalPager avec TabRow (2 onglets)
+- **Android** : HorizontalPager (swipe) avec selecteur de page deroulant (Mots de passe / Applications)
 - **Android** : gestion des cles SSH (ecran dedie dans les parametres)
 - **Android** : gestion des categories (ajout, suppression avec reassignation)
 - **Android** : service d'auto-remplissage (Autofill API 26+) — s'applique aux mots de passe uniquement
@@ -162,26 +162,27 @@ Apres connexion, l'interface se compose de :
 
 Apres connexion, l'interface se compose de :
 
-- **TopAppBar** : titre, recherche, tri (9 criteres), menu (import/export, sync, audit, parametres, verrouiller)
-- **TabRow + HorizontalPager** : 2 onglets (**Mots de passe**, **Applications**)
-- **Dropdown categories** pour le filtrage par categorie (onglet mots de passe uniquement)
+- **TopAppBar** : selecteur de page deroulant (**Mots de passe** / **Applications**), recherche, tri (criteres incl. force et dates creation/modification, sens croissant/decroissant), menu overflow (import/export, sync) — present sur les deux pages
+- **HorizontalPager** : navigation entre Mots de passe et Applications par swipe ou via le selecteur de page
+- **Filtres** multi-selection (favoris, categories, force, dates) appliques en direct ; aucun selectionne = tout affiche
 - **Liste scrollable** des entrees avec favicon (ou avatar lettre), etoile favori, indicateur de force (mots de passe) et selection multiple (appui long) avec menu "Actions..." (suppression, categorie, favoris en masse)
 - **FAB** pour nouvelle entree (adapte au type de l'onglet actif)
-- **Notification** de mise a jour disponible au lancement (dialog avec lien vers la release GitHub)
+- **Barre de navigation du bas** : Coffre, Generateur, Audit, Parametres, **Quitter** (deconnexion)
+- **Mise a jour** : detectee automatiquement sur l'ecran de connexion (dialog) ; une icone de mise a jour reste accessible en haut a droite tant qu'une version est disponible (rouvre le dialog)
 - **Navigation** : ecrans detail (champs adaptes au type), edition, generateur, parametres (SFTP, gestion des categories), audit (mots de passe uniquement)
 
 ### Fonctionnalites communes
 
 | Fonctionnalite | Desktop | Android |
 |---|---|---|
-| Interface a onglets (3 types dans les onglets) | Oui (JTabbedPane, 3 onglets) | Oui (TabRow + HorizontalPager, 2 onglets + ecran dedie SSH) |
+| Navigation entre types | Oui (JTabbedPane, 3 onglets) | Oui (selecteur de page deroulant + HorizontalPager, 2 pages + ecran dedie SSH) |
 | Mots de passe (identifiant, email, URL, categorie, tags) | Oui | Oui |
 | Applications (nom d'utilisateur, code PIN) | Oui | Oui |
 | Cles SSH (cle privee, cle publique, type, empreinte) | Oui (onglet dedie) | Oui (ecran dedie dans les parametres) |
 | CRUD entrees (tous types) | Oui | Oui |
 | Dupliquer une entree | Oui (3 types, clic droit) | Oui (mots de passe et applications) |
 | Favoris (etoile, tri prioritaire, tous types) | Oui | Oui |
-| Filtres avances (categorie, force, date, favoris) | Oui | Oui |
+| Filtres avances (categorie, force, date, favoris) | Oui | Oui (categorie et force multi-selection) |
 | Favicons des sites web | Oui | Oui |
 | Generateur de mots de passe | Oui | Oui |
 | Analyse de securite + HIBP (mots de passe uniquement) | Oui | Oui |
@@ -190,7 +191,7 @@ Apres connexion, l'interface se compose de :
 | Selection multiple + actions en masse (tous types) | Oui (menu "Actions...") | Oui |
 | Menu contextuel (clic droit) | Oui | Non |
 | Gestion des categories (ajout et suppression) | Oui (panneau lateral) | Oui (ecran dedie) |
-| Verification des mises a jour | Oui (auto + manuel) | Oui (au lancement) |
+| Verification des mises a jour | Oui (auto + manuel) | Oui (auto a la connexion + icone persistante) |
 | Themes Systeme/Clair/Sombre | Oui (FlatLaf) | Oui (Material 3 / Dynamic Colors) |
 | Deverrouillage biometrique (empreinte digitale) | Non | Oui (BiometricPrompt + AndroidKeyStore) |
 | Verrouillage automatique | Oui | Oui |
@@ -213,6 +214,8 @@ Genere un rapport sur :
 - Mots de passe **reutilises** (partages entre plusieurs entrees)
 - Mots de passe **anciens** (non modifies depuis 180+ jours, configurable)
 - Mots de passe **compromis** (verification HIBP via k-Anonymity, declenchee manuellement)
+
+Sur Android, la page Audit est organisee en sections (Vue d'ensemble, A risque, Points forts, Composition, Completude, Activite) et ajoute des stats : score /20, forts, % uniques, categories, favoris, sans URL/email, activite 30 jours, plus ancien.
 
 Indicateur de force : Faible (rouge), Moyen (orange), Fort (vert), Tres fort (bleu).
 
