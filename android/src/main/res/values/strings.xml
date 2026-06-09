@@ -10,7 +10,7 @@
     <string name="login_username">Username</string>
     <string name="login_password">Master password</string>
     <string name="login_button">Login</string>
-    <string name="login_create_user">Create new user</string>
+    <string name="login_create_user">Create a vault</string>
     <string name="login_new_username">Username</string>
     <string name="login_user_created">User created successfully</string>
     <string name="login_no_user">Please select a user</string>

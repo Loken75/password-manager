@@ -279,20 +279,29 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    Button(
-                        onClick = { viewModel.login(onLoginSuccess) },
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.isLoading && !state.isRateLimited && state.selectedUser != null
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (state.isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = { viewModel.login(onLoginSuccess) },
+                            modifier = Modifier.weight(1f),
+                            enabled = !state.isLoading && !state.isRateLimited && state.selectedUser != null
+                        ) {
+                            if (state.isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            Text(stringResource(R.string.login_button))
                         }
-                        Text(stringResource(R.string.login_button))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextButton(onClick = { viewModel.showCreateDialog() }) {
+                            Text(stringResource(R.string.login_create_user))
+                        }
                     }
 
                     // Biometric unlock button
@@ -311,12 +320,6 @@ fun LoginScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(stringResource(R.string.biometric_unlock))
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    TextButton(onClick = { viewModel.showCreateDialog() }) {
-                        Text(stringResource(R.string.login_create_user))
                     }
                 }
             }

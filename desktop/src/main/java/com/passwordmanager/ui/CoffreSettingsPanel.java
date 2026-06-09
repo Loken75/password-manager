@@ -30,7 +30,6 @@ public class CoffreSettingsPanel extends JPanel {
     private final List<SshKeyEntry> vaultKeys;
     private final VaultService vaultService;
     private final Runnable onApply;
-    private final Runnable onBack;
     private final Runnable onWorkspaceChange;
     private final Runnable onCategoriesChanged;
     private final Component sshKeysTab;
@@ -47,14 +46,13 @@ public class CoffreSettingsPanel extends JPanel {
     private JPanel categoryListPanel;
 
     public CoffreSettingsPanel(AppConfig config, ConfigManager configManager, List<SshKeyEntry> vaultKeys,
-                               VaultService vaultService, Runnable onApply, Runnable onBack,
+                               VaultService vaultService, Runnable onApply,
                                Runnable onWorkspaceChange, Runnable onCategoriesChanged, Component sshKeysTab) {
         this.config = config;
         this.configManager = configManager;
         this.vaultKeys = vaultKeys;
         this.vaultService = vaultService;
         this.onApply = onApply;
-        this.onBack = onBack;
         this.onWorkspaceChange = onWorkspaceChange;
         this.onCategoriesChanged = onCategoriesChanged;
         this.sshKeysTab = sshKeysTab;
@@ -82,14 +80,11 @@ public class CoffreSettingsPanel extends JPanel {
         if (sshKeysTab != null) tabs.addTab(lang.getString("tab.ssh_keys"), sshKeysTab);
         add(tabs, BorderLayout.CENTER);
 
-        // Footer: Back (tonal) + Apply (primary), side by side.
+        // Footer: Apply (primary). Settings is a top-level page now, so there is no "Back".
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD));
         footer.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, DesignTokens.outline()));
-        JButton backBtn = Buttons.tonal(lang.getString("common.back"));
-        backBtn.addActionListener(e -> { if (onBack != null) onBack.run(); });
         JButton applyBtn = Buttons.primary(lang.getString("common.apply"));
         applyBtn.addActionListener(e -> apply());
-        footer.add(backBtn);
         footer.add(applyBtn);
         add(footer, BorderLayout.SOUTH);
     }

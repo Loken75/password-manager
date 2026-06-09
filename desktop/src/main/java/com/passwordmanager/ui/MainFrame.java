@@ -141,7 +141,7 @@ public class MainFrame extends JFrame {
         // SSH keys are no longer a top-level page — they live in a Settings tab (after Sync).
         settingsPanel = new CoffreSettingsPanel(appConfig, configManager,
             vaultService.getSshKeyService().getActiveList(), vaultService,
-            this::applySettings, () -> switchView(lastVaultView), this::doLock,
+            this::applySettings, this::doLock,
             () -> { saveVault(); coffrePasswordsPanel.refresh(); }, sshKeyPanel);
 
         // Audit is now a first-class page (rebuilt on each visit so its metrics stay current).

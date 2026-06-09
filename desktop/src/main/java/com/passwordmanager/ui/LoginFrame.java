@@ -144,18 +144,17 @@ public class LoginFrame extends JFrame {
         card.add(fieldGroup(lang.getString("login.password"), passwordRow));
         card.add(Box.createVerticalStrut(8));
 
-        // Login button (primary, full width)
+        // Login (primary) with the "create a vault" action aligned to its right, on one row.
         loginButton = Buttons.primary(lang.getString("login.button"));
-        loginButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        loginButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
-        card.add(loginButton);
-        card.add(Box.createVerticalStrut(12));
-
-        // Create user link
         createUserButton = linkButton(lang.getString("login.create_user"));
-        createUserButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        card.add(createUserButton);
-        card.add(Box.createVerticalStrut(10));
+        JPanel buttonRow = new JPanel(new BorderLayout(8, 0));
+        buttonRow.setOpaque(false);
+        buttonRow.setAlignmentX(Component.CENTER_ALIGNMENT);
+        buttonRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        buttonRow.add(loginButton, BorderLayout.CENTER);
+        buttonRow.add(createUserButton, BorderLayout.EAST);
+        card.add(buttonRow);
+        card.add(Box.createVerticalStrut(12));
 
         // Status
         statusLabel = new JLabel(" ");

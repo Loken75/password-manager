@@ -10,7 +10,7 @@
     <string name="login_username">Nom d\'utilisateur</string>
     <string name="login_password">Mot de passe maître</string>
     <string name="login_button">Connexion</string>
-    <string name="login_create_user">Créer un nouvel utilisateur</string>
+    <string name="login_create_user">Créer un coffre</string>
     <string name="login_new_username">Nom d\'utilisateur</string>
     <string name="login_user_created">Utilisateur créé avec succès</string>
     <string name="login_no_user">Veuillez sélectionner un utilisateur</string>
