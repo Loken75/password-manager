@@ -22,6 +22,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
+import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
@@ -50,6 +51,10 @@ public class CoffrePasswordsPanel extends JPanel {
     private List<PasswordEntry> displayed = new ArrayList<>();
     private final java.util.LinkedHashSet<String> selectedIds = new java.util.LinkedHashSet<>();
     private String anchorId;
+    private EntryCardPanel focusedCard;
+    // In-memory MRU of recently "used" entries (copied/edited), most-recent first.
+    private final java.util.LinkedList<String> recentIds = new java.util.LinkedList<>();
+    private final JPanel recentRow = new JPanel();
     private SortField currentSort = SortField.TITLE;
     private boolean sortAscending = true;
     private boolean favoritesOnly = false;
@@ -111,12 +116,19 @@ public class CoffrePasswordsPanel extends JPanel {
         bentoRow.setOpaque(false);
         bentoRow.setBorder(BorderFactory.createEmptyBorder(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD, DesignTokens.SPACE_MD, DesignTokens.SPACE_MD));
 
+        // Recently used (in-memory MRU; hidden until something is used)
+        recentRow.setOpaque(false);
+        recentRow.setLayout(new BoxLayout(recentRow, BoxLayout.Y_AXIS));
+        recentRow.setBorder(BorderFactory.createEmptyBorder(0, DesignTokens.SPACE_MD, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD));
+        recentRow.setVisible(false);
+
         JPanel top = new JPanel();
         top.setOpaque(false);
         top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
         top.add(row1);
         top.add(filterPanel);
         top.add(bentoRow);
+        top.add(recentRow);
         center.add(top, BorderLayout.NORTH);
 
         // Card list
@@ -382,14 +394,18 @@ public class CoffrePasswordsPanel extends JPanel {
         }
         rebuildFilterChips();
         rebuildBento();
+        rebuildRecent();
         rebuildList();
         updateDetailOrBulk();
     }
 
     private void rebuildList() {
         cardsHost.removeAll();
+        focusedCard = null;
         for (PasswordEntry e : displayed) {
-            cardsHost.add(buildCard(e));
+            EntryCardPanel c = buildCard(e);
+            if (selectedIds.size() == 1 && selectedIds.contains(e.getId())) focusedCard = c;
+            cardsHost.add(c);
             cardsHost.add(Box.createVerticalStrut(DesignTokens.SPACE_SM));
         }
         if (displayed.isEmpty()) {
@@ -436,6 +452,16 @@ public class CoffrePasswordsPanel extends JPanel {
                 }
             }
         });
+        // Keyboard navigation: arrows move the selection, Enter edits.
+        card.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke("UP"), "navUp");
+        card.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke("DOWN"), "navDown");
+        card.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke("ENTER"), "navEnter");
+        card.getActionMap().put("navUp", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent ev) { selectByOffset(-1); } });
+        card.getActionMap().put("navDown", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent ev) { selectByOffset(1); } });
+        card.getActionMap().put("navEnter", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent ev) { editSelected(); } });
         return card;
     }
 
@@ -457,6 +483,19 @@ public class CoffrePasswordsPanel extends JPanel {
         anchorId = e.getId();
         rebuildList();
         updateDetailOrBulk();
+        focusSelectedCard();
+    }
+
+    /** Moves the single selection by {@code delta} rows (keyboard navigation) and keeps focus. */
+    private void selectByOffset(int delta) {
+        if (displayed.isEmpty()) return;
+        int idx = selectedIds.size() == 1 ? indexOf(selectedIds.iterator().next()) : -1;
+        int next = Math.max(0, Math.min(displayed.size() - 1, idx + delta));
+        selectSingle(displayed.get(next));
+    }
+
+    private void focusSelectedCard() {
+        if (focusedCard != null) focusedCard.requestFocusInWindow();
     }
 
     private void toggleSelect(PasswordEntry e) {
@@ -527,6 +566,65 @@ public class CoffrePasswordsPanel extends JPanel {
         bentoRow.repaint();
     }
 
+    // ---- Recently used (in-memory MRU) ----
+    private void markRecent(String id) {
+        if (id == null) return;
+        recentIds.remove(id);
+        recentIds.addFirst(id);
+        while (recentIds.size() > 6) recentIds.removeLast();
+        rebuildRecent();
+    }
+
+    private void rebuildRecent() {
+        recentRow.removeAll();
+        List<PasswordEntry> items = new ArrayList<>();
+        for (String id : recentIds) {
+            PasswordEntry e = fullEntryById(id);
+            if (e != null) items.add(e);
+            if (items.size() >= 6) break;
+        }
+        if (items.isEmpty()) {
+            recentRow.setVisible(false);
+            recentRow.revalidate();
+            recentRow.repaint();
+            return;
+        }
+        recentRow.setVisible(true);
+        recentRow.add(filterSectionLabel(lang.getString("dashboard.recent")));
+        recentRow.add(Box.createVerticalStrut(DesignTokens.SPACE_XS));
+        JPanel pills = new JPanel(new FlowLayout(FlowLayout.LEFT, DesignTokens.SPACE_SM, 0));
+        pills.setOpaque(false);
+        pills.setAlignmentX(Component.LEFT_ALIGNMENT);
+        for (PasswordEntry e : items) pills.add(recentPill(e));
+        pills.setMaximumSize(new Dimension(Integer.MAX_VALUE, pills.getPreferredSize().height));
+        recentRow.add(pills);
+        recentRow.revalidate();
+        recentRow.repaint();
+    }
+
+    private JComponent recentPill(PasswordEntry e) {
+        RoundedPanel pill = new RoundedPanel();
+        pill.setArc(20);
+        pill.setFillColor(DesignTokens.surfaceContainer());
+        pill.setLayout(new FlowLayout(FlowLayout.LEFT, DesignTokens.SPACE_SM, DesignTokens.SPACE_XS));
+        pill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        com.passwordmanager.ui.components.Avatar av = new com.passwordmanager.ui.components.Avatar(24);
+        av.set(e.getTitle(), e.getCategory(), faviconImage(e));
+        pill.add(av);
+        pill.add(new JLabel(e.getTitle()));
+        pill.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent ev) {
+                if (indexOf(e.getId()) >= 0) selectSingle(e); else showDetail(e);
+            }
+        });
+        return pill;
+    }
+
+    private PasswordEntry fullEntryById(String id) {
+        for (PasswordEntry e : vaultService.search("")) if (e.getId().equals(id)) return e;
+        return null;
+    }
+
     // ---- Detail pane ----
     private void clearDetail() {
         detailHost.removeAll();
@@ -557,8 +655,10 @@ public class CoffrePasswordsPanel extends JPanel {
         col.add(title);
         col.add(Box.createVerticalStrut(DesignTokens.SPACE_LG));
 
-        if (!isBlank(e.getUsername())) col.add(fieldRow(lang.getString("entry.username"), e.getUsername(), () -> copyText(e.getUsername())));
-        if (!isBlank(e.getEmail())) col.add(fieldRow(lang.getString("entry.email"), e.getEmail(), () -> copyText(e.getEmail())));
+        if (!isBlank(e.getUsername())) col.add(fieldRow(lang.getString("entry.username"), e.getUsername(),
+            () -> { copyText(e.getUsername()); markRecent(e.getId()); }));
+        if (!isBlank(e.getEmail())) col.add(fieldRow(lang.getString("entry.email"), e.getEmail(),
+            () -> { copyText(e.getEmail()); markRecent(e.getId()); }));
 
         // Password (mono, masked) via SecretFieldPanel + strength meter
         col.add(caption(lang.getString("entry.password")));
@@ -575,6 +675,11 @@ public class CoffrePasswordsPanel extends JPanel {
         meter.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         col.add(Box.createVerticalStrut(DesignTokens.SPACE_SM));
         col.add(meter);
+        JButton copyPw = Buttons.copyButton(lang.getString("entry.copy"), lang.getString("common.copied"),
+            () -> copyPassword(e));
+        copyPw.setAlignmentX(Component.LEFT_ALIGNMENT);
+        col.add(Box.createVerticalStrut(DesignTokens.SPACE_XS));
+        col.add(copyPw);
 
         if (!isBlank(e.getUrl())) {
             col.add(caption(lang.getString("entry.url")));
@@ -663,10 +768,8 @@ public class CoffrePasswordsPanel extends JPanel {
         JLabel val = new JLabel(value);
         v.add(val, BorderLayout.CENTER);
         if (onCopy != null) {
-            JButton copy = new JButton("Copier");
-            copy.setMargin(new Insets(2, 8, 2, 8));
-            copy.addActionListener(ev -> onCopy.run());
-            v.add(copy, BorderLayout.EAST);
+            v.add(Buttons.copyButton(lang.getString("entry.copy"), lang.getString("common.copied"), onCopy),
+                BorderLayout.EAST);
         }
         p.add(v, BorderLayout.CENTER);
         return p;
@@ -728,6 +831,7 @@ public class CoffrePasswordsPanel extends JPanel {
             warmFavicon(dlg.getEntry());
             refresh();
             showDetail(dlg.getEntry());
+            markRecent(dlg.getEntry().getId());
             notifyChanged();
         }
     }
@@ -866,6 +970,7 @@ public class CoffrePasswordsPanel extends JPanel {
         SecureClipboard.copyPassword(p);
         SecureWiper.wipe(p);
         scheduleClipboardClear();
+        markRecent(e.getId());
     }
 
     private void copyText(String text) {

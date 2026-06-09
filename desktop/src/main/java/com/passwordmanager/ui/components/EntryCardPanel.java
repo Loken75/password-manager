@@ -8,6 +8,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Font;
@@ -15,6 +16,8 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.RenderingHints;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 
 /**
  * The unified list card for an entry: a colored strength stripe, a category/favicon avatar, a
@@ -30,6 +33,13 @@ public class EntryCardPanel extends RoundedPanel {
     public EntryCardPanel(String title, String subtitle, String category, Image favicon,
                           Strength strength, String strengthLabel, boolean favorite) {
         this.strength = strength;
+        // Keyboard-navigable: focusable so the list can be traversed with the arrow keys,
+        // with a visible focus ring (painted below) for accessibility.
+        setFocusable(true);
+        addFocusListener(new FocusAdapter() {
+            @Override public void focusGained(FocusEvent e) { repaint(); }
+            @Override public void focusLost(FocusEvent e) { repaint(); }
+        });
         setLayout(new BorderLayout(DesignTokens.SPACE_MD, 0));
         setBorder(BorderFactory.createEmptyBorder(
                 DesignTokens.SPACE_MD, DesignTokens.SPACE_MD + STRIPE_WIDTH,
@@ -91,18 +101,29 @@ public class EntryCardPanel extends RoundedPanel {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        if (strength == null) {
-            return;
+        if (strength != null) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setClip(0, 0, STRIPE_WIDTH, getHeight());
+                g2.setColor(DesignTokens.forStrength(strength));
+                int arc = DesignTokens.RADIUS_CARD;
+                g2.fillRoundRect(0, 0, STRIPE_WIDTH + arc, getHeight() - 1, arc, arc);
+            } finally {
+                g2.dispose();
+            }
         }
-        Graphics2D g2 = (Graphics2D) g.create();
-        try {
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setClip(0, 0, STRIPE_WIDTH, getHeight());
-            g2.setColor(DesignTokens.forStrength(strength));
-            int arc = DesignTokens.RADIUS_CARD;
-            g2.fillRoundRect(0, 0, STRIPE_WIDTH + arc, getHeight() - 1, arc, arc);
-        } finally {
-            g2.dispose();
+        if (isFocusOwner()) {
+            Graphics2D gf = (Graphics2D) g.create();
+            try {
+                gf.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                gf.setStroke(new BasicStroke(2f));
+                gf.setColor(DesignTokens.accent());
+                int arc = DesignTokens.RADIUS_CARD;
+                gf.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, arc, arc);
+            } finally {
+                gf.dispose();
+            }
         }
     }
 }

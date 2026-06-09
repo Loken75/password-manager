@@ -20,6 +20,7 @@ import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
+import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.ByteArrayOutputStream;
@@ -46,6 +47,7 @@ public class CoffreSshPanel extends JPanel {
     private List<SshKeyEntry> displayed = new ArrayList<>();
     private final java.util.LinkedHashSet<String> selectedIds = new java.util.LinkedHashSet<>();
     private String anchorId;
+    private EntryCardPanel focusedCard;
     private javax.swing.Timer clipboardTimer;
 
     public CoffreSshPanel(SshKeyService sshKeyService, int clipboardClearSeconds, Runnable onVaultChanged) {
@@ -134,8 +136,11 @@ public class CoffreSshPanel extends JPanel {
 
     private void rebuildList() {
         cardsHost.removeAll();
+        focusedCard = null;
         for (SshKeyEntry e : displayed) {
-            cardsHost.add(buildCard(e));
+            EntryCardPanel c = buildCard(e);
+            if (selectedIds.size() == 1 && selectedIds.contains(e.getId())) focusedCard = c;
+            cardsHost.add(c);
             cardsHost.add(Box.createVerticalStrut(DesignTokens.SPACE_SM));
         }
         if (displayed.isEmpty()) {
@@ -172,6 +177,15 @@ public class CoffreSshPanel extends JPanel {
                 }
             }
         });
+        card.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke("UP"), "navUp");
+        card.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke("DOWN"), "navDown");
+        card.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke("ENTER"), "navEnter");
+        card.getActionMap().put("navUp", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent ev) { selectByOffset(-1); } });
+        card.getActionMap().put("navDown", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent ev) { selectByOffset(1); } });
+        card.getActionMap().put("navEnter", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent ev) { editSelected(); } });
         return card;
     }
 
@@ -184,7 +198,14 @@ public class CoffreSshPanel extends JPanel {
         }
     }
 
-    private void selectSingle(SshKeyEntry e) { selectedIds.clear(); selectedIds.add(e.getId()); anchorId = e.getId(); rebuildList(); updateDetailOrBulk(); }
+    private void selectSingle(SshKeyEntry e) { selectedIds.clear(); selectedIds.add(e.getId()); anchorId = e.getId(); rebuildList(); updateDetailOrBulk(); focusSelectedCard(); }
+    private void selectByOffset(int delta) {
+        if (displayed.isEmpty()) return;
+        int idx = selectedIds.size() == 1 ? indexOf(selectedIds.iterator().next()) : -1;
+        int next = Math.max(0, Math.min(displayed.size() - 1, idx + delta));
+        selectSingle(displayed.get(next));
+    }
+    private void focusSelectedCard() { if (focusedCard != null) focusedCard.requestFocusInWindow(); }
     private void toggleSelect(SshKeyEntry e) { if (!selectedIds.add(e.getId())) selectedIds.remove(e.getId()); anchorId = e.getId(); rebuildList(); updateDetailOrBulk(); }
     private void selectRange(SshKeyEntry e) {
         int a = indexOf(anchorId), b = indexOf(e.getId());
@@ -250,9 +271,8 @@ public class CoffreSshPanel extends JPanel {
             pub.setWrapStyleWord(false);
             pub.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
             pub.setRows(3);
-            JButton copyPub = new JButton("Copier");
-            copyPub.setMargin(new Insets(2, 8, 2, 8));
-            copyPub.addActionListener(ev -> copyText(e.getPublicKey()));
+            JButton copyPub = Buttons.copyButton(lang.getString("entry.copy"), lang.getString("common.copied"),
+                () -> copyText(e.getPublicKey()));
             JPanel pubWrap = new JPanel(new BorderLayout(DesignTokens.SPACE_SM, 0));
             pubWrap.setOpaque(false);
             pubWrap.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -356,10 +376,8 @@ public class CoffreSshPanel extends JPanel {
         JLabel val = new JLabel(value);
         v.add(val, BorderLayout.CENTER);
         if (onCopy != null) {
-            JButton copy = new JButton("Copier");
-            copy.setMargin(new Insets(2, 8, 2, 8));
-            copy.addActionListener(ev -> onCopy.run());
-            v.add(copy, BorderLayout.EAST);
+            v.add(Buttons.copyButton(lang.getString("entry.copy"), lang.getString("common.copied"), onCopy),
+                BorderLayout.EAST);
         }
         p.add(v, BorderLayout.CENTER);
         return p;

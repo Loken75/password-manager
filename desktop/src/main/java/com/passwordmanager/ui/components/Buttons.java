@@ -6,7 +6,9 @@ import javax.swing.BorderFactory;
 import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JToggleButton;
+import javax.swing.Timer;
 import java.awt.Cursor;
+import java.awt.Insets;
 
 /**
  * Factory for the design-system button variants. Corner radius and focus ring come from the
@@ -63,6 +65,24 @@ public final class Buttons {
         // Tint when active so the toggle state is legible without a filled background.
         b.addChangeListener(e ->
             b.setForeground(b.isSelected() ? DesignTokens.accent() : DesignTokens.onSurfaceFaint()));
+        return b;
+    }
+
+    /**
+     * Small "Copy" button that runs {@code onCopy} then briefly shows a "Copied ✓" confirmation
+     * before reverting — the immediate-feedback pattern expected of password managers.
+     */
+    public static JButton copyButton(String label, String doneLabel, Runnable onCopy) {
+        JButton b = new JButton(label);
+        b.setMargin(new Insets(2, 8, 2, 8));
+        b.setFocusPainted(false);
+        b.addActionListener(e -> {
+            onCopy.run();
+            b.setText(doneLabel);
+            Timer t = new Timer(1400, a -> b.setText(label));
+            t.setRepeats(false);
+            t.start();
+        });
         return b;
     }
 }
