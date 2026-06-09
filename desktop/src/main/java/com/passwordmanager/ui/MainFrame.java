@@ -52,6 +52,7 @@ public class MainFrame extends JFrame {
     private static final String VIEW_PASSWORDS = "passwords";
     private static final String VIEW_APPS = "apps";
     private static final String VIEW_SSH = "ssh";
+    private static final String VIEW_AUDIT = "audit";
     private static final String VIEW_SETTINGS = "settings";
 
     private CoffrePasswordsPanel coffrePasswordsPanel;
@@ -62,11 +63,8 @@ public class MainFrame extends JFrame {
     private JPanel contentCards;
     private CardLayout contentLayout;
     private String currentView = VIEW_PASSWORDS;
-    private JTextField toolbarSearch;
-    private DefaultListModel<String> sideCategoryModel;
-    private JList<String> sideCategoryList;
     private final java.util.Map<String, JToggleButton> typeButtons = new java.util.LinkedHashMap<>();
-    private JPanel categorySection;
+    private JPanel auditHost;
     private JLabel statusLabel;
     private Thread shutdownHook;
     // Applied language/theme, to detect changes when (re)applying settings.
@@ -142,25 +140,31 @@ public class MainFrame extends JFrame {
             () -> { saveVault(); statusLabel.setText(getStatusText()); refreshTypeCounts(); });
 
         settingsPanel = new CoffreSettingsPanel(appConfig, configManager,
-            vaultService.getSshKeyService().getActiveList(),
-            this::applySettings, () -> switchView(lastVaultView), this::doLock);
+            vaultService.getSshKeyService().getActiveList(), vaultService,
+            this::applySettings, () -> switchView(lastVaultView), this::doLock,
+            () -> { saveVault(); coffrePasswordsPanel.refresh(); });
+
+        // Audit is now a first-class page (rebuilt on each visit so its metrics stay current).
+        auditHost = new JPanel(new BorderLayout());
 
         contentLayout = new CardLayout();
         contentCards = new JPanel(contentLayout);
         contentCards.add(coffrePasswordsPanel, VIEW_PASSWORDS);
         contentCards.add(appPanel, VIEW_APPS);
         contentCards.add(sshKeyPanel, VIEW_SSH);
+        contentCards.add(auditHost, VIEW_AUDIT);
         contentCards.add(settingsPanel, VIEW_SETTINGS);
 
-        // North: update notification bar + calm toolbar
+        // Window menu bar: global actions (file/edit/tools/help) including logout.
+        setJMenuBar(createMenuBar());
+
+        // North: update notification bar only (the old top toolbar is gone — search, sort, filter
+        // and "new entry" now live inside each content panel; global actions are in the menu bar).
         updateManager = new DesktopUpdateManager();
-        JPanel northPanel = new JPanel(new BorderLayout());
-        northPanel.add(updateManager.createNotificationBar(), BorderLayout.NORTH);
-        northPanel.add(createToolBar(), BorderLayout.SOUTH);
-        add(northPanel, BorderLayout.NORTH);
+        add(updateManager.createNotificationBar(), BorderLayout.NORTH);
         updateManager.startPeriodicCheck();
 
-        // West: sidebar (type nav + categories + audit/settings)
+        // West: sidebar (page navigation + "more" menu with logout)
         add(createSidebar(), BorderLayout.WEST);
 
         // Center: content
@@ -188,99 +192,27 @@ public class MainFrame extends JFrame {
         setLocationRelativeTo(null);
     }
 
-    private JComponent createToolBar() {
-        JPanel bar = new JPanel(new BorderLayout(DesignTokens.SPACE_MD, 0));
-        bar.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 0, 1, 0, DesignTokens.outline()),
-            BorderFactory.createEmptyBorder(DesignTokens.SPACE_MD, DesignTokens.SPACE_LG, DesignTokens.SPACE_MD, DesignTokens.SPACE_LG)));
-
-        JLabel brand = new JLabel(lang.getString("app.brand"));
-        brand.setFont(brand.getFont().deriveFont(Font.BOLD, 17f));
-
-        toolbarSearch = new JTextField();
-        toolbarSearch.putClientProperty("JTextField.placeholderText", lang.getString("vault.search"));
-        toolbarSearch.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { onSearch(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { onSearch(); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { onSearch(); }
-        });
-        JPanel searchWrap = new JPanel(new BorderLayout());
-        searchWrap.add(toolbarSearch, BorderLayout.CENTER);
-        searchWrap.setBorder(BorderFactory.createEmptyBorder(0, DesignTokens.SPACE_LG, 0, DesignTokens.SPACE_LG));
-
-        JButton newBtn = Buttons.primary("+ " + lang.getString("vault.new_entry"));
-        newBtn.addActionListener(e -> addNewEntryForActiveView());
-        JButton lockBtn = new JButton(lang.getString("menu.file.lock"));
-        lockBtn.addActionListener(e -> doLock());
-        JButton overflow = new JButton("⋯");
-        overflow.setToolTipText(lang.getString("menu.file"));
-        overflow.addActionListener(e -> overflowMenu().show(overflow, 0, overflow.getHeight()));
-
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, 0));
-        right.add(newBtn);
-        right.add(lockBtn);
-        right.add(overflow);
-
-        bar.add(brand, BorderLayout.WEST);
-        bar.add(searchWrap, BorderLayout.CENTER);
-        bar.add(right, BorderLayout.EAST);
-        return bar;
-    }
-
     private JComponent createSidebar() {
+        // Clean, modern navigation: pages only (no categories — those moved to Settings).
         JPanel side = new JPanel();
         side.setLayout(new BoxLayout(side, BoxLayout.Y_AXIS));
         side.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(0, 0, 0, 1, DesignTokens.outline()),
             BorderFactory.createEmptyBorder(DesignTokens.SPACE_LG, DesignTokens.SPACE_MD, DesignTokens.SPACE_LG, DesignTokens.SPACE_MD)));
-        side.setPreferredSize(new Dimension(234, 0));
+        side.setPreferredSize(new Dimension(220, 0));
 
-        side.add(navTitle(lang.getString("menu.view")));
+        side.add(navTitle(lang.getString("nav.title")));
         side.add(typeNav(VIEW_PASSWORDS, lang.getString("tab.passwords")));
+        side.add(Box.createVerticalStrut(DesignTokens.SPACE_XS));
         side.add(typeNav(VIEW_APPS, lang.getString("tab.applications")));
+        side.add(Box.createVerticalStrut(DesignTokens.SPACE_XS));
         side.add(typeNav(VIEW_SSH, lang.getString("tab.ssh_keys")));
-        side.add(Box.createVerticalStrut(DesignTokens.SPACE_LG));
-
-        // Categories (passwords only)
-        categorySection = new JPanel();
-        categorySection.setOpaque(false);
-        categorySection.setLayout(new BoxLayout(categorySection, BoxLayout.Y_AXIS));
-        categorySection.setAlignmentX(Component.LEFT_ALIGNMENT);
-        categorySection.add(navTitle(lang.getString("entry.category")));
-        sideCategoryModel = new DefaultListModel<>();
-        sideCategoryList = new JList<>(sideCategoryModel);
-        sideCategoryList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        sideCategoryList.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                String sel = sideCategoryList.getSelectedValue();
-                String cat = (sel == null || sel.equals(lang.getString("category.all"))) ? null : sel;
-                coffrePasswordsPanel.setCategory(cat);
-            }
-        });
-        JScrollPane catScroll = new JScrollPane(sideCategoryList);
-        catScroll.setBorder(null);
-        catScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
-        catScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 180));
-        categorySection.add(catScroll);
-        JPanel catBtns = new JPanel(new GridLayout(1, 2, 4, 0));
-        catBtns.setOpaque(false);
-        catBtns.setAlignmentX(Component.LEFT_ALIGNMENT);
-        catBtns.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        JButton addCat = new JButton(lang.getString("category.add"));
-        JButton delCat = new JButton(lang.getString("category.delete"));
-        addCat.addActionListener(e -> addCategory());
-        delCat.addActionListener(e -> deleteCategory());
-        catBtns.add(addCat);
-        catBtns.add(delCat);
-        categorySection.add(Box.createVerticalStrut(4));
-        categorySection.add(catBtns);
-        side.add(categorySection);
-
+        side.add(Box.createVerticalStrut(DesignTokens.SPACE_XS));
+        side.add(typeNav(VIEW_AUDIT, lang.getString("nav.audit")));
+        side.add(Box.createVerticalStrut(DesignTokens.SPACE_XS));
+        side.add(typeNav(VIEW_SETTINGS, lang.getString("menu.file.settings")));
         side.add(Box.createVerticalGlue());
-        side.add(sidebarAction(lang.getString("menu.tools.security_audit"), () -> securityAuditController.doSecurityAudit()));
-        side.add(sidebarAction(lang.getString("menu.file.settings"), () -> switchView(VIEW_SETTINGS)));
 
-        refreshSideCategories();
         refreshTypeCounts();
         return side;
     }
@@ -290,7 +222,7 @@ public class MainFrame extends JFrame {
         l.setFont(l.getFont().deriveFont(Font.BOLD, 11f));
         l.setForeground(DesignTokens.onSurfaceFaint());
         l.setAlignmentX(Component.LEFT_ALIGNMENT);
-        l.setBorder(BorderFactory.createEmptyBorder(6, 6, 8, 6));
+        l.setBorder(BorderFactory.createEmptyBorder(0, 6, 8, 6));
         return l;
     }
 
@@ -308,21 +240,6 @@ public class MainFrame extends JFrame {
         return b;
     }
 
-    private JButton sidebarAction(String text, Runnable action) {
-        JButton b = new JButton(text);
-        b.setHorizontalAlignment(SwingConstants.LEFT);
-        b.setBorderPainted(false);
-        b.setContentAreaFilled(false);
-        b.setFocusPainted(false);
-        b.setForeground(DesignTokens.onSurfaceFaint());
-        b.setBorder(BorderFactory.createEmptyBorder(9, 10, 9, 10));
-        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        b.setAlignmentX(Component.LEFT_ALIGNMENT);
-        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.addActionListener(e -> action.run());
-        return b;
-    }
-
     private void styleNav(JToggleButton b, boolean active) {
         b.setSelected(active);
         b.setContentAreaFilled(active);
@@ -336,28 +253,27 @@ public class MainFrame extends JFrame {
         if (VIEW_PASSWORDS.equals(view) || VIEW_APPS.equals(view) || VIEW_SSH.equals(view)) {
             lastVaultView = view;
         }
+        if (VIEW_AUDIT.equals(view)) rebuildAuditView();
         contentLayout.show(contentCards, view);
         typeButtons.forEach((k, b) -> styleNav(b, k.equals(view)));
-        if (categorySection != null) categorySection.setVisible(VIEW_PASSWORDS.equals(view));
-        if (VIEW_PASSWORDS.equals(view)) refreshSideCategories();
-        if (toolbarSearch != null) {
-            JTextField sf = activeSearchField();
-            String txt = sf != null ? sf.getText() : "";
-            if (!txt.equals(toolbarSearch.getText())) toolbarSearch.setText(txt);
-        }
         revalidate();
         repaint();
     }
 
-    private void refreshSideCategories() {
-        if (sideCategoryModel == null) return;
-        String prev = sideCategoryList.getSelectedValue();
-        sideCategoryModel.clear();
-        sideCategoryModel.addElement(lang.getString("category.all"));
-        for (String c : vaultService.getVault().getCategories()) {
-            sideCategoryModel.addElement(c);
-        }
-        if (prev != null) sideCategoryList.setSelectedValue(prev, false);
+    /** Rebuilds the audit page content (title header + freshly computed audit view). */
+    private void rebuildAuditView() {
+        auditHost.removeAll();
+        JPanel header = new JPanel(new BorderLayout(DesignTokens.SPACE_MD, 0));
+        header.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, DesignTokens.outline()),
+            BorderFactory.createEmptyBorder(DesignTokens.SPACE_MD, DesignTokens.SPACE_LG, DesignTokens.SPACE_MD, DesignTokens.SPACE_LG)));
+        JLabel title = new JLabel(lang.getString("nav.audit"));
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+        header.add(title, BorderLayout.WEST);
+        auditHost.add(header, BorderLayout.NORTH);
+        auditHost.add(securityAuditController.buildAuditView(), BorderLayout.CENTER);
+        auditHost.revalidate();
+        auditHost.repaint();
     }
 
     private void refreshTypeCounts() {
@@ -374,59 +290,51 @@ public class MainFrame extends JFrame {
         }
     }
 
-    private void addCategory() {
-        String name = JOptionPane.showInputDialog(this, lang.getString("category.new"),
-            lang.getString("category.add"), JOptionPane.PLAIN_MESSAGE);
-        if (name != null && !name.trim().isEmpty()) {
-            vaultService.addCategory(name.trim());
-            refreshSideCategories();
-            saveVault();
-        }
-    }
+    /** Window menu bar: File (import/export/logout/quit), Edit, Tools (sync/generator), Help. */
+    private JMenuBar createMenuBar() {
+        JMenuBar bar = new JMenuBar();
 
-    private void deleteCategory() {
-        String sel = sideCategoryList.getSelectedValue();
-        if (sel == null || sel.equals(lang.getString("category.all"))) return;
-        int c = JOptionPane.showConfirmDialog(this, lang.getString("category.delete_confirm"),
-            lang.getString("category.delete"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        if (c == JOptionPane.YES_OPTION) {
-            for (PasswordEntry e : vaultService.search("")) {
-                if (sel.equals(e.getCategory())) e.setCategory("");
-            }
-            vaultService.removeCategory(sel);
-            refreshSideCategories();
-            coffrePasswordsPanel.refresh();
-            saveVault();
-        }
-    }
+        JMenu file = new JMenu(lang.getString("menu.file"));
+        JMenuItem imp = new JMenuItem(lang.getString("menu.file.import"));
+        imp.addActionListener(e -> importExportController.doImport());
+        JMenuItem exp = new JMenuItem(lang.getString("menu.file.export"));
+        exp.addActionListener(e -> importExportController.doExport());
+        JMenuItem lock = new JMenuItem(lang.getString("menu.file.lock"));
+        lock.addActionListener(e -> doLock());
+        JMenuItem quit = new JMenuItem(lang.getString("menu.file.quit"));
+        quit.addActionListener(e -> doQuit());
+        file.add(imp);
+        file.add(exp);
+        file.addSeparator();
+        file.add(lock);
+        file.add(quit);
+        bar.add(file);
 
-    private JPopupMenu overflowMenu() {
-        JPopupMenu m = new JPopupMenu();
+        JMenu edit = new JMenu(lang.getString("menu.edit"));
+        JMenuItem cm = new JMenuItem(lang.getString("menu.edit.change_master"));
+        cm.addActionListener(e -> doChangeMasterPassword());
+        edit.add(cm);
+        bar.add(edit);
+
+        JMenu tools = new JMenu(lang.getString("menu.tools"));
         JMenuItem sync = new JMenuItem(lang.getString("menu.tools.sync_now"));
         sync.setEnabled(appConfig.getStorageMode() == StorageMode.REMOTE);
         sync.addActionListener(e -> doSync());
-        m.add(sync);
-        m.addSeparator();
-        JMenuItem imp = new JMenuItem(lang.getString("menu.file.import"));
-        imp.addActionListener(e -> importExportController.doImport());
-        m.add(imp);
-        JMenuItem exp = new JMenuItem(lang.getString("menu.file.export"));
-        exp.addActionListener(e -> importExportController.doExport());
-        m.add(exp);
-        m.addSeparator();
         JMenuItem gen = new JMenuItem(lang.getString("menu.tools.generator"));
         gen.addActionListener(e -> new PasswordGeneratorDialog(MainFrame.this).setVisible(true));
-        m.add(gen);
-        JMenuItem cm = new JMenuItem(lang.getString("menu.edit.change_master"));
-        cm.addActionListener(e -> doChangeMasterPassword());
-        m.add(cm);
-        m.addSeparator();
+        tools.add(sync);
+        tools.add(gen);
+        bar.add(tools);
+
+        JMenu help = new JMenu(lang.getString("menu.help"));
         JMenuItem about = new JMenuItem(lang.getString("menu.help.about"));
         about.addActionListener(e -> JOptionPane.showMessageDialog(MainFrame.this,
             lang.getString("about.description").replace("{0}", AppVersion.get()),
             lang.getString("about.title"), JOptionPane.INFORMATION_MESSAGE));
-        m.add(about);
-        return m;
+        help.add(about);
+        bar.add(help);
+
+        return bar;
     }
 
     private void installKeyBindings() {
@@ -441,11 +349,14 @@ public class MainFrame extends JFrame {
         root.getActionMap().put("refresh", new AbstractAction() {
             public void actionPerformed(ActionEvent e) { refreshAllPanels(); }
         });
-    }
-
-    private void onSearch() {
-        JTextField target = activeSearchField();
-        if (target != null) target.setText(toolbarSearch.getText());
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK), "focusSearch");
+        root.getActionMap().put("focusSearch", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                JTextField sf = activeSearchField();
+                if (sf != null) sf.requestFocusInWindow();
+            }
+        });
     }
 
     private JTextField activeSearchField() {
@@ -844,7 +755,6 @@ public class MainFrame extends JFrame {
         coffrePasswordsPanel.refresh();
         appPanel.refresh();
         sshKeyPanel.refresh();
-        refreshSideCategories();
         refreshTypeCounts();
     }
 

@@ -3,7 +3,9 @@ package com.passwordmanager.ui.components;
 import com.passwordmanager.ui.theme.DesignTokens;
 
 import javax.swing.BorderFactory;
+import javax.swing.Icon;
 import javax.swing.JButton;
+import javax.swing.JToggleButton;
 import java.awt.Cursor;
 
 /**
@@ -32,6 +34,35 @@ public final class Buttons {
         b.setFocusPainted(false);
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         b.setBorder(BorderFactory.createEmptyBorder(8, 18, 8, 18));
+        return b;
+    }
+
+    /** Borderless icon button (e.g. the sort control that opens a menu). */
+    public static JButton icon(Icon icon, String tooltip) {
+        JButton b = new JButton(icon);
+        b.setToolTipText(tooltip);
+        b.setForeground(DesignTokens.onSurfaceFaint());
+        b.setContentAreaFilled(false);
+        b.setBorderPainted(false);
+        b.setFocusPainted(false);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+        return b;
+    }
+
+    /** Borderless icon toggle button (e.g. the filter control that reveals the filter panel). */
+    public static JToggleButton iconToggle(Icon icon, String tooltip) {
+        JToggleButton b = new JToggleButton(icon);
+        b.setToolTipText(tooltip);
+        b.setForeground(DesignTokens.onSurfaceFaint());
+        b.setContentAreaFilled(false);
+        b.setBorderPainted(false);
+        b.setFocusPainted(false);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+        // Tint when active so the toggle state is legible without a filled background.
+        b.addChangeListener(e ->
+            b.setForeground(b.isSelected() ? DesignTokens.accent() : DesignTokens.onSurfaceFaint()));
         return b;
     }
 }

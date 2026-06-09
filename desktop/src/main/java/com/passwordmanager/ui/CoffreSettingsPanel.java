@@ -8,11 +8,14 @@ import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.sync.SFTPRepository;
 import com.passwordmanager.ui.components.Buttons;
 import com.passwordmanager.ui.theme.DesignTokens;
+import com.passwordmanager.vault.PasswordEntry;
 import com.passwordmanager.vault.SshKeyEntry;
+import com.passwordmanager.vault.VaultService;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -25,9 +28,11 @@ public class CoffreSettingsPanel extends JPanel {
     private final AppConfig config;
     private final ConfigManager configManager;
     private final List<SshKeyEntry> vaultKeys;
+    private final VaultService vaultService;
     private final Runnable onApply;
     private final Runnable onBack;
     private final Runnable onWorkspaceChange;
+    private final Runnable onCategoriesChanged;
 
     private JComboBox<String> langCombo, themeCombo;
     private JSpinner autoLockSpinner, clipboardSpinner;
@@ -37,15 +42,20 @@ public class CoffreSettingsPanel extends JPanel {
     private JSpinner portSpinner;
     private JRadioButton keySourceFile, keySourceVault;
     private JComboBox<String> vaultKeyCombo;
+    private JTextField newCategoryField;
+    private JPanel categoryListPanel;
 
     public CoffreSettingsPanel(AppConfig config, ConfigManager configManager, List<SshKeyEntry> vaultKeys,
-                               Runnable onApply, Runnable onBack, Runnable onWorkspaceChange) {
+                               VaultService vaultService, Runnable onApply, Runnable onBack,
+                               Runnable onWorkspaceChange, Runnable onCategoriesChanged) {
         this.config = config;
         this.configManager = configManager;
         this.vaultKeys = vaultKeys;
+        this.vaultService = vaultService;
         this.onApply = onApply;
         this.onBack = onBack;
         this.onWorkspaceChange = onWorkspaceChange;
+        this.onCategoriesChanged = onCategoriesChanged;
         initComponents();
     }
 
@@ -64,6 +74,7 @@ public class CoffreSettingsPanel extends JPanel {
 
         JTabbedPane tabs = new JTabbedPane();
         tabs.addTab(lang.getString("settings.general"), buildGeneral());
+        tabs.addTab(lang.getString("settings.categories"), buildCategories());
         tabs.addTab(lang.getString("settings.security"), buildSecurity());
         tabs.addTab(lang.getString("settings.sync"), buildSync());
         add(tabs, BorderLayout.CENTER);
@@ -138,6 +149,96 @@ public class CoffreSettingsPanel extends JPanel {
         g.gridx = 0; g.gridy = 5; g.weighty = 1;
         p.add(Box.createVerticalGlue(), g);
         return p;
+    }
+
+    private JComponent buildCategories() {
+        JPanel p = grid();
+        GridBagConstraints g = gbc();
+
+        // Add row: text field + add button
+        g.gridx = 0; g.gridy = 0; g.weightx = 1;
+        newCategoryField = new JTextField();
+        newCategoryField.putClientProperty("JTextField.placeholderText", lang.getString("category.new"));
+        newCategoryField.addActionListener(e -> addCategory());
+        p.add(newCategoryField, g);
+        g.gridx = 1; g.weightx = 0;
+        JButton add = Buttons.primary(lang.getString("category.add"));
+        add.addActionListener(e -> addCategory());
+        p.add(add, g);
+
+        // List of existing categories with per-row delete
+        g.gridx = 0; g.gridy = 1; g.gridwidth = 2; g.weightx = 1; g.weighty = 1;
+        g.fill = GridBagConstraints.BOTH;
+        categoryListPanel = new JPanel();
+        categoryListPanel.setLayout(new BoxLayout(categoryListPanel, BoxLayout.Y_AXIS));
+        categoryListPanel.setOpaque(false);
+        JScrollPane sc = new JScrollPane(categoryListPanel);
+        sc.setBorder(null);
+        sc.getVerticalScrollBar().setUnitIncrement(16);
+        p.add(sc, g);
+
+        rebuildCategoryList();
+        return p;
+    }
+
+    private void rebuildCategoryList() {
+        categoryListPanel.removeAll();
+        List<String> cats = new ArrayList<>(vaultService.getVault().getCategories());
+        if (cats.isEmpty()) {
+            JLabel empty = new JLabel(lang.getString("category.all"));
+            empty.setForeground(DesignTokens.onSurfaceFaint());
+            empty.setAlignmentX(Component.LEFT_ALIGNMENT);
+            empty.setBorder(BorderFactory.createEmptyBorder(DesignTokens.SPACE_MD, DesignTokens.SPACE_XS, 0, 0));
+            categoryListPanel.add(empty);
+        }
+        for (String c : cats) {
+            JPanel row = new JPanel(new BorderLayout(DesignTokens.SPACE_SM, 0));
+            row.setOpaque(false);
+            row.setAlignmentX(Component.LEFT_ALIGNMENT);
+            row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+            row.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, DesignTokens.outline()),
+                BorderFactory.createEmptyBorder(DesignTokens.SPACE_SM, DesignTokens.SPACE_XS, DesignTokens.SPACE_SM, DesignTokens.SPACE_XS)));
+            row.add(new JLabel(c), BorderLayout.WEST);
+            JButton del = new JButton(lang.getString("category.delete"));
+            del.setForeground(DesignTokens.statusWeak());
+            del.addActionListener(e -> deleteCategory(c));
+            row.add(del, BorderLayout.EAST);
+            categoryListPanel.add(row);
+        }
+        categoryListPanel.revalidate();
+        categoryListPanel.repaint();
+    }
+
+    private void addCategory() {
+        String name = newCategoryField.getText() == null ? "" : newCategoryField.getText().trim();
+        if (name.isEmpty()) {
+            JOptionPane.showMessageDialog(this, lang.getString("category.name_required"),
+                lang.getString("category.add"), JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (vaultService.getVault().getCategories().contains(name)) {
+            JOptionPane.showMessageDialog(this, lang.getString("category.exists"),
+                lang.getString("category.add"), JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        vaultService.addCategory(name);
+        newCategoryField.setText("");
+        rebuildCategoryList();
+        if (onCategoriesChanged != null) onCategoriesChanged.run();
+    }
+
+    private void deleteCategory(String category) {
+        int c = JOptionPane.showConfirmDialog(this, lang.getString("category.delete_confirm"),
+            lang.getString("category.delete"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (c != JOptionPane.YES_OPTION) return;
+        // Reassign entries in this category to uncategorized (mirrors the Android behaviour).
+        for (PasswordEntry e : vaultService.search("")) {
+            if (category.equals(e.getCategory())) e.setCategory("");
+        }
+        vaultService.removeCategory(category);
+        rebuildCategoryList();
+        if (onCategoriesChanged != null) onCategoriesChanged.run();
     }
 
     private JPanel buildSecurity() {

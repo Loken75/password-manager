@@ -66,18 +66,25 @@ public class CoffreSshPanel extends JPanel {
         JPanel center = new JPanel(new BorderLayout());
         center.setOpaque(false);
 
-        // Header: generate / import actions
-        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, DesignTokens.SPACE_SM, DesignTokens.SPACE_SM));
-        header.setOpaque(false);
+        // Header: search (grows) + generate / import actions.
+        searchField.putClientProperty("JTextField.placeholderText", lang.getString("vault.search"));
         JButton genBtn = Buttons.tonal(lang.getString("ssh.generate"));
         genBtn.addActionListener(e -> generateSshKey());
         JButton impBtn = new JButton(lang.getString("ssh.import"));
         impBtn.addActionListener(e -> importSshKey());
         JButton impContentBtn = new JButton(lang.getString("ssh.import_content"));
         impContentBtn.addActionListener(e -> importSshKeyFromContent());
-        header.add(genBtn);
-        header.add(impBtn);
-        header.add(impContentBtn);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, 0));
+        actions.setOpaque(false);
+        actions.add(genBtn);
+        actions.add(impBtn);
+        actions.add(impContentBtn);
+
+        JPanel header = new JPanel(new BorderLayout(DesignTokens.SPACE_SM, 0));
+        header.setOpaque(false);
+        header.setBorder(BorderFactory.createEmptyBorder(DesignTokens.SPACE_MD, DesignTokens.SPACE_MD, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD));
+        header.add(searchField, BorderLayout.CENTER);
+        header.add(actions, BorderLayout.EAST);
         center.add(header, BorderLayout.NORTH);
 
         cardsHost.setLayout(new BoxLayout(cardsHost, BoxLayout.Y_AXIS));

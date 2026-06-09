@@ -3,6 +3,7 @@ package com.passwordmanager.ui;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.ui.components.Avatar;
 import com.passwordmanager.ui.components.Buttons;
+import com.passwordmanager.ui.components.ControlIcon;
 import com.passwordmanager.ui.components.EntryCardPanel;
 import com.passwordmanager.ui.components.RoundedPanel;
 import com.passwordmanager.ui.components.SecretFieldPanel;
@@ -80,35 +81,26 @@ public class CoffreAppsPanel extends JPanel {
         detailHost.setPreferredSize(new Dimension(360, 0));
         clearDetail();
 
-        // Top controls: chips + sort + filters
-        JPanel chips = new JPanel(new FlowLayout(FlowLayout.LEFT, DesignTokens.SPACE_SM, 0));
-        chips.setOpaque(false);
-        JToggleButton allChip = chip(lang.getString("filter.all_short"), true);
-        JToggleButton favChip = chip(lang.getString("filter.favorites_only"), false);
-        allChip.addActionListener(e -> { favoritesOnly = false; favChip.setSelected(false); allChip.setSelected(true); refresh(); });
-        favChip.addActionListener(e -> { favoritesOnly = favChip.isSelected(); allChip.setSelected(!favoritesOnly); refresh(); });
-        chips.add(allChip); chips.add(favChip);
+        // Top controls: search (grows) + sort/filter icon controls + new-entry button.
+        searchField.putClientProperty("JTextField.placeholderText", lang.getString("vault.search"));
+        JButton sortBtn = Buttons.icon(new ControlIcon(ControlIcon.Kind.SORT), lang.getString("filter.sort"));
+        sortBtn.addActionListener(e -> showSortMenu(sortBtn));
+        JToggleButton filterBtn = Buttons.iconToggle(new ControlIcon(ControlIcon.Kind.FILTER), lang.getString("filter.filters"));
+        filterBtn.addActionListener(e -> { filterPanel.setVisible(filterBtn.isSelected()); revalidate(); });
+        JButton newBtn = Buttons.primary("+ " + lang.getString("vault.new_entry"));
+        newBtn.addActionListener(e -> addNewEntry());
 
-        JComboBox<String> sortCombo = new JComboBox<>(new String[]{
-            lang.getString("entry.title"), lang.getString("entry.username"), lang.getString("entry.updated") });
-        SortField[] sortFields = { SortField.TITLE, SortField.USERNAME, SortField.DATE };
-        sortCombo.addActionListener(e -> { currentSort = sortFields[sortCombo.getSelectedIndex()]; refresh(); });
-        JToggleButton dirBtn = new JToggleButton("↑");
-        dirBtn.setFocusPainted(false);
-        dirBtn.addActionListener(e -> { sortAscending = !dirBtn.isSelected(); dirBtn.setText(sortAscending ? "↑" : "↓"); refresh(); });
-        JToggleButton filtersBtn = chip(lang.getString("filter.filters"), false);
-        filtersBtn.addActionListener(e -> { filterPanel.setVisible(filtersBtn.isSelected()); revalidate(); });
-        JPanel sortBox = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, 0));
-        sortBox.setOpaque(false);
-        JLabel sortLbl = new JLabel(lang.getString("filter.sort") + " :");
-        sortLbl.setForeground(DesignTokens.onSurfaceFaint());
-        sortBox.add(sortLbl); sortBox.add(sortCombo); sortBox.add(dirBtn); sortBox.add(filtersBtn);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, 0));
+        actions.setOpaque(false);
+        actions.add(sortBtn);
+        actions.add(filterBtn);
+        actions.add(newBtn);
 
-        JPanel row1 = new JPanel(new BorderLayout());
+        JPanel row1 = new JPanel(new BorderLayout(DesignTokens.SPACE_SM, 0));
         row1.setOpaque(false);
-        row1.setBorder(BorderFactory.createEmptyBorder(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD));
-        row1.add(chips, BorderLayout.WEST);
-        row1.add(sortBox, BorderLayout.EAST);
+        row1.setBorder(BorderFactory.createEmptyBorder(DesignTokens.SPACE_MD, DesignTokens.SPACE_MD, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD));
+        row1.add(searchField, BorderLayout.CENTER);
+        row1.add(actions, BorderLayout.EAST);
 
         filterPanel = buildFilterPanel();
 
@@ -494,26 +486,86 @@ public class CoffreAppsPanel extends JPanel {
         return b;
     }
 
+    /** Sort menu opened from the sort icon: a direction toggle + one item per sort field. */
+    private void showSortMenu(Component anchor) {
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItem dir = new JMenuItem((sortAscending ? "▲  " : "▼  ")
+            + lang.getString(sortAscending ? "sort.ascending" : "sort.descending"));
+        dir.addActionListener(e -> { sortAscending = !sortAscending; refresh(); });
+        menu.add(dir);
+        menu.addSeparator();
+
+        String[] keys = { "entry.title", "entry.username", "sort.created", "sort.modified" };
+        SortField[] fields = { SortField.TITLE, SortField.USERNAME, SortField.CREATED, SortField.DATE };
+        ButtonGroup group = new ButtonGroup();
+        for (int i = 0; i < fields.length; i++) {
+            SortField f = fields[i];
+            JRadioButtonMenuItem item = new JRadioButtonMenuItem(lang.getString(keys[i]), currentSort == f);
+            item.addActionListener(e -> { currentSort = f; refresh(); });
+            group.add(item);
+            menu.add(item);
+        }
+        menu.show(anchor, 0, anchor.getHeight());
+    }
+
     private JPanel buildFilterPanel() {
-        JPanel p = new JPanel(new GridBagLayout());
+        JPanel p = new JPanel();
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
         p.setOpaque(false);
         p.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(0, 0, 1, 0, DesignTokens.outline()),
             BorderFactory.createEmptyBorder(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD, DesignTokens.SPACE_SM, DesignTokens.SPACE_MD)));
+
+        // Favorites chip
+        JToggleButton favChip = chip(lang.getString("filter.favorites"), false);
+        favChip.addActionListener(e -> { favoritesOnly = favChip.isSelected(); refresh(); });
+        filterResetters.add(() -> favChip.setSelected(false));
+        JPanel favSection = new JPanel();
+        favSection.setLayout(new BoxLayout(favSection, BoxLayout.Y_AXIS));
+        favSection.setOpaque(false);
+        favSection.setAlignmentX(Component.LEFT_ALIGNMENT);
+        favSection.add(sectionLabel(lang.getString("entry.favorite")));
+        JPanel favRow = new JPanel(new FlowLayout(FlowLayout.LEFT, DesignTokens.SPACE_SM, DesignTokens.SPACE_XS));
+        favRow.setOpaque(false);
+        favRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        favRow.add(favChip);
+        favSection.add(favRow);
+        favSection.setMaximumSize(new Dimension(Integer.MAX_VALUE, favSection.getPreferredSize().height));
+        p.add(favSection);
+
+        // Date filters
+        p.add(Box.createVerticalStrut(DesignTokens.SPACE_SM));
+        p.add(sectionLabel(lang.getString("filter.dates")));
+        JPanel dates = new JPanel(new GridBagLayout());
+        dates.setOpaque(false);
+        dates.setAlignmentX(Component.LEFT_ALIGNMENT);
         GridBagConstraints g = new GridBagConstraints();
         g.insets = new Insets(4, 6, 4, 6);
         g.anchor = GridBagConstraints.WEST;
         g.fill = GridBagConstraints.HORIZONTAL;
-        addDateFilter(p, g, 0, "filter.created_since", d -> createdSince = d);
-        addDateFilter(p, g, 1, "filter.modified_since", d -> modifiedSince = d);
-        addDateFilter(p, g, 2, "filter.created_on", d -> createdOn = d);
-        addDateFilter(p, g, 3, "filter.modified_on", d -> modifiedOn = d);
-        g.gridx = 0; g.gridy = 4; g.gridwidth = 2;
+        addDateFilter(dates, g, 0, "filter.created_since", d -> createdSince = d);
+        addDateFilter(dates, g, 1, "filter.modified_since", d -> modifiedSince = d);
+        addDateFilter(dates, g, 2, "filter.created_on", d -> createdOn = d);
+        addDateFilter(dates, g, 3, "filter.modified_on", d -> modifiedOn = d);
+        dates.setMaximumSize(new Dimension(Integer.MAX_VALUE, dates.getPreferredSize().height));
+        p.add(dates);
+
         JButton clear = new JButton(lang.getString("filter.clear"));
+        clear.setAlignmentX(Component.LEFT_ALIGNMENT);
         clear.addActionListener(e -> clearFilters());
-        p.add(clear, g);
+        p.add(Box.createVerticalStrut(DesignTokens.SPACE_SM));
+        p.add(clear);
+
         p.setVisible(false);
         return p;
+    }
+
+    private JLabel sectionLabel(String text) {
+        JLabel l = new JLabel(text.toUpperCase());
+        l.setFont(l.getFont().deriveFont(Font.BOLD, 11f));
+        l.setForeground(DesignTokens.onSurfaceFaint());
+        l.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return l;
     }
 
     private void addDateFilter(JPanel p, GridBagConstraints g, int row, String key,
@@ -532,6 +584,7 @@ public class CoffreAppsPanel extends JPanel {
 
     private void clearFilters() {
         for (Runnable r : filterResetters) r.run();
+        favoritesOnly = false;
         createdSince = modifiedSince = createdOn = modifiedOn = null;
         refresh();
     }
