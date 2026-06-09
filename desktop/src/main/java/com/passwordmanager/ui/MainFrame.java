@@ -51,7 +51,6 @@ public class MainFrame extends JFrame {
     private byte[] vaultKeyBytes;
     private static final String VIEW_PASSWORDS = "passwords";
     private static final String VIEW_APPS = "apps";
-    private static final String VIEW_SSH = "ssh";
     private static final String VIEW_AUDIT = "audit";
     private static final String VIEW_SETTINGS = "settings";
 
@@ -139,10 +138,11 @@ public class MainFrame extends JFrame {
         sshKeyPanel = new CoffreSshPanel(vaultService.getSshKeyService(), appConfig.getClipboardClearSeconds(),
             () -> { saveVault(); statusLabel.setText(getStatusText()); refreshTypeCounts(); });
 
+        // SSH keys are no longer a top-level page — they live in a Settings tab (after Sync).
         settingsPanel = new CoffreSettingsPanel(appConfig, configManager,
             vaultService.getSshKeyService().getActiveList(), vaultService,
             this::applySettings, () -> switchView(lastVaultView), this::doLock,
-            () -> { saveVault(); coffrePasswordsPanel.refresh(); });
+            () -> { saveVault(); coffrePasswordsPanel.refresh(); }, sshKeyPanel);
 
         // Audit is now a first-class page (rebuilt on each visit so its metrics stay current).
         auditHost = new JPanel(new BorderLayout());
@@ -151,7 +151,6 @@ public class MainFrame extends JFrame {
         contentCards = new JPanel(contentLayout);
         contentCards.add(coffrePasswordsPanel, VIEW_PASSWORDS);
         contentCards.add(appPanel, VIEW_APPS);
-        contentCards.add(sshKeyPanel, VIEW_SSH);
         contentCards.add(auditHost, VIEW_AUDIT);
         contentCards.add(settingsPanel, VIEW_SETTINGS);
 
@@ -183,7 +182,6 @@ public class MainFrame extends JFrame {
         installKeyBindings();
         String startView = System.getProperty("pm.view");
         switchView("apps".equals(startView) ? VIEW_APPS
-            : "ssh".equals(startView) ? VIEW_SSH
             : "settings".equals(startView) ? VIEW_SETTINGS : VIEW_PASSWORDS);
 
         // Size the window to fit all components (pack) so nothing is clipped and there is
@@ -205,8 +203,6 @@ public class MainFrame extends JFrame {
         side.add(typeNav(VIEW_PASSWORDS, lang.getString("tab.passwords")));
         side.add(Box.createVerticalStrut(DesignTokens.SPACE_XS));
         side.add(typeNav(VIEW_APPS, lang.getString("tab.applications")));
-        side.add(Box.createVerticalStrut(DesignTokens.SPACE_XS));
-        side.add(typeNav(VIEW_SSH, lang.getString("tab.ssh_keys")));
         side.add(Box.createVerticalStrut(DesignTokens.SPACE_XS));
         side.add(typeNav(VIEW_AUDIT, lang.getString("nav.audit")));
         side.add(Box.createVerticalStrut(DesignTokens.SPACE_XS));
@@ -250,7 +246,7 @@ public class MainFrame extends JFrame {
 
     private void switchView(String view) {
         currentView = view;
-        if (VIEW_PASSWORDS.equals(view) || VIEW_APPS.equals(view) || VIEW_SSH.equals(view)) {
+        if (VIEW_PASSWORDS.equals(view) || VIEW_APPS.equals(view)) {
             lastVaultView = view;
         }
         if (VIEW_AUDIT.equals(view)) rebuildAuditView();
@@ -279,7 +275,6 @@ public class MainFrame extends JFrame {
     private void refreshTypeCounts() {
         setNavCount(VIEW_PASSWORDS, vault.getEntries().size());
         setNavCount(VIEW_APPS, vault.getAppEntries().size());
-        setNavCount(VIEW_SSH, vault.getSshKeyEntries().size());
     }
 
     private void setNavCount(String view, int count) {
@@ -363,7 +358,6 @@ public class MainFrame extends JFrame {
         switch (currentView) {
             case VIEW_PASSWORDS: return coffrePasswordsPanel.getSearchField();
             case VIEW_APPS: return appPanel.getSearchField();
-            case VIEW_SSH: return sshKeyPanel.getSearchField();
             default: return null;
         }
     }
@@ -371,7 +365,6 @@ public class MainFrame extends JFrame {
     private void addNewEntryForActiveView() {
         switch (currentView) {
             case VIEW_APPS: appPanel.addNewEntry(); break;
-            case VIEW_SSH: sshKeyPanel.addNewEntry(); break;
             default: coffrePasswordsPanel.addNewEntry(); break;
         }
     }

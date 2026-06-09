@@ -74,13 +74,13 @@ public class CoffreSshPanel extends JPanel {
         genBtn.addActionListener(e -> generateSshKey());
         JButton impBtn = new JButton(lang.getString("ssh.import"));
         impBtn.addActionListener(e -> importSshKey());
-        JButton impContentBtn = new JButton(lang.getString("ssh.import_content"));
-        impContentBtn.addActionListener(e -> importSshKeyFromContent());
+        JButton newKeyBtn = Buttons.primary("+ " + lang.getString("ssh.new_key"));
+        newKeyBtn.addActionListener(e -> addNewEntry());
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, DesignTokens.SPACE_SM, 0));
         actions.setOpaque(false);
         actions.add(genBtn);
         actions.add(impBtn);
-        actions.add(impContentBtn);
+        actions.add(newKeyBtn);
 
         JPanel header = new JPanel(new BorderLayout(DesignTokens.SPACE_SM, 0));
         header.setOpaque(false);

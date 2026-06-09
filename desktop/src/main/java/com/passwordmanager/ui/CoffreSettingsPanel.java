@@ -33,6 +33,7 @@ public class CoffreSettingsPanel extends JPanel {
     private final Runnable onBack;
     private final Runnable onWorkspaceChange;
     private final Runnable onCategoriesChanged;
+    private final Component sshKeysTab;
 
     private JComboBox<String> langCombo, themeCombo;
     private JSpinner autoLockSpinner, clipboardSpinner;
@@ -47,7 +48,7 @@ public class CoffreSettingsPanel extends JPanel {
 
     public CoffreSettingsPanel(AppConfig config, ConfigManager configManager, List<SshKeyEntry> vaultKeys,
                                VaultService vaultService, Runnable onApply, Runnable onBack,
-                               Runnable onWorkspaceChange, Runnable onCategoriesChanged) {
+                               Runnable onWorkspaceChange, Runnable onCategoriesChanged, Component sshKeysTab) {
         this.config = config;
         this.configManager = configManager;
         this.vaultKeys = vaultKeys;
@@ -56,6 +57,7 @@ public class CoffreSettingsPanel extends JPanel {
         this.onBack = onBack;
         this.onWorkspaceChange = onWorkspaceChange;
         this.onCategoriesChanged = onCategoriesChanged;
+        this.sshKeysTab = sshKeysTab;
         initComponents();
     }
 
@@ -77,6 +79,7 @@ public class CoffreSettingsPanel extends JPanel {
         tabs.addTab(lang.getString("settings.categories"), buildCategories());
         tabs.addTab(lang.getString("settings.security"), buildSecurity());
         tabs.addTab(lang.getString("settings.sync"), buildSync());
+        if (sshKeysTab != null) tabs.addTab(lang.getString("tab.ssh_keys"), sshKeysTab);
         add(tabs, BorderLayout.CENTER);
 
         // Footer: Back (tonal) + Apply (primary), side by side.
