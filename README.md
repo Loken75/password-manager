@@ -1,13 +1,13 @@
 # Password Manager
 
-Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et protege vos identifiants, codes PIN d'applications et cles SSH dans un coffre-fort chiffre AES-256-GCM avec chiffrement par enveloppe DEK/KEK. Disponible sur **desktop** (Windows, Linux, macOS) et **Android**. Interface a onglets bilingue francais/anglais.
+Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et protege vos identifiants, codes PIN d'applications et cles SSH dans un coffre-fort chiffre AES-256-GCM avec chiffrement par enveloppe DEK/KEK. Disponible sur **desktop** (Windows, Linux, macOS) et **Android**. Interface bilingue francais/anglais.
 
 ## Fonctionnalites
 
 - **3 types d'entrees** :
-  - **Mots de passe** : identifiant, email, pseudo, mot de passe, URL, categorie, tags (onglet dedie)
-  - **Applications** : nom d'utilisateur et code PIN (onglet dedie)
-  - **Cles SSH** : cle privee, cle publique, type, empreinte, generation (ED25519/RSA) et import PEM (desktop : onglet dedie, Android : ecran dedie dans les parametres)
+  - **Mots de passe** : identifiant, email, pseudo, mot de passe, URL, categorie, tags (page dediee)
+  - **Applications** : nom d'utilisateur et code PIN (page dediee)
+  - **Cles SSH** : cle privee, cle publique, type, empreinte, generation (ED25519/RSA) et import PEM (gerees dans un onglet des parametres, sur desktop comme sur Android)
 - Coffre-fort chiffre par utilisateur (AES-256-GCM avec AAD, PBKDF2 600 000 iterations)
 - Chiffrement par enveloppe DEK/KEK (changement de mot de passe instantane)
 - Generateur de mots de passe cryptographiquement sur (SecureRandom)
@@ -18,16 +18,17 @@ Gestionnaire de mots de passe multiplateforme securise. Stocke, organise et prot
 - Import/export unifie (CSV, JSON, coffre chiffre) avec popup parametrable et import par fusion — CSV avec colonne `type` (retrocompatible), JSON gere les 3 listes automatiquement (cles SSH incluses en JSON et .enc, pas en CSV), CSV conforme RFC 4180
 - Synchronisation SFTP **bidirectionnelle** avec fusion par entree et resolution de conflits (tous types d'entrees)
 - **Dossier de travail configurable** (workspace, a la Obsidian) : choix du repertoire des coffres avant connexion et changement depuis les parametres (desktop : n'importe quel dossier, avec migration des coffres existants et liste des dossiers recents ; Android : dossier choisi via le Storage Access Framework)
-- Interface a onglets bilingue francais / anglais
+- Interface bilingue francais / anglais
 - Themes Systeme, Clair et Sombre
 - Verrouillage automatique apres inactivite
 - Effacement securise du presse-papiers (`SecureClipboard` avec `char[]`, efface a la perte de propriete)
 - Protection anti brute-force sur l'ecran de connexion
 - Verification semi-automatique des mises a jour via l'API GitHub Releases
-- **Desktop** : JTabbedPane avec 3 onglets (Mots de passe, Applications, Cles SSH) avec generation/import de cles SSH
+- **Desktop** : navigation laterale (Mots de passe, Applications, Audit, Parametres) + barre de menus de fenetre ; recherche, tri et filtres integres a chaque page
+- **Desktop** : tableau de bord (cartes Entrees / Favoris / Securite) et rangee "Recemment utilises" sur la page Mots de passe
 - **Desktop** : distribution autonome avec JRE embarque (aucune installation Java requise)
-- **Desktop** : selection multiple, menu "Actions..." (suppression, categorie, favoris en masse) et menu contextuel (clic droit)
-- **Desktop** : boutons de copie en ligne dans le panneau de details (identifiant, email, pseudo, mot de passe, URL)
+- **Desktop** : selection multiple, menu "Actions..." (suppression, categorie, favoris en masse), menu contextuel (clic droit) et **navigation au clavier** de la liste (fleches + Entree, anneau de focus)
+- **Desktop** : boutons de copie en ligne dans le panneau de details (identifiant, email, pseudo, mot de passe, URL) avec confirmation "Copie ✓"
 - **Android** : application native Jetpack Compose / Material 3 avec injection de dependances Hilt (APK)
 - **Android** : HorizontalPager (swipe) avec selecteur de page deroulant (Mots de passe / Applications)
 - **Android** : gestion des cles SSH (ecran dedie dans les parametres)
@@ -130,7 +131,7 @@ java -jar desktop/build/libs/password-manager.jar
 
 ## Premier lancement
 
-Au premier lancement, aucun utilisateur n'existe. Cliquez sur **Creer un nouvel utilisateur** puis :
+Au premier lancement, aucun coffre n'existe. Cliquez sur **Creer un coffre** (a droite du bouton Connexion) puis :
 
 1. Saisissez un nom d'utilisateur (lettres, chiffres et underscores uniquement)
 2. Choisissez un **mot de passe maitre** respectant les exigences :
@@ -149,14 +150,17 @@ Au premier lancement, aucun utilisateur n'existe. Cliquez sur **Creer un nouvel 
 
 Apres connexion, l'interface se compose de :
 
-- **Barre de menus** : Fichier, Edition, Affichage, Outils, Aide
-- **Barre d'outils** : Nouvelle entree, Generateur, Synchroniser, Verrouiller
-- **Panneau gauche** (180 px) : liste des categories avec filtrage au clic (mots de passe uniquement)
-- **Panneau central** : JTabbedPane avec 3 onglets (**Mots de passe**, **Applications**, **Cles SSH**) + barre de recherche en temps reel + filtres avances (le filtre favoris s'applique meme quand le panneau de filtres est replie) + tableau des entrees avec tri par clic sur les en-tetes de colonnes + menu "Actions..." en masse (visible quand >1 entree selectionnee)
-- **Panneau droit** (300 px) : details de l'entree selectionnee avec boutons copier en ligne (champs adaptes au type d'entree)
+- **Barre de menus** (fenetre) : Fichier (Importer, Exporter, Deconnexion, Quitter), Edition (Changer le mot de passe maitre), Outils (Synchroniser, Generateur), Aide (A propos)
+- **Barre laterale "NAVIGATION"** : les pages **Mots de passe**, **Applications**, **Audit** et **Parametres** (la page active est surlignee)
+- **Page** (centre) : barre de recherche en temps reel + icone **tri** (menu : sens + critere) + icone **filtres** (panneau de chips multi-selection : favoris, categories, force, dates) + bouton **"+ Nouvelle entree"**
+  - Sur **Mots de passe** : tableau de bord (cartes **Entrees / Favoris / Securite** /20) et rangee **"Recemment utilises"** au-dessus de la liste
+  - **Liste de cartes** (favicon/avatar, titre, sous-titre, badge de force, etoile favori) navigable au clavier (fleches + Entree) avec selection multiple et menu "Actions..." en masse
+- **Panneau droit** (~360 px) : details de l'entree selectionnee avec boutons copier en ligne (confirmation "Copie ✓") ; champs adaptes au type
 - **Menu contextuel** (clic droit) : modifier, supprimer, dupliquer, copier mot de passe/identifiant/email/URL, ouvrir l'URL
 - **Barre de notification** : mise a jour disponible (barre jaune en haut, masquable)
 - **Barre de statut** : statut de synchronisation, utilisateur connecte, nombre d'entrees (mis a jour dynamiquement)
+
+Les **categories** et les **cles SSH** se gerent depuis **Parametres** (onglets dedies). L'**Audit** est une page a part entiere (organisee en sections, voir plus bas).
 
 ### Android
 
@@ -175,14 +179,14 @@ Apres connexion, l'interface se compose de :
 
 | Fonctionnalite | Desktop | Android |
 |---|---|---|
-| Navigation entre types | Oui (JTabbedPane, 3 onglets) | Oui (selecteur de page deroulant + HorizontalPager, 2 pages + ecran dedie SSH) |
+| Navigation entre types | Oui (barre laterale de navigation) | Oui (selecteur de page deroulant + HorizontalPager, 2 pages + ecran dedie SSH) |
 | Mots de passe (identifiant, email, URL, categorie, tags) | Oui | Oui |
 | Applications (nom d'utilisateur, code PIN) | Oui | Oui |
-| Cles SSH (cle privee, cle publique, type, empreinte) | Oui (onglet dedie) | Oui (ecran dedie dans les parametres) |
+| Cles SSH (cle privee, cle publique, type, empreinte) | Oui (onglet dans les parametres) | Oui (ecran dedie dans les parametres) |
 | CRUD entrees (tous types) | Oui | Oui |
 | Dupliquer une entree | Oui (3 types, clic droit) | Oui (mots de passe et applications) |
 | Favoris (etoile, tri prioritaire, tous types) | Oui | Oui |
-| Filtres avances (categorie, force, date, favoris) | Oui | Oui (categorie et force multi-selection) |
+| Filtres avances (categorie, force, date, favoris) | Oui (chips multi-selection) | Oui (categorie et force multi-selection) |
 | Favicons des sites web | Oui | Oui |
 | Generateur de mots de passe | Oui | Oui |
 | Analyse de securite + HIBP (mots de passe uniquement) | Oui | Oui |
@@ -190,7 +194,7 @@ Apres connexion, l'interface se compose de :
 | Recherche et tri (9 criteres, tous types) | Oui | Oui |
 | Selection multiple + actions en masse (tous types) | Oui (menu "Actions...") | Oui |
 | Menu contextuel (clic droit) | Oui | Non |
-| Gestion des categories (ajout et suppression) | Oui (panneau lateral) | Oui (ecran dedie) |
+| Gestion des categories (ajout et suppression) | Oui (onglet des parametres) | Oui (ecran dedie) |
 | Verification des mises a jour | Oui (auto + manuel) | Oui (auto a la connexion + icone persistante) |
 | Themes Systeme/Clair/Sombre | Oui (FlatLaf) | Oui (Material 3 / Dynamic Colors) |
 | Deverrouillage biometrique (empreinte digitale) | Non | Oui (BiometricPrompt + AndroidKeyStore) |
@@ -215,7 +219,7 @@ Genere un rapport sur :
 - Mots de passe **anciens** (non modifies depuis 180+ jours, configurable)
 - Mots de passe **compromis** (verification HIBP via k-Anonymity, declenchee manuellement)
 
-Sur Android, la page Audit est organisee en sections (Vue d'ensemble, A risque, Points forts, Composition, Completude, Activite) et ajoute des stats : score /20, forts, % uniques, categories, favoris, sans URL/email, activite 30 jours, plus ancien.
+Sur desktop comme sur Android, l'Audit est une **page dediee** organisee en sections (Vue d'ensemble, A risque, Points forts, Composition, Completude, Activite) avec des stats : score /20, forts, % uniques, categories, favoris, sans URL/email, activite 30 jours, plus ancien.
 
 Indicateur de force : Faible (rouge), Moyen (orange), Fort (vert), Tres fort (bleu).
 
@@ -264,9 +268,11 @@ Changement de mot de passe maitre : seule la DEK est re-chiffree (operation quas
 | Raccourci | Action |
 |---|---|
 | `Ctrl+N` | Nouvelle entree |
+| `Ctrl+F` | Placer le focus sur la recherche de la page active |
 | `Suppr` | Supprimer l'entree selectionnee |
 | `F5` | Actualiser l'affichage |
-| `Entree` | Se connecter (ecran de connexion) |
+| Fleches `Haut`/`Bas` | Naviguer dans la liste des entrees (carte focalisee) |
+| `Entree` | Se connecter (ecran de connexion) ou modifier la carte focalisee |
 | Double-clic | Modifier l'entree |
 | Clic droit | Menu contextuel (modifier, supprimer, copier, ouvrir URL, dupliquer) |
 
@@ -360,7 +366,7 @@ password-manager/
 |   +-- util/                          # SecureWiper, FileSecurityUtils, PasswordValidator, FaviconService
 |
 |-- desktop/                           # Interface Swing (Java 17)
-|   +-- ui/                            # LoginFrame, MainFrame, VaultPanel, SecureClipboard, dialogs
+|   +-- ui/                            # LoginFrame, MainFrame (sidebar + JMenuBar), CoffrePasswordsPanel/CoffreAppsPanel/CoffreSshPanel/CoffreSettingsPanel, SecurityAuditController, ui/components, SecureClipboard, dialogs
 |   +-- config/                        # ConfigManager, ConfigEncryptor (persistance config desktop)
 |   +-- i18n/                          # LanguageManager (FR/EN)
 |   +-- sync/                          # SFTPRepository (client JSch), DesktopSyncFactory

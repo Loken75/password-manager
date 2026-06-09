@@ -114,7 +114,7 @@ Des scripts de lancement sont fournis dans `scripts/` :
   +-- util/       SecureWiper, FileSecurityUtils, PasswordValidator, DateUtils, FaviconService
 
 :desktop (Java 17, depends on :core)
-  |-- ui/         LoginFrame, MainFrame (JTabbedPane), VaultPanel, AppPanel, SshKeyPanel,
+  |-- ui/         LoginFrame, MainFrame (sidebar + JMenuBar), CoffrePasswordsPanel, CoffreAppsPanel, CoffreSshPanel, CoffreSettingsPanel, SecurityAuditController,
   |               EntryDialog, AppEntryDialog, SshKeyEntryDialog, SecureClipboard,
   |               ConflictResolutionDialog (generique VaultItem), ...
   |-- config/     ConfigManager, ConfigEncryptor (persistance config.properties)
@@ -154,14 +154,16 @@ Main
               |     +-- SFTPRepository
               |-- DesktopUpdateManager (update)
               |     +-- UpdateChecker (core/update)
-              +-- JTabbedPane
-                    |-- VaultPanel (onglet mots de passe)
+              +-- Sidebar de navigation + CardLayout
+                    |-- CoffrePasswordsPanel (page mots de passe)
                     |     |-- EntryDialog
                     |     |     +-- PasswordGeneratorDialog
-                    |     +-- StrengthBarHelper ---- PasswordStrengthAnalyzer (crypto)
-                    |-- AppPanel (onglet applications)
+                    |     +-- EntryCardPanel / StrengthMeter ---- PasswordStrengthAnalyzer (crypto)
+                    |-- CoffreAppsPanel (page applications)
                     |     +-- AppEntryDialog
-                    |-- SettingsDialog
+                    |-- SecurityAuditController.buildAuditView() (page Audit)
+                    |-- CoffreSettingsPanel (page Parametres : onglets dont Cles SSH)
+                    |     +-- CoffreSshPanel ---- SshKeyEntryDialog
                     +-- ConflictResolutionDialog (generique VaultItem)
 ```
 
@@ -450,7 +452,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 - `getPrivateKey()` retourne un clone (copie defensive)
 - `setPrivateKey()` efface l'ancienne cle via `SecureWiper.wipe()` avant d'affecter le nouveau clone
 - `wipe()` efface la cle privee et nullifie les champs sensibles
-- Desktop : onglet dedie (`SshKeyPanel`) avec table, detail et formulaire (`SshKeyEntryDialog`)
+- Desktop : onglet Parametres > Cles SSH (`CoffreSshPanel`) avec liste, detail et formulaire (`SshKeyEntryDialog`)
 - Android : ecran dedie dans les parametres (`SshKeyManagementScreen`)
 
 **VaultService (facade) — details :**
@@ -644,17 +646,17 @@ Ce package et les fichiers de ressources `i18n/messages_{fr,en}.properties` sont
 | Classe | Role |
 |--------|------|
 | `LoginFrame` | Ecran de connexion, creation d'utilisateur, toggle visibilite mot de passe, changement de langue |
-| `MainFrame` | Fenetre principale avec `JTabbedPane` (3 onglets : mots de passe, applications, cles SSH), menus, barre d'outils, auto-lock, shutdown hook (retire au verrouillage) |
-| `VaultPanel` | Onglet mots de passe. Panneau 3 colonnes : categories, table d'entrees, details avec boutons copier. Selection multiple (`MULTIPLE_INTERVAL_SELECTION`), barre d'actions en masse (menu "Actions..." dropdown), menu contextuel (clic droit). Chargement asynchrone des favicons (`SwingWorker` + `ConcurrentHashMap`). Timers `javax.swing.Timer` (pas `java.util.Timer`) |
-| `AppPanel` | Onglet applications. Table d'entrees `AppEntry` avec recherche, selection multiple, operations en masse, duplication |
-| `SecurityAuditController` | Audit de securite visuel (`JPanel` avec `BoxLayout`). Sections colorees (`TitledBorder`) : faibles (rouge), reutilises (orange), anciens (jaune), compromis HIBP (rouge). Verification HIBP asynchrone via `SwingWorker<List<String>, Integer>` avec `JProgressBar`. Bouton "Verifier maintenant" desactive pendant la verification |
+| `MainFrame` | Fenetre principale : `JMenuBar` de fenetre (Fichier/Edition/Outils/Aide, dont Deconnexion), **barre laterale de navigation** (Mots de passe, Applications, Audit, Parametres) pilotant un `CardLayout` central, barre de notification (NORTH) + barre de statut (SOUTH), auto-lock, shutdown hook (retire au verrouillage) |
+| `CoffrePasswordsPanel` | Page mots de passe : barre de controle (recherche, icone tri -> menu, icone filtres -> chips multi-selection, bouton "+ Nouvelle entree"), tableau de bord (cartes Entrees/Favoris/Securite), rangee "Recemment utilises" (MRU en memoire), liste de cartes (`EntryCardPanel`) + panneau de details (boutons copier avec feedback "Copie ✓"). Selection multiple, menu contextuel (clic droit), **navigation clavier** (fleches/Entree, anneau de focus). Favicons asynchrones (`SwingWorker`) |
+| `CoffreAppsPanel` | Page applications : meme structure de liste/details et de controles (sans categorie ni force) |
+| `SecurityAuditController` | Construit la **page Audit** (`buildAuditView()` -> composant scrollable embarque dans `MainFrame`, plus de dialog) : sections Vue d'ensemble, A risque (callouts repliables faibles/reutilises/anciens/HIBP), Points forts, Composition, Completude, Activite. Verification HIBP asynchrone via `SwingWorker<List<PasswordEntry>, Integer>` + `JProgressBar` |
 | `EntryDialog` | Formulaire modal de creation/edition d'entree mot de passe |
 | `AppEntryDialog` | Formulaire modal de creation/edition d'entree application |
-| `SshKeyPanel` | Onglet cles SSH. Table d'entrees `SshKeyEntry` (type, empreinte) avec recherche, detail, selection multiple, operations en masse, generation de cles (ED25519/RSA via JSch) et import de fichiers PEM |
+| `CoffreSshPanel` | Onglet **Parametres > Cles SSH** : liste de cartes `SshKeyEntry` (type, empreinte), detail, selection multiple, operations en masse, generation de cles (ED25519/RSA via JSch), import de fichiers PEM, bouton "+ Nouvelle cle" (creation manuelle) |
 | `SshKeyEntryDialog` | Formulaire modal de creation/edition de cle SSH (nom, type, cle privee, cle publique, empreinte) |
 | `PasswordGeneratorDialog` | Dialogue du generateur de mots de passe. Timer clipboard `javax.swing.Timer` annule a la fermeture |
 | `ImportExportController` | Popup unifiee d'import/export (CSV, JSON, coffre chiffre .enc) avec champ mot de passe pour l'import chiffre |
-| `SettingsDialog` | Dialogue des parametres (3 onglets : General, Securite, Synchronisation). Source de cle SSH configurable (fichier ou cle du coffre-fort via `CardLayout`). Test SFTP sur `SwingWorker` (hors EDT) |
+| `CoffreSettingsPanel` | **Page** des parametres (in-shell, plus un dialogue) en onglets : General, Categories, Securite, Synchronisation, Cles SSH. Gestion des categories (ajout/suppression). Source de cle SSH configurable (`CardLayout`). Test SFTP sur `SwingWorker` (hors EDT). Pied de page : bouton Appliquer (plus de Retour) |
 | `ConflictResolutionDialog` | Dialogue generique de resolution de conflits pour tous les sous-types `VaultItem` |
 | `StrengthBarHelper` | Utilitaire d'affichage de la barre de force (couleurs : rouge/orange/vert/bleu) |
 
@@ -924,25 +926,28 @@ Le changement de langue est possible depuis l'ecran de connexion (effet immediat
 | Fenetre | Type | Taille | Description |
 |---------|------|--------|-------------|
 | `LoginFrame` | `JFrame` | 450x450 (non-redimensionnable) | Connexion, creation utilisateur, toggle mot de passe, selection de langue, et **selecteur de dossier de travail** (combo des dossiers recents + bouton `...`, migration des coffres entre dossiers via `VaultStoreMigrator`) |
-| `MainFrame` | `JFrame` | 1100x700 (min 900x600) | `JTabbedPane` avec 3 onglets (Mots de passe, Applications, Cles SSH), menus, barre d'outils, barre de statut |
+| `MainFrame` | `JFrame` | 1100x700 (min 900x600) | Barre laterale de navigation + `JMenuBar` de fenetre + `CardLayout` central (Mots de passe, Applications, Audit, Parametres), barre de notification et barre de statut |
 | `EntryDialog` | `JDialog` (modal) | min 550x480 | Creation/edition d'entree mot de passe avec barre de force |
 | `AppEntryDialog` | `JDialog` (modal) | — | Creation/edition d'entree application |
 | `PasswordGeneratorDialog` | `JDialog` (modal) | min 450x420 | Generateur avec options et barre de force |
-| `SettingsDialog` | `JDialog` (modal) | min 500x450 | Parametres en 3 onglets ; l'onglet General affiche le dossier de travail courant + bouton « Changer… » (declenche une reconnexion) |
+| `CoffreSettingsPanel` | panneau in-shell (page) | — | Parametres en onglets (General, Categories, Securite, Synchronisation, Cles SSH) ; l'onglet General affiche le dossier de travail courant + bouton « Changer… » (declenche une reconnexion) |
 
-#### Onglet Mots de passe (VaultPanel)
+#### Page Mots de passe (CoffrePasswordsPanel)
 
-| Colonne | Largeur | Contenu |
-|---------|---------|---------|
-| Gauche | 180 px | Liste des categories (JList) + bouton ajout |
-| Centre | flexible | Barre de recherche + filtres avances (categorie, force, date, favoris — le filtre favoris s'applique meme quand le panneau est replie) + table 6 colonnes (Favori ★, Titre avec favicon, Identifiant, Email, Categorie, Force) — tous les en-tetes cliquables pour tri (y compris Favori et Force). Menu "Actions..." en masse (supprimer, categorie, favoris) |
-| Droite | 300 px | Details : titre, grille de champs avec boutons copier en ligne (identifiant, email, mot de passe, URL), case a cocher afficher. Favicon affiche a cote du titre |
+Disposition (`JSplitPane` liste + details) :
 
-La colonne Force du tableau est coloree selon le niveau : rouge (Faible), orange (Moyen), vert (Fort), bleu (Tres fort).
+| Zone | Contenu |
+|------|---------|
+| Barre de controle (haut) | Recherche en temps reel + icone **tri** (menu : sens + critere) + icone **filtres** (panneau de chips multi-selection : favoris, categories, force, dates) + bouton "+ Nouvelle entree" |
+| Tableau de bord + recents | Cartes **Entrees / Favoris / Securite** (/20, calculees sur tout le coffre) ; rangee **"Recemment utilises"** (MRU en memoire) |
+| Liste (centre) | Liste de cartes `EntryCardPanel` (favicon/avatar, titre, sous-titre, badge de force, etoile). Selection multiple, menu contextuel (clic droit), **navigation clavier** (fleches/Entree, anneau de focus), menu "Actions..." en masse |
+| Details (droite, ~360 px) | Titre, champs avec boutons **copier** (feedback "Copie ✓"), `SecretFieldPanel` masque + `StrengthMeter`, categorie editable, dates, actions Modifier/Dupliquer/Supprimer |
 
-#### Onglet Applications (AppPanel)
+La force est coloree selon le niveau : rouge (Faible), orange (Moyen), vert (Fort), bleu (Tres fort).
 
-Table d'entrees `AppEntry` avec recherche sur titre et username. Selection multiple, menu contextuel, operations en masse (suppression, favoris). Formulaire via `AppEntryDialog`.
+#### Page Applications (CoffreAppsPanel)
+
+Meme disposition liste de cartes + details (sans categorie ni force ; le filtre se limite a Favoris + dates). Recherche sur titre et identifiant. Selection multiple, menu contextuel, operations en masse (suppression, favoris). Formulaire via `AppEntryDialog`.
 
 #### Auto-lock (desktop)
 
@@ -1328,10 +1333,11 @@ password-manager/
 |       |   |-- config/                     # ConfigManager, ConfigEncryptor (persistance config.properties)
 |       |   |-- i18n/                       # LanguageManager
 |       |   |-- sync/                       # SFTPRepository (client JSch), DesktopSyncFactory
-|       |   |-- ui/                         # LoginFrame, MainFrame (JTabbedPane), VaultPanel, AppPanel, SshKeyPanel,
-|       |   |                               # EntryDialog, AppEntryDialog, SshKeyEntryDialog,
-|       |   |                               # PasswordGeneratorDialog, SettingsDialog, StrengthBarHelper,
+|       |   |-- ui/                         # LoginFrame, MainFrame (sidebar + JMenuBar + CardLayout),
+|       |   |                               # CoffrePasswordsPanel, CoffreAppsPanel, CoffreSshPanel, CoffreSettingsPanel,
+|       |   |                               # EntryDialog, AppEntryDialog, SshKeyEntryDialog, PasswordGeneratorDialog,
 |       |   |                               # SecurityAuditController, ConflictResolutionDialog (generique),
+|       |   |                               # ui/components (EntryCardPanel, BentoCard, ControlIcon, Buttons, ...), ui/theme (DesignTokens),
 |       |   |                               # SecureClipboard, AutoLockManager, ImportExportController
 |       |   +-- update/                     # DesktopUpdateManager
 |       |-- main/resources/i18n/            # messages_en.properties, messages_fr.properties

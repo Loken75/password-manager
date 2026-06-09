@@ -105,9 +105,9 @@ Prerequis : Android SDK (API 35), JDK 17+
 
 ## 3. Premier demarrage
 
-Au premier lancement, aucun utilisateur n'existe. Vous devez en creer un :
+Au premier lancement, aucun coffre n'existe. Vous devez en creer un :
 
-1. Cliquez sur **Creer un nouvel utilisateur**
+1. Cliquez sur **Creer un coffre** (a droite du bouton Connexion)
 2. Saisissez un nom d'utilisateur
    - Caracteres autorises : lettres, chiffres et underscores (`_`)
 3. Choisissez un **mot de passe maitre** respectant les exigences :
@@ -137,7 +137,7 @@ L'ecran de connexion propose les actions suivantes :
 | Deverrouiller par empreinte (Android) | Bouton empreinte affiche si la biometrie est activee pour l'utilisateur. Se declenche automatiquement a la selection de l'utilisateur |
 | Afficher / masquer le mot de passe | Case a cocher pour verifier la saisie |
 | Choisir le dossier de travail | Selecteur du repertoire des coffres (voir [4.1](#41-dossier-de-travail-workspace)) |
-| Creer un nouvel utilisateur | Lien en bas du formulaire |
+| Creer un coffre | Bouton a droite du bouton **Connexion** |
 | Changer la langue | Selecteur Francais / English en bas de l'ecran (effet immediat) |
 | Mise a jour disponible | Detectee automatiquement a l'ouverture de l'ecran ; un dialog s'affiche et une icone reste accessible en haut a droite (voir [19](#19-verification-des-mises-a-jour)) |
 
@@ -160,48 +160,35 @@ La confidentialite du coffre reste assuree par le chiffrement AES-256-GCM, y com
 
 ### Desktop
 
-Apres connexion, l'interface desktop se compose de quatre zones :
+Apres connexion, l'interface desktop se compose de :
 
-### 5.1. Barre de menus
+### 5.1. Barre de menus (fenetre)
 
 | Menu | Sous-menus |
 |------|-----------|
-| **Fichier** | Importer..., Exporter..., --- , Parametres, --- , Verrouiller, Quitter |
-| **Edition** | Nouvelle entree, Modifier l'entree, Supprimer l'entree, --- , Changer mot de passe maitre |
-| **Affichage** | Actualiser, --- , Trier par nom, Trier par identifiant, Trier par email, Trier par site, Trier par date, Trier par categorie, --- , Mots de passe faibles, Mots de passe reutilises |
-| **Outils** | Generateur de mots de passe, Analyse de securite, --- , Synchroniser maintenant |
+| **Fichier** | Importer..., Exporter..., --- , Deconnexion, Quitter |
+| **Edition** | Changer le mot de passe maitre |
+| **Outils** | Synchroniser maintenant (mode distant), Generateur de mots de passe |
 | **Aide** | A propos |
 
-### 5.2. Barre d'outils
+### 5.2. Barre laterale de navigation
 
-Acces rapide aux fonctions courantes :
+Une barre laterale gauche intitulee **NAVIGATION** liste les pages : **Mots de passe**, **Applications**, **Audit**, **Parametres** (la page active est surlignee). Les **cles SSH** et la **gestion des categories** sont des onglets de la page **Parametres**.
 
-| Bouton | Action |
-|--------|--------|
-| Nouvelle entree | Ouvrir le formulaire de creation |
-| Generateur de mots de passe | Ouvrir le generateur |
-| Synchroniser maintenant | Lancer la synchronisation (mode distant) |
-| Verrouiller | Verrouiller le coffre |
+### 5.3. Page courante (liste + details)
 
-### 5.3. Zone centrale (onglets + 3 colonnes)
+Chaque page d'entrees (**Mots de passe**, **Applications**) presente en haut une barre de controle :
 
-La zone centrale est organisee en un **JTabbedPane** avec trois onglets correspondant aux types d'entrees :
+- une **barre de recherche** en temps reel ;
+- une icone **tri** ouvrant un menu (sens croissant/decroissant + critere : titre, identifiant, email, site, categorie, force, date de creation, date de modification) ;
+- une icone **filtres** revelant un panneau de **chips multi-selection** (favoris, categories, force, dates) — aucun chip selectionne = tout est affiche ;
+- un bouton **"+ Nouvelle entree"**.
 
-| Onglet | Contenu |
-|--------|---------|
-| **Mots de passe** | Panneau principal avec categories (gauche), tableau des entrees mot de passe (centre) et panneau de details (droite) |
-| **Applications** | Tableau des entrees application (centre) et panneau de details (droite). Pas de panneau de categories. |
-| **Cles SSH** | Tableau des cles SSH (centre, colonnes : Favori, Titre, Type, Empreinte) et panneau de details (droite : type, empreinte, cle privee masquee, cle publique, notes). |
+Sur la page **Mots de passe** s'ajoutent un **tableau de bord** (cartes **Entrees / Favoris / Securite** sur 20, calculees sur l'ensemble du coffre) et une rangee **"Recemment utilises"** (entrees recemment copiees ou modifiees).
 
-Pour l'onglet **Mots de passe**, la disposition en 3 colonnes reste inchangee :
+La zone principale est une **liste de cartes** (favicon ou avatar, titre, sous-titre, badge de force pour les mots de passe, etoile favori) accompagnee d'un **panneau de details** a droite. La liste se parcourt a la souris ou **au clavier** (fleches Haut/Bas, Entree pour modifier ; anneau de focus visible). La **selection multiple** (Ctrl+clic, Maj+clic) fait apparaitre un menu **"Actions..."** en masse. Le panneau de details propose des boutons **Copier** (avec confirmation "Copie ✓") adaptes au type d'entree.
 
-| Colonne | Contenu |
-|---------|---------|
-| **Gauche** (180 px) | Liste des categories avec bouton d'ajout (visible uniquement sur l'onglet Mots de passe) |
-| **Centre** | Barre de recherche + filtres avances + tableau des entrees (Favori, Titre avec favicon, Identifiant, Email, Categorie, Force) — tous les en-tetes cliquables pour trier (y compris Favori et Force). Menu "Actions..." en masse en bas (visible quand >1 entree selectionnee) |
-| **Droite** (300 px) | Details de l'entree selectionnee |
-
-L'onglet **Applications** suit une disposition similaire mais sans le panneau de categories a gauche, et avec des colonnes adaptees a ce type d'entree.
+La page **Applications** suit la meme disposition (sans categorie ni force). Les **cles SSH** disposent de la meme liste + details, mais dans l'onglet **Parametres > Cles SSH**.
 
 ### 5.4. Barre de statut
 
@@ -229,7 +216,7 @@ La navigation suit le pattern Android standard : appui sur le bouton retour pour
 
 ## 6. Types d'entrees
 
-Le coffre-fort gere trois types d'entrees. Les mots de passe, applications et cles SSH sont affiches dans des vues dediees (desktop : JTabbedPane avec 3 onglets, Android : selecteur de page deroulant + HorizontalPager pour mots de passe et applications, ecran dedie pour les cles SSH).
+Le coffre-fort gere trois types d'entrees. Les mots de passe et applications sont des pages de navigation ; les cles SSH sont gerees dans un onglet de la page Parametres (desktop : barre laterale de navigation + onglet Parametres > Cles SSH, Android : selecteur de page deroulant + HorizontalPager pour mots de passe et applications, ecran dedie pour les cles SSH).
 
 ### 6.1. Entrees mot de passe (Mots de passe)
 
@@ -278,13 +265,13 @@ Type dedie au stockage des cles SSH pour l'authentification serveur.
 | Empreinte | Non | Fingerprint de la cle |
 | Notes | Non | Informations complementaires |
 
-**Acces** : Onglet Cles SSH (desktop) | Parametres > Gerer les cles SSH (Android)
+**Acces** : Parametres > Cles SSH (desktop) | Parametres > Gerer les cles SSH (Android)
 
-Sur desktop, les cles SSH sont gerees dans un onglet dedie (`SshKeyPanel`) avec table, panneau de details et formulaire d'edition : on peut **creer, modifier, supprimer et marquer en favori**. Sur Android, elles sont gerees dans un ecran dedie accessible depuis les parametres (`SshKeyManagementScreen`) : on peut **creer (generation/import), consulter et supprimer** — l'edition et les favoris ne sont pas disponibles pour les cles SSH sur Android.
+Sur desktop, les cles SSH sont gerees dans un onglet de la page Parametres (`CoffreSshPanel`) avec liste de cartes, panneau de details et formulaire d'edition : on peut **creer, modifier, supprimer et marquer en favori**. Sur Android, elles sont gerees dans un ecran dedie accessible depuis les parametres (`SshKeyManagementScreen`) : on peut **creer (generation/import), consulter et supprimer** — l'edition et les favoris ne sont pas disponibles pour les cles SSH sur Android.
 
 Les cles SSH ne supportent ni les categories, ni les tags. Elles supportent les **favoris** (etoile, tri prioritaire, operations en masse). Elles sont incluses dans les exports JSON et les sauvegardes chiffrees (.enc), mais pas dans les exports CSV. L'import JSON et l'import .enc incluent les cles SSH.
 
-Sur desktop, les cles SSH sont gerees via un onglet dedie (`SshKeyPanel`) avec generation de cles (ED25519, RSA via JSch) et import de fichiers PEM. Sur Android, elles sont gerees dans un ecran dedie accessible depuis les parametres.
+Sur desktop, les cles SSH se trouvent dans l'onglet Parametres > Cles SSH (`CoffreSshPanel`) : generation de cles (ED25519, RSA via JSch), import de fichiers PEM, et **"+ Nouvelle cle"** (creation manuelle, equivalent du "+ Nouvelle entree"). Sur Android, elles sont gerees dans un ecran dedie accessible depuis les parametres.
 
 ---
 
@@ -294,7 +281,7 @@ Les operations de creation, modification et suppression s'appliquent a tous les 
 
 ### 7.1. Creer une entree
 
-**Acces** : Edition > Nouvelle entree | `Ctrl+N` | Barre d'outils | FAB (Android)
+**Acces** : Bouton **"+ Nouvelle entree"** (en haut de la page) | `Ctrl+N` | FAB (Android)
 
 Le raccourci `Ctrl+N` cree une entree du type correspondant a l'onglet actuellement actif :
 - Sur l'onglet **Mots de passe** : cree une entree mot de passe
@@ -304,23 +291,21 @@ Le formulaire affiche les champs specifiques au type d'entree (voir [section 6](
 
 ### 7.2. Modifier une entree
 
-- **Double-clic** sur l'entree dans le tableau
-- Ou selectionner l'entree puis Edition > Modifier l'entree
+- **Double-clic** sur la carte dans la liste
+- Ou bouton **Modifier** du panneau de details / `Entree` sur la carte focalisee
 - Ou **clic droit** > Modifier (menu contextuel)
 
 Le formulaire de modification est identique a celui de creation, pre-rempli avec les valeurs existantes. Le type d'entree ne peut pas etre change apres creation.
 
 ### 7.3. Supprimer une entree
 
-**Acces** : Edition > Supprimer l'entree | Touche `Suppr` | Clic droit > Supprimer
+**Acces** : Touche `Suppr` | Bouton **Supprimer** du panneau de details | Clic droit > Supprimer
 
 Une boite de confirmation est affichee avant la suppression. L'action est irreversible. Si plusieurs entrees sont selectionnees, la confirmation indique le nombre d'entrees concernees. La suppression fonctionne sur tous les types d'entrees.
 
 ### 7.4. Selection multiple et operations en masse (Desktop)
 
-Le tableau des entrees supporte la selection multiple (Ctrl+clic, Shift+clic). Lorsque plus d'une entree est selectionnee, une barre d'actions en masse apparait sous le tableau :
-
-Le menu **"Actions..."** propose les operations suivantes :
+La liste des entrees supporte la selection multiple (Ctrl+clic, Maj+clic). Des qu'au moins deux entrees sont selectionnees, le panneau de details laisse place a un menu **"Actions..."** en masse proposant les operations suivantes :
 
 | Action | Description | Types concernes |
 |--------|-------------|-----------------|
@@ -331,7 +316,7 @@ Le menu **"Actions..."** propose les operations suivantes :
 
 ### 7.5. Menu contextuel (Desktop - clic droit)
 
-Un clic droit sur le tableau affiche un menu contextuel avec les actions disponibles. Les options affichees s'adaptent au type d'entree :
+Un clic droit sur une carte de la liste affiche un menu contextuel avec les actions disponibles. Les options affichees s'adaptent au type d'entree :
 
 | Action | Disponibilite | Description |
 |--------|:------------:|-------------|
@@ -375,7 +360,7 @@ Cliquer sur une entree dans le tableau affiche ses details dans le panneau droit
 
 ### 8.1. Recherche en temps reel
 
-La barre de recherche en haut du tableau filtre les entrees au fur et a mesure de la saisie. Elle est insensible a la casse. Le perimetre de recherche depend du type d'entree (onglet actif) :
+La barre de recherche en haut de la page filtre les entrees au fur et a mesure de la saisie. Elle est insensible a la casse (raccourci `Ctrl+F` pour y placer le focus). Le perimetre de recherche depend du type d'entree (page active) :
 
 | Type d'entree | Champs recherches |
 |---------------|-------------------|
@@ -384,53 +369,38 @@ La barre de recherche en haut du tableau filtre les entrees au fur et a mesure d
 
 ### 8.2. Tri
 
-**Menu** : Affichage > Trier par...
+**Acces** : icone **tri** en haut de la page (desktop) | icone de tri de la TopAppBar (Android). Le menu propose un **basculeur de sens** (croissant / decroissant) puis le critere.
 
-Les options de tri disponibles dependent du type d'entree :
+Les criteres disponibles dependent du type d'entree :
 
 **Entrees mot de passe** (8 criteres) :
 
 | Option | Comportement |
 |--------|-------------|
-| Trier par nom | Ordre alphabetique sur le titre |
-| Trier par identifiant | Ordre alphabetique sur l'identifiant |
-| Trier par email | Ordre alphabetique sur l'email |
-| Trier par site | Ordre alphabetique sur l'URL |
-| Trier par date | Plus recemment modifie en premier |
-| Trier par categorie | Regroupement alphabetique par categorie |
-| Trier par favori | Favoris en premier, puis tri alphabetique par titre |
-| Trier par force | Tri par force du mot de passe (Faible, Moyen, Fort, Tres fort) |
+| Titre | Ordre alphabetique sur le titre |
+| Identifiant | Ordre alphabetique sur l'identifiant |
+| Email | Ordre alphabetique sur l'email |
+| Site (URL) | Ordre alphabetique sur l'URL |
+| Categorie | Regroupement alphabetique par categorie |
+| Force | Tri par force du mot de passe (Faible, Moyen, Fort, Tres fort) |
+| Date de creation | Plus recemment cree en premier |
+| Date de modification | Plus recemment modifie en premier |
 
-**Entrees application** :
+**Entrees application** : Titre, Identifiant, Date de creation, Date de modification.
 
-| Option | Comportement |
-|--------|-------------|
-| Trier par nom | Ordre alphabetique sur le titre |
-| Trier par identifiant | Ordre alphabetique sur l'identifiant |
-| Trier par date | Plus recemment modifie en premier |
-
-Sur le desktop, cliquer sur un en-tete de colonne du tableau applique directement le tri correspondant.
-
-Sur **Android**, le menu de tri scinde le tri par date en **« date de creation »** et **« date de modification »**, et propose un **basculeur de sens** (croissant / decroissant) applicable a chaque critere. Les **favoris restent toujours regroupes en premier** quel que soit le critere et le sens : on trie en deux blocs (favoris, puis le reste), seul l'ordre intra-bloc s'inverse.
+Le tri par date est ainsi scinde en **date de creation** et **date de modification** sur les deux clients. Sur **Android**, les **favoris restent toujours regroupes en premier** quel que soit le critere et le sens (tri en deux blocs : favoris, puis le reste).
 
 ### 8.3. Filtres de securite
 
-**Menu** : Affichage
-
-| Filtre | Description |
-|--------|-------------|
-| Mots de passe faibles | Affiche les entrees dont le mot de passe est evalue comme **Faible** |
-| Mots de passe reutilises | Affiche les entrees partageant le meme mot de passe |
-
-Ces filtres s'appliquent uniquement aux entrees mot de passe.
+Les mots de passe **faibles** sont isolables via le chip de filtre **Force > Faible**. Les mots de passe **faibles, reutilises, anciens et compromis (HIBP)** sont detailles dans la page **Audit**. Ces analyses concernent uniquement les entrees mot de passe.
 
 ### 8.4. Filtrage par categorie
 
-Le filtre par categorie (panneau lateral desktop, feuille de filtres Android) s'applique uniquement aux entrees mot de passe. Il n'est pas affiche sur la page Applications. Sur Android, la categorie (comme la force) est **multi-selectionnable** : plusieurs categories peuvent etre cochees simultanement ; aucune cochee = toutes les categories affichees.
+Le filtre par categorie (**chips de filtres**, sur desktop comme sur Android) s'applique uniquement aux entrees mot de passe ; il n'est pas affiche sur la page Applications. La categorie (comme la force) est **multi-selectionnable** : plusieurs categories peuvent etre cochees simultanement ; aucune cochee = toutes les categories affichees.
 
 ### 8.5. Actualiser
 
-**Menu** : Affichage > Actualiser | `F5`
+**Acces** : `F5`
 
 Recharge l'affichage du coffre depuis les donnees en memoire.
 
@@ -483,7 +453,7 @@ Les favoris fonctionnent pour les deux types d'entrees (mots de passe et applica
 
 ### Marquer une entree comme favorite
 
-- **Desktop** : cliquer sur l'icone etoile dans la colonne de favoris du tableau
+- **Desktop** : clic droit sur la carte > **Basculer favori** (ou en masse via le menu **Actions...**)
 - **Android** : appuyer sur l'icone etoile dans la carte d'entree ou dans l'ecran de detail
 
 ### Tri par favoris
@@ -508,7 +478,7 @@ Le statut favori est sauvegarde dans le coffre et exporte/importe via les format
 
 ## 11. Generateur de mots de passe
 
-**Acces** : Outils > Generateur de mots de passe | Barre d'outils | Bouton **Generer** dans le formulaire d'entree
+**Acces** : Outils > Generateur de mots de passe | Bouton **Generer** dans le formulaire d'entree
 
 ### Options de generation
 
@@ -537,15 +507,11 @@ Un indicateur de force du mot de passe est affiche en temps reel.
 
 ## 12. Analyse de securite
 
-**Acces** : Outils > Analyse de securite
+**Acces** : page **Audit** — barre laterale de navigation (desktop) | barre de navigation du bas (Android)
 
 L'analyse de securite s'applique exclusivement aux **entrees mot de passe**. Les entrees application ne sont pas evaluees par l'audit.
 
-L'analyse examine les entrees mot de passe du coffre et genere un rapport visuel.
-
-Sur **desktop**, le rapport comprend quatre sections colorees (faibles, reutilises, anciens, compromis HIBP).
-
-Sur **Android**, la page est organisee en sections thematiques :
+L'analyse examine les entrees mot de passe du coffre et genere une page visuelle. **Desktop et Android partagent desormais la meme organisation** en sections thematiques :
 - **Vue d'ensemble** : cartes **Score** (/20, identique a la carte « Securite » du tableau de bord), **A corriger** (total des problemes) et **Forts**.
 - **A risque** : callouts repliables **Faibles**, **Reutilises**, **Anciens (> N jours)**, **Compromis (HIBP)** — chacun depliant la liste des entrees concernees.
 - **Points forts** : liste des **mots de passe forts** + **% de mots de passe uniques**.
@@ -572,7 +538,7 @@ Liste les entrees dont le mot de passe n'a pas ete modifie depuis plus de **180 
 
 Verifie si vos mots de passe apparaissent dans des fuites de donnees connues via l'API **Have I Been Pwned** (HIBP).
 
-- **Declenchement manuel** : bouton "Verifier" dans la section HIBP du rapport d'audit (necessite une connexion internet). Sur Android, cette section est un **callout repliable** comme les autres ; appuyer sur "Verifier" lance l'analyse et deplie la section pour afficher la progression et les resultats
+- **Declenchement manuel** : bouton "Verifier maintenant" dans la section HIBP de la page d'audit (necessite une connexion internet). Sur les deux clients, cette section est un **callout repliable** comme les autres ; appuyer sur "Verifier" lance l'analyse et deplie la section pour afficher la progression et les resultats
 - **Confidentialite preservee** : seuls les 5 premiers caracteres du hash SHA-1 sont envoyes a l'API (modele k-Anonymity)
 - **Resultat** : nombre de fois que le mot de passe a ete retrouve dans des fuites (0 = sur, >0 = compromis)
 - **Gestion memoire** : le hash est manipule en `char[]` et efface apres utilisation
@@ -743,7 +709,7 @@ Le bouton **Tester la connexion** permet de verifier la configuration.
 
 ### 14.3. Synchronisation manuelle
 
-**Acces** : Outils > Synchroniser maintenant | Barre d'outils
+**Acces** : Outils > Synchroniser maintenant
 
 La synchronisation compare le coffre local, le coffre distant et le dernier etat synchronise via leurs empreintes SHA-256 (comparaison a **trois voies**, sans dependre d'horodatages) :
 - Empreintes locale et distante identiques : aucune action
@@ -1002,25 +968,25 @@ Alternativement, utilisez la **synchronisation SFTP** (desktop et Android) pour 
 | Fonctionnalite | Desktop | Android |
 |---|---|---|
 | Coffre-fort chiffre AES-256-GCM + AAD | Oui | Oui |
-| Entrees mot de passe | Oui (onglet Mots de passe) | Oui (onglet Mots de passe) |
-| Entrees application | Oui (onglet Applications) | Oui (onglet Applications) |
-| Entrees cle SSH | Oui (CRUD complet, favoris, generation, import fichier/texte — onglet dedie) | Oui (creation, generation, import fichier/texte, suppression — Parametres > Gerer les cles SSH ; pas d'edition ni de favoris) |
-| Navigation entre types | JTabbedPane (3 onglets) | Selecteur de page deroulant + HorizontalPager (2 pages) + ecran dedie SSH |
+| Entrees mot de passe | Oui (page Mots de passe) | Oui (onglet Mots de passe) |
+| Entrees application | Oui (page Applications) | Oui (onglet Applications) |
+| Entrees cle SSH | Oui (CRUD complet, favoris, generation, import fichier PEM + creation manuelle — Parametres > Cles SSH) | Oui (creation, generation, import fichier/texte, suppression — Parametres > Gerer les cles SSH ; pas d'edition ni de favoris) |
+| Navigation entre types | Barre laterale de navigation | Selecteur de page deroulant + HorizontalPager (2 pages) + ecran dedie SSH |
 | CRUD entrees | Oui (tous types) | Oui (tous types) |
 | Dupliquer une entree | Oui (clic droit, mots de passe et applications) | Oui (bouton, mots de passe et applications) |
 | Favoris (etoile, tri prioritaire) | Oui (tous types) | Oui (mots de passe et applications ; pas les cles SSH) |
 | Filtres avances (categorie, force, date, favoris) | Oui | Oui (FilterChips, categorie et force **multi-selection**) |
-| Favicons des sites web | Oui (dans la colonne Titre ; desactivable dans les parametres) | Oui (avatar dans la carte d'entree ; desactivable dans les parametres) |
+| Favicons des sites web | Oui (sur la carte d'entree ; desactivable dans les parametres) | Oui (avatar dans la carte d'entree ; desactivable dans les parametres) |
 | Generateur de mots de passe | Oui | Oui |
 | Analyse de securite + HIBP | Oui (entrees mot de passe uniquement) | Oui (entrees mot de passe uniquement) |
 | Import/export unifie (CSV/JSON/.enc) | Fichier > Importer.../Exporter... | Menu overflow > Importer.../Exporter... (SAF) |
 | Import sauvegarde chiffree | Oui | Oui |
 | Recherche en temps reel | Oui (champs adaptes au type d'entree) | Oui (champs adaptes au type d'entree) |
-| Tri | En-tetes cliquables + menu Affichage (criteres adaptes au type) | Menu de tri (incl. force, dates creation/modification) + sens croissant/decroissant ; favoris toujours en tete |
-| Filtrage par categorie | Panneau lateral (mots de passe uniquement) | Feuille de filtres, multi-selection (mots de passe uniquement) |
+| Tri | Menu de tri (icone ; criteres incl. dates creation/modification, sens croissant/decroissant) | Menu de tri (incl. force, dates creation/modification) + sens croissant/decroissant ; favoris toujours en tete |
+| Filtrage par categorie | Chips de filtres, multi-selection (mots de passe uniquement) | Feuille de filtres, multi-selection (mots de passe uniquement) |
 | Selection multiple + operations en masse | Oui (menu "Actions..." : supprimer, categorie, favoris) | Oui (appui long + menu "Actions..." : supprimer, categorie, favoris) |
 | Menu contextuel (clic droit) | Oui (actions adaptees au type d'entree) | Non |
-| Gestion des categories | Ajout et suppression via panneau lateral | Ecran dedie (Parametres > Gerer les categories) |
+| Gestion des categories | Ajout et suppression via Parametres > Categories | Ecran dedie (Parametres > Gerer les categories) |
 | Verification des mises a jour | Auto (5 min) + manuel (ecran connexion) | Auto a l'ouverture de la connexion (dialog + icone persistante) |
 | URL cliquable dans le detail | Oui (Desktop.browse) | Oui (UriHandler) |
 | Themes Systeme/Clair/Sombre | FlatLaf | Material 3 (Dynamic Colors Android 12+) |
