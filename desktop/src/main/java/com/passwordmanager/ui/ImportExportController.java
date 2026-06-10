@@ -110,29 +110,34 @@ public class ImportExportController {
     private void doImportFile(String format) {
         JFileChooser fc = new JFileChooser();
         if (fc.showOpenDialog(parentComponent) != JFileChooser.APPROVE_OPTION) return;
-        try {
-            File importFile = fc.getSelectedFile();
-            if (importFile.length() > 10 * 1024 * 1024) {
-                showError(lang.getString("import.error") + " (max 10 MB)");
-                return;
-            }
-            String content = new String(Files.readAllBytes(importFile.toPath()), StandardCharsets.UTF_8);
-            int count;
-            if ("csv".equals(format)) {
-                count = vaultManager.importFromCsv(vault, content);
-            } else {
-                count = vaultManager.importFromJson(vault, content);
-            }
-            saveVaultCallback.run();
-            refreshCallback.run();
-            JOptionPane.showMessageDialog(parentComponent,
-                lang.getString("import.success").replace("{0}", String.valueOf(count)),
-                lang.getString("import.title"), JOptionPane.INFORMATION_MESSAGE);
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(parentComponent,
-                lang.getString("import.error") + ": " + ex.getMessage(),
-                lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+        File importFile = fc.getSelectedFile();
+        if (importFile.length() > 10 * 1024 * 1024) {
+            showError(lang.getString("import.error") + " (max 10 MB)");
+            return;
         }
+        // Only the file read runs off the EDT. Parsing + vault mutation + save stay on the
+        // EDT, serialized with the sync-merge path (which also touches the vault on the EDT).
+        BackgroundTask.run(parentComponent,
+            () -> new String(Files.readAllBytes(importFile.toPath()), StandardCharsets.UTF_8),
+            content -> {
+                try {
+                    int count = "csv".equals(format)
+                        ? vaultManager.importFromCsv(vault, content)
+                        : vaultManager.importFromJson(vault, content);
+                    saveVaultCallback.run();
+                    refreshCallback.run();
+                    JOptionPane.showMessageDialog(parentComponent,
+                        lang.getString("import.success").replace("{0}", String.valueOf(count)),
+                        lang.getString("import.title"), JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(parentComponent,
+                        lang.getString("import.error") + ": " + ex.getMessage(),
+                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                }
+            },
+            ex -> JOptionPane.showMessageDialog(parentComponent,
+                lang.getString("import.error") + ": " + ex.getMessage(),
+                lang.getString("common.error"), JOptionPane.ERROR_MESSAGE));
     }
 
     private void doImportEncrypted(char[] password) {
@@ -142,33 +147,47 @@ public class ImportExportController {
             Arrays.fill(password, '\0');
             return;
         }
-        try {
-            Vault sourceVault = vaultManager.importEncryptedVault(password, fc.getSelectedFile().getAbsolutePath());
-            int count = 0;
-            for (PasswordEntry entry : sourceVault.getEntries()) {
-                vault.addEntry(entry);
-                count++;
-            }
-            for (AppEntry entry : sourceVault.getAppEntries()) {
-                vault.addAppEntry(entry);
-                count++;
-            }
-            for (com.passwordmanager.vault.SshKeyEntry entry : sourceVault.getSshKeyEntries()) {
-                vault.addSshKeyEntry(entry);
-                count++;
-            }
-            saveVaultCallback.run();
-            refreshCallback.run();
-            JOptionPane.showMessageDialog(parentComponent,
-                lang.getString("import.success").replace("{0}", String.valueOf(count)),
-                lang.getString("import.title"), JOptionPane.INFORMATION_MESSAGE);
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(parentComponent,
+        String path = fc.getSelectedFile().getAbsolutePath();
+        // PBKDF2 decrypt of the foreign vault runs off the EDT (it builds a SEPARATE
+        // sourceVault, not the live vault); the password is wiped in the task. Merging into
+        // the live vault + save run on the EDT, serialized with the sync-merge path.
+        BackgroundTask.run(parentComponent,
+            () -> {
+                try {
+                    return vaultManager.importEncryptedVault(password, path);
+                } finally {
+                    Arrays.fill(password, '\0');
+                }
+            },
+            sourceVault -> {
+                try {
+                    int count = 0;
+                    for (PasswordEntry entry : sourceVault.getEntries()) {
+                        vault.addEntry(entry);
+                        count++;
+                    }
+                    for (AppEntry entry : sourceVault.getAppEntries()) {
+                        vault.addAppEntry(entry);
+                        count++;
+                    }
+                    for (com.passwordmanager.vault.SshKeyEntry entry : sourceVault.getSshKeyEntries()) {
+                        vault.addSshKeyEntry(entry);
+                        count++;
+                    }
+                    saveVaultCallback.run();
+                    refreshCallback.run();
+                    JOptionPane.showMessageDialog(parentComponent,
+                        lang.getString("import.success").replace("{0}", String.valueOf(count)),
+                        lang.getString("import.title"), JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(parentComponent,
+                        lang.getString("import.error") + ": " + ex.getMessage(),
+                        lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+                }
+            },
+            ex -> JOptionPane.showMessageDialog(parentComponent,
                 lang.getString("import.error") + ": " + ex.getMessage(),
-                lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
-        } finally {
-            Arrays.fill(password, '\0');
-        }
+                lang.getString("common.error"), JOptionPane.ERROR_MESSAGE));
     }
 
     /**
@@ -225,36 +244,46 @@ public class ImportExportController {
         JFileChooser fc = new JFileChooser();
         fc.setSelectedFile(new File("vault_export." + format));
         if (fc.showSaveDialog(parentComponent) != JFileChooser.APPROVE_OPTION) return;
+        final java.nio.file.Path exportPath = fc.getSelectedFile().toPath();
+        // Serialize the live vault on the EDT (serialized with the sync-merge path), then
+        // offload only the file write.
+        final byte[] exportBytes;
         try {
-            char[] content;
-            if ("csv".equals(format)) {
-                content = vaultManager.exportAsCsv(vault);
-            } else {
-                content = vaultManager.exportAsJson(vault);
-            }
-            java.nio.file.Path exportPath = fc.getSelectedFile().toPath();
-            byte[] exportBytes = new String(content).getBytes(StandardCharsets.UTF_8);
+            char[] content = "csv".equals(format) ? vaultManager.exportAsCsv(vault)
+                                                   : vaultManager.exportAsJson(vault);
+            exportBytes = new String(content).getBytes(StandardCharsets.UTF_8);
             SecureWiper.wipe(content);
-            try {
-                Files.write(exportPath, exportBytes);
-            } finally {
-                SecureWiper.wipe(exportBytes);
-            }
-            FileSecurityUtils.setOwnerOnlyPermissions(exportPath);
-            JOptionPane.showMessageDialog(parentComponent,
-                lang.getString("export.success"),
-                lang.getString("export.title"), JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(parentComponent,
                 lang.getString("export.error") + ": " + ex.getMessage(),
                 lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
+            return;
         }
+        BackgroundTask.run(parentComponent,
+            () -> {
+                try {
+                    Files.write(exportPath, exportBytes);
+                } finally {
+                    SecureWiper.wipe(exportBytes);
+                }
+                FileSecurityUtils.setOwnerOnlyPermissions(exportPath);
+                return null;
+            },
+            ignored -> JOptionPane.showMessageDialog(parentComponent,
+                lang.getString("export.success"),
+                lang.getString("export.title"), JOptionPane.INFORMATION_MESSAGE),
+            ex -> JOptionPane.showMessageDialog(parentComponent,
+                lang.getString("export.error") + ": " + ex.getMessage(),
+                lang.getString("common.error"), JOptionPane.ERROR_MESSAGE));
     }
 
     private void doExportBackup() {
         JFileChooser fc = new JFileChooser();
         fc.setSelectedFile(new File("vault_" + username + "_backup.enc"));
         if (fc.showSaveDialog(parentComponent) != JFileChooser.APPROVE_OPTION) return;
+        // exportBackup serializes the live vault internally, so it runs on the EDT
+        // (serialized with the sync-merge path). It is DEK-encrypt + write (no PBKDF2),
+        // so the pause is short.
         try {
             vaultManager.exportBackup(username, session, fc.getSelectedFile().getAbsolutePath());
             JOptionPane.showMessageDialog(parentComponent,

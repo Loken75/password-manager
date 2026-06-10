@@ -370,44 +370,62 @@ public class LoginFrame extends JFrame {
         char[] password = passwordField.getPassword();
         if (username == null || username.isEmpty()) {
             statusLabel.setText(lang.getString("login.no_user"));
+            Arrays.fill(password, '\0');
             return;
         }
         if (password.length == 0) {
             statusLabel.setText(lang.getString("error.empty_password"));
+            Arrays.fill(password, '\0');
             return;
         }
-        try {
-            VaultLoadResult result = vaultManager.loadVault(username, password);
-            failedAttemptsMap.remove(username);
-            statusLabel.setText("");
-            dispose();
-            new MainFrame(result.getVault(), username, result.getSession(),
-                vaultManager, appConfig, configManager).setVisible(true);
-        } catch (com.passwordmanager.crypto.VaultDecryptionException ex) {
-            int attempts = failedAttemptsMap.getOrDefault(username, 0) + 1;
-            failedAttemptsMap.put(username, attempts);
-            statusLabel.setText(lang.getString("error.invalid_password"));
-            passwordField.setText("");
-            // Rate-limit after 3 consecutive failures
-            if (attempts >= 3) {
-                loginButton.setEnabled(false);
-                passwordField.setEnabled(false);
-                statusLabel.setText(lang.getString("error.too_many_attempts"));
-                int delay = Math.min(2000 * (1 << Math.min(attempts - 3, 4)), 30000);
-                if (rateLimitTimer != null) rateLimitTimer.stop();
-                rateLimitTimer = new Timer(delay, evt -> {
-                    loginButton.setEnabled(true);
-                    passwordField.setEnabled(true);
+        final String user = username;
+        // PBKDF2 (600k iters) must not run on the EDT or the window freezes. Run it off
+        // the EDT; the password is wiped inside the background task once loadVault is done.
+        loginButton.setEnabled(false);
+        passwordField.setEnabled(false);
+        statusLabel.setText(lang.getString("login.verifying"));
+        BackgroundTask.run(this,
+            () -> {
+                try {
+                    return vaultManager.loadVault(user, password);
+                } finally {
+                    Arrays.fill(password, '\0');
+                }
+            },
+            result -> {
+                failedAttemptsMap.remove(user);
+                statusLabel.setText("");
+                dispose();
+                new MainFrame(result.getVault(), user, result.getSession(),
+                    vaultManager, appConfig, configManager).setVisible(true);
+            },
+            ex -> {
+                loginButton.setEnabled(true);
+                passwordField.setEnabled(true);
+                if (ex instanceof com.passwordmanager.crypto.VaultDecryptionException) {
+                    int attempts = failedAttemptsMap.getOrDefault(user, 0) + 1;
+                    failedAttemptsMap.put(user, attempts);
                     statusLabel.setText(lang.getString("error.invalid_password"));
-                });
-                rateLimitTimer.setRepeats(false);
-                rateLimitTimer.start();
-            }
-        } catch (Exception ex) {
-            showError(lang.getString("common.error") + ": " + ex.getMessage());
-        } finally {
-            Arrays.fill(password, '\0');
-        }
+                    passwordField.setText("");
+                    // Rate-limit after 3 consecutive failures
+                    if (attempts >= 3) {
+                        loginButton.setEnabled(false);
+                        passwordField.setEnabled(false);
+                        statusLabel.setText(lang.getString("error.too_many_attempts"));
+                        int delay = Math.min(2000 * (1 << Math.min(attempts - 3, 4)), 30000);
+                        if (rateLimitTimer != null) rateLimitTimer.stop();
+                        rateLimitTimer = new Timer(delay, evt -> {
+                            loginButton.setEnabled(true);
+                            passwordField.setEnabled(true);
+                            statusLabel.setText(lang.getString("error.invalid_password"));
+                        });
+                        rateLimitTimer.setRepeats(false);
+                        rateLimitTimer.start();
+                    }
+                } else {
+                    showError(lang.getString("common.error") + ": " + ex.getMessage());
+                }
+            });
     }
 
     private void doCreateUser() {
@@ -438,51 +456,60 @@ public class LoginFrame extends JFrame {
         int result = JOptionPane.showConfirmDialog(this, panel,
             lang.getString("login.create_user"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
-        if (result == JOptionPane.OK_OPTION) {
-            String newUser = usernameField.getText().trim();
-            char[] p1 = pass1.getPassword();
-            char[] p2 = pass2.getPassword();
+        if (result != JOptionPane.OK_OPTION) return;
 
-            try {
-                if (newUser.isEmpty()) {
-                    showError(lang.getString("error.empty_username"));
-                    return;
+        String newUser = usernameField.getText().trim();
+        char[] p1 = pass1.getPassword();
+        char[] p2 = pass2.getPassword();
+
+        // Cheap validation stays on the EDT (fails fast). On any failure, wipe both
+        // secrets and bail; p2 is only needed for the equality check, so wipe it now.
+        boolean valid = false;
+        try {
+            if (newUser.isEmpty()) {
+                showError(lang.getString("error.empty_username"));
+            } else if (!newUser.matches("[a-zA-Z0-9_]+")) {
+                showError(lang.getString("error.invalid_username"));
+            } else if (vaultManager.vaultExists(newUser)) {
+                showError(lang.getString("error.user_exists"));
+            } else if (!Arrays.equals(p1, p2)) {
+                showError(lang.getString("security.password_mismatch"));
+            } else if (!PasswordValidator.validate(p1)) {
+                showError(lang.getString("security.password_requirements"));
+            } else {
+                valid = true;
+            }
+        } finally {
+            Arrays.fill(p2, '\0');
+            if (!valid) Arrays.fill(p1, '\0');
+        }
+        if (!valid) return;
+
+        final String createUser = newUser;
+        final List<String> localizedCategories = List.of(
+            lang.getString("category.default.email"),
+            lang.getString("category.default.banking"),
+            lang.getString("category.default.social"),
+            lang.getString("category.default.work"),
+            lang.getString("category.default.other")
+        );
+        // createVault runs PBKDF2 -- off the EDT; p1 is wiped in the background task.
+        BackgroundTask.run(this,
+            () -> {
+                try {
+                    vaultManager.createVault(createUser, p1, localizedCategories);
+                    return null;
+                } finally {
+                    Arrays.fill(p1, '\0');
                 }
-                if (!newUser.matches("[a-zA-Z0-9_]+")) {
-                    showError(lang.getString("error.invalid_username"));
-                    return;
-                }
-                if (vaultManager.vaultExists(newUser)) {
-                    showError(lang.getString("error.user_exists"));
-                    return;
-                }
-                if (!Arrays.equals(p1, p2)) {
-                    showError(lang.getString("security.password_mismatch"));
-                    return;
-                }
-                if (!PasswordValidator.validate(p1)) {
-                    showError(lang.getString("security.password_requirements"));
-                    return;
-                }
-                List<String> localizedCategories = List.of(
-                    lang.getString("category.default.email"),
-                    lang.getString("category.default.banking"),
-                    lang.getString("category.default.social"),
-                    lang.getString("category.default.work"),
-                    lang.getString("category.default.other")
-                );
-                vaultManager.createVault(newUser, p1, localizedCategories);
+            },
+            ignored -> {
                 refreshUserList();
-                userCombo.setSelectedItem(newUser);
+                userCombo.setSelectedItem(createUser);
                 JOptionPane.showMessageDialog(this, lang.getString("login.user_created"),
                     lang.getString("common.success"), JOptionPane.INFORMATION_MESSAGE);
-            } catch (Exception ex) {
-                showError(ex.getMessage());
-            } finally {
-                Arrays.fill(p1, '\0');
-                Arrays.fill(p2, '\0');
-            }
-        }
+            },
+            ex -> showError(ex.getMessage()));
     }
 
     private void showError(String msg) {

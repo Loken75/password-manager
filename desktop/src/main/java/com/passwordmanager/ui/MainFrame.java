@@ -480,36 +480,52 @@ public class MainFrame extends JFrame {
         int result = JOptionPane.showConfirmDialog(this, panel,
             lang.getString("settings.change_master"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
-        if (result == JOptionPane.OK_OPTION) {
-            char[] op = oldPass.getPassword();
-            char[] np = newPass.getPassword();
-            char[] cp = confirmPass.getPassword();
+        if (result != JOptionPane.OK_OPTION) return;
 
-            try {
-                // Verify old password by attempting to load the vault
-                VaultLoadResult check = vaultManager.loadVault(username, op);
-                check.getVault().wipe();
-                check.getSession().destroy();
+        char[] op = oldPass.getPassword();
+        char[] np = newPass.getPassword();
+        char[] cp = confirmPass.getPassword();
 
-                if (!Arrays.equals(np, cp)) {
-                    showError(lang.getString("security.password_mismatch"));
-                    return;
-                }
-                if (!PasswordValidator.validate(np)) {
-                    showError(lang.getString("security.password_requirements"));
-                    return;
-                }
-                session = vaultManager.changeMasterPassword(username, vault, session, np);
-                JOptionPane.showMessageDialog(this, lang.getString("security.password_changed"),
-                    lang.getString("common.success"), JOptionPane.INFORMATION_MESSAGE);
-            } catch (Exception ex) {
-                showError(lang.getString("error.invalid_password"));
-            } finally {
+        // Cheap validation on the EDT first (fail fast, before any PBKDF2). cp is only
+        // needed for the equality check, so wipe it now; op/np are used in the background.
+        boolean valid = false;
+        try {
+            if (!Arrays.equals(np, cp)) {
+                showError(lang.getString("security.password_mismatch"));
+            } else if (!PasswordValidator.validate(np)) {
+                showError(lang.getString("security.password_requirements"));
+            } else {
+                valid = true;
+            }
+        } finally {
+            Arrays.fill(cp, '\0');
+            if (!valid) {
                 Arrays.fill(op, '\0');
                 Arrays.fill(np, '\0');
-                Arrays.fill(cp, '\0');
             }
         }
+        if (!valid) return;
+
+        // Verify the old password (loadVault) then re-wrap the DEK (changeMasterPassword):
+        // two PBKDF2 passes -- run off the EDT so the window does not freeze.
+        BackgroundTask.run(this,
+            () -> {
+                try {
+                    VaultLoadResult check = vaultManager.loadVault(username, op);
+                    check.getVault().wipe();
+                    check.getSession().destroy();
+                    return vaultManager.changeMasterPassword(username, vault, session, np);
+                } finally {
+                    Arrays.fill(op, '\0');
+                    Arrays.fill(np, '\0');
+                }
+            },
+            newSession -> {
+                session = newSession;
+                JOptionPane.showMessageDialog(this, lang.getString("security.password_changed"),
+                    lang.getString("common.success"), JOptionPane.INFORMATION_MESSAGE);
+            },
+            ex -> showError(lang.getString("error.invalid_password")));
     }
 
     private void cleanup() {
