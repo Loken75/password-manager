@@ -38,18 +38,21 @@ public class PasswordService extends BaseVaultService<PasswordEntry> {
             || (e.getTags() != null && e.getTags().toString().toLowerCase().contains(q));
     }
 
-    public synchronized List<PasswordEntry> getByCategory(String category) {
-        if (category == null || category.isEmpty()) {
-            return getActiveList();
+    public List<PasswordEntry> getByCategory(String category) {
+        synchronized (vault) {
+            if (category == null || category.isEmpty()) {
+                return getActiveList();
+            }
+            List<PasswordEntry> results = new ArrayList<>();
+            for (PasswordEntry e : getReadOnlyList()) {
+                if (!e.isDeleted() && category.equals(e.getCategory())) results.add(e);
+            }
+            return results;
         }
-        List<PasswordEntry> results = new ArrayList<>();
-        for (PasswordEntry e : getReadOnlyList()) {
-            if (!e.isDeleted() && category.equals(e.getCategory())) results.add(e);
-        }
-        return results;
     }
 
-    public synchronized List<PasswordEntry> sorted(List<PasswordEntry> entries, SortField sortBy) {
+    /** Pure function of the supplied list; needs no synchronization. */
+    public List<PasswordEntry> sorted(List<PasswordEntry> entries, SortField sortBy) {
         return sorted(entries, sortBy, false);
     }
 
@@ -57,8 +60,11 @@ public class PasswordService extends BaseVaultService<PasswordEntry> {
      * Sorts entries with favorites ALWAYS grouped first (two blocks: favorites, then the rest),
      * each block ordered by {@code sortBy}. {@code descending} reverses only the in-block field
      * order — it never moves favorites below non-favorites.
+     *
+     * <p>Pure function of the supplied list; needs no synchronization. The caller is
+     * responsible for passing a stable list (not a live view being mutated concurrently).
      */
-    public synchronized List<PasswordEntry> sorted(List<PasswordEntry> entries, SortField sortBy, boolean descending) {
+    public List<PasswordEntry> sorted(List<PasswordEntry> entries, SortField sortBy, boolean descending) {
         List<PasswordEntry> sorted = new ArrayList<>(entries);
         Comparator<PasswordEntry> field;
         switch (sortBy) {
@@ -98,7 +104,8 @@ public class PasswordService extends BaseVaultService<PasswordEntry> {
         return sorted;
     }
 
-    public synchronized List<PasswordEntry> filter(List<PasswordEntry> entries, EntryFilter filter) {
+    /** Pure function of the supplied list; needs no synchronization. */
+    public List<PasswordEntry> filter(List<PasswordEntry> entries, EntryFilter filter) {
         List<PasswordEntry> result = new ArrayList<>();
         for (PasswordEntry e : entries) {
             if (filter.matches(e)) result.add(e);
@@ -116,26 +123,28 @@ public class PasswordService extends BaseVaultService<PasswordEntry> {
         }
     }
 
-    public synchronized Map<String, List<PasswordEntry>> findDuplicatePasswords() {
-        Map<String, List<PasswordEntry>> map = new HashMap<>();
-        for (PasswordEntry e : getActiveList()) {
-            char[] pw = e.getPassword();
-            if (pw != null && pw.length > 0) {
-                try {
-                    String hash = sha256(pw);
-                    map.computeIfAbsent(hash, k -> new ArrayList<>()).add(e);
-                } finally {
-                    SecureWiper.wipe(pw);
+    public Map<String, List<PasswordEntry>> findDuplicatePasswords() {
+        synchronized (vault) {
+            Map<String, List<PasswordEntry>> map = new HashMap<>();
+            for (PasswordEntry e : getActiveList()) {
+                char[] pw = e.getPassword();
+                if (pw != null && pw.length > 0) {
+                    try {
+                        String hash = sha256(pw);
+                        map.computeIfAbsent(hash, k -> new ArrayList<>()).add(e);
+                    } finally {
+                        SecureWiper.wipe(pw);
+                    }
                 }
             }
-        }
-        Map<String, List<PasswordEntry>> duplicates = new HashMap<>();
-        for (Map.Entry<String, List<PasswordEntry>> entry : map.entrySet()) {
-            if (entry.getValue().size() > 1) {
-                duplicates.put(entry.getKey(), entry.getValue());
+            Map<String, List<PasswordEntry>> duplicates = new HashMap<>();
+            for (Map.Entry<String, List<PasswordEntry>> entry : map.entrySet()) {
+                if (entry.getValue().size() > 1) {
+                    duplicates.put(entry.getKey(), entry.getValue());
+                }
             }
+            return duplicates;
         }
-        return duplicates;
     }
 
     private static String sha256(char[] input) {
@@ -156,43 +165,51 @@ public class PasswordService extends BaseVaultService<PasswordEntry> {
         }
     }
 
-    public synchronized List<PasswordEntry> findOldPasswords(int days) {
-        List<PasswordEntry> old = new ArrayList<>();
-        long threshold = System.currentTimeMillis() - ((long) days * 24 * 60 * 60 * 1000);
-        for (PasswordEntry e : getActiveList()) {
-            try {
-                java.util.Date d = DateUtils.parseTimestamp(e.getUpdatedAt());
-                if (d.getTime() < threshold) old.add(e);
-            } catch (Exception ex) {
-                java.util.logging.Logger.getLogger(PasswordService.class.getName())
-                    .fine("Skipping entry with invalid date: " + e.getId());
+    public List<PasswordEntry> findOldPasswords(int days) {
+        synchronized (vault) {
+            List<PasswordEntry> old = new ArrayList<>();
+            long threshold = System.currentTimeMillis() - ((long) days * 24 * 60 * 60 * 1000);
+            for (PasswordEntry e : getActiveList()) {
+                try {
+                    java.util.Date d = DateUtils.parseTimestamp(e.getUpdatedAt());
+                    if (d.getTime() < threshold) old.add(e);
+                } catch (Exception ex) {
+                    java.util.logging.Logger.getLogger(PasswordService.class.getName())
+                        .fine("Skipping entry with invalid date: " + e.getId());
+                }
+            }
+            return old;
+        }
+    }
+
+    public int bulkChangeCategory(List<String> entryIds, String newCategory) {
+        synchronized (vault) {
+            int count = 0;
+            for (PasswordEntry entry : getMutableList()) {
+                if (entryIds.contains(entry.getId())) {
+                    entry.setCategory(newCategory);
+                    entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
+                    count++;
+                }
+            }
+            if (count > 0) {
+                vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
+            }
+            return count;
+        }
+    }
+
+    public void addCategory(String category) {
+        synchronized (vault) {
+            if (!vault.getCategories().contains(category)) {
+                vault.getCategoriesMutable().add(category);
             }
         }
-        return old;
     }
 
-    public synchronized int bulkChangeCategory(List<String> entryIds, String newCategory) {
-        int count = 0;
-        for (PasswordEntry entry : getMutableList()) {
-            if (entryIds.contains(entry.getId())) {
-                entry.setCategory(newCategory);
-                entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
-                count++;
-            }
+    public boolean removeCategory(String category) {
+        synchronized (vault) {
+            return vault.getCategoriesMutable().remove(category);
         }
-        if (count > 0) {
-            vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
-        }
-        return count;
-    }
-
-    public synchronized void addCategory(String category) {
-        if (!vault.getCategories().contains(category)) {
-            vault.getCategoriesMutable().add(category);
-        }
-    }
-
-    public synchronized boolean removeCategory(String category) {
-        return vault.getCategoriesMutable().remove(category);
     }
 }

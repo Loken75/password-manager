@@ -29,7 +29,8 @@ public class SshKeyService extends BaseVaultService<SshKeyEntry> {
             || containsIC(e.getFingerprint(), q) || containsIC(e.getNotes(), q);
     }
 
-    public synchronized List<SshKeyEntry> sorted(List<SshKeyEntry> entries, SortField sortBy) {
+    /** Pure function of the supplied list; needs no synchronization. */
+    public List<SshKeyEntry> sorted(List<SshKeyEntry> entries, SortField sortBy) {
         List<SshKeyEntry> sorted = new ArrayList<>(entries);
         Comparator<SshKeyEntry> comp;
         switch (sortBy) {

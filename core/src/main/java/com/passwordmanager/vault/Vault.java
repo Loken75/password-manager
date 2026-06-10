@@ -115,14 +115,16 @@ public class Vault {
         return Collections.unmodifiableList(entries);
     }
     /**
-     * Direct mutable access — callers MUST hold VaultService's synchronized lock
-     * when iterating or modifying. Used by Gson deserialization and bulk operations.
+     * Direct mutable access to the backing list. Callers MUST hold this Vault's
+     * monitor ({@code synchronized (vault)}) while iterating or modifying — the same
+     * monitor used by {@link #addEntry}/{@link #removeEntry}, by the {@code *Service}
+     * classes, and by save-time serialization. Used by deserialization and bulk operations.
      */
     public List<PasswordEntry> getEntriesMutable() { return entries; }
     /** Adds an entry, replacing any existing entry with the same id (equals is id-based). */
     public synchronized void addEntry(PasswordEntry entry) { entries.remove(entry); entries.add(entry); }
     public synchronized boolean removeEntry(PasswordEntry entry) { return entries.remove(entry); }
-    public void setEntries(List<PasswordEntry> entries) { this.entries = entries; }
+    public synchronized void setEntries(List<PasswordEntry> entries) { this.entries = entries; }
 
     /** Returns a read-only view of the app entries list. Null-safe for vaults loaded without this field. */
     public List<AppEntry> getAppEntries() {
@@ -141,7 +143,7 @@ public class Vault {
     public synchronized boolean removeAppEntry(AppEntry entry) {
         return appEntries != null && appEntries.remove(entry);
     }
-    public void setAppEntries(List<AppEntry> appEntries) { this.appEntries = appEntries; }
+    public synchronized void setAppEntries(List<AppEntry> appEntries) { this.appEntries = appEntries; }
 
     /** Returns a read-only view of the SSH key entries list. Null-safe for vaults loaded without this field. */
     public List<SshKeyEntry> getSshKeyEntries() {
@@ -160,7 +162,7 @@ public class Vault {
     public synchronized boolean removeSshKeyEntry(SshKeyEntry entry) {
         return sshKeyEntries != null && sshKeyEntries.remove(entry);
     }
-    public void setSshKeyEntries(List<SshKeyEntry> sshKeyEntries) { this.sshKeyEntries = sshKeyEntries; }
+    public synchronized void setSshKeyEntries(List<SshKeyEntry> sshKeyEntries) { this.sshKeyEntries = sshKeyEntries; }
 
     public List<String> getCategories() {
         return categories != null ? Collections.unmodifiableList(categories) : Collections.emptyList();

@@ -10,6 +10,12 @@ import java.util.List;
 /**
  * Generic base service for CRUD operations on vault items.
  * Subclasses provide the specific list accessor and search overrides.
+ *
+ * <p><b>Thread-safety:</b> all methods that read or mutate the vault's shared
+ * collections synchronize on the {@link Vault} instance (the single monitor that
+ * also guards {@link Vault}'s own {@code addEntry}/{@code removeEntry} mutators and
+ * the save-time serialization in {@code VaultManager}). Do not introduce a second
+ * monitor for vault state.
  */
 public abstract class BaseVaultService<T extends VaultItem> {
     protected final Vault vault;
@@ -26,27 +32,31 @@ public abstract class BaseVaultService<T extends VaultItem> {
     /** Returns the read-only list for this service. */
     public abstract List<T> getReadOnlyList();
 
-    public synchronized void addEntry(T entry) {
-        entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
-        getMutableList().add(entry);
-        vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
+    public void addEntry(T entry) {
+        synchronized (vault) {
+            entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
+            getMutableList().add(entry);
+            vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
+        }
     }
 
-    public synchronized boolean updateEntry(T updated) {
-        List<T> list = getMutableList();
-        for (int i = 0; i < list.size(); i++) {
-            if (list.get(i).getId().equals(updated.getId())) {
-                T old = list.get(i);
-                updated.setUpdatedAt(DateUtils.getCurrentTimestamp());
-                list.set(i, updated);
-                if (old != updated) {
-                    old.wipe();
+    public boolean updateEntry(T updated) {
+        synchronized (vault) {
+            List<T> list = getMutableList();
+            for (int i = 0; i < list.size(); i++) {
+                if (list.get(i).getId().equals(updated.getId())) {
+                    T old = list.get(i);
+                    updated.setUpdatedAt(DateUtils.getCurrentTimestamp());
+                    list.set(i, updated);
+                    if (old != updated) {
+                        old.wipe();
+                    }
+                    vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
+                    return true;
                 }
-                vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
-                return true;
             }
+            return false;
         }
-        return false;
     }
 
     /**
@@ -54,72 +64,80 @@ public abstract class BaseVaultService<T extends VaultItem> {
      * The entry remains in the list for sync propagation but is hidden from UI.
      * Tombstones are purged after sync merge via {@link #purgeTombstones(int)}.
      */
-    public synchronized boolean deleteEntry(String entryId) {
+    public boolean deleteEntry(String entryId) {
         if (entryId == null) return false;
-        for (T entry : getMutableList()) {
-            if (entryId.equals(entry.getId())) {
-                entry.wipe();
-                entry.markDeleted();
-                vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
-                return true;
+        synchronized (vault) {
+            for (T entry : getMutableList()) {
+                if (entryId.equals(entry.getId())) {
+                    entry.wipe();
+                    entry.markDeleted();
+                    vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
+                    return true;
+                }
             }
+            return false;
         }
-        return false;
     }
 
     /**
      * Permanently removes tombstones older than the specified number of days.
      * Should be called after a successful sync merge.
      */
-    public synchronized int purgeTombstones(int maxAgeDays) {
-        long threshold = System.currentTimeMillis() - ((long) maxAgeDays * 24 * 60 * 60 * 1000);
-        int count = 0;
-        Iterator<T> it = getMutableList().iterator();
-        while (it.hasNext()) {
-            T entry = it.next();
-            if (entry.isDeleted() && entry.getDeletedAt() != null) {
-                try {
-                    java.util.Date d = DateUtils.parseTimestamp(entry.getDeletedAt());
-                    if (d.getTime() < threshold) {
+    public int purgeTombstones(int maxAgeDays) {
+        synchronized (vault) {
+            long threshold = System.currentTimeMillis() - ((long) maxAgeDays * 24 * 60 * 60 * 1000);
+            int count = 0;
+            Iterator<T> it = getMutableList().iterator();
+            while (it.hasNext()) {
+                T entry = it.next();
+                if (entry.isDeleted() && entry.getDeletedAt() != null) {
+                    try {
+                        java.util.Date d = DateUtils.parseTimestamp(entry.getDeletedAt());
+                        if (d.getTime() < threshold) {
+                            it.remove();
+                            count++;
+                        }
+                    } catch (Exception ignored) {
+                        // Unparseable date: remove stale tombstone
                         it.remove();
                         count++;
                     }
-                } catch (Exception ignored) {
-                    // Unparseable date: remove stale tombstone
-                    it.remove();
-                    count++;
                 }
             }
+            return count;
         }
-        return count;
     }
 
     /**
      * Returns active (non-deleted) entries for UI display and operations.
      * Subclasses' getReadOnlyList() may include tombstones; this filters them.
      */
-    public synchronized List<T> getActiveList() {
-        List<T> active = new ArrayList<>();
-        for (T e : getReadOnlyList()) {
-            if (!e.isDeleted()) active.add(e);
+    public List<T> getActiveList() {
+        synchronized (vault) {
+            List<T> active = new ArrayList<>();
+            for (T e : getReadOnlyList()) {
+                if (!e.isDeleted()) active.add(e);
+            }
+            return active;
         }
-        return active;
     }
 
     /**
      * Searches entries by title and notes. Subclasses override to add type-specific fields.
      * Excludes soft-deleted entries.
      */
-    public synchronized List<T> search(String query) {
-        if (query == null || query.trim().isEmpty()) {
-            return getActiveList();
+    public List<T> search(String query) {
+        synchronized (vault) {
+            if (query == null || query.trim().isEmpty()) {
+                return getActiveList();
+            }
+            String q = query.toLowerCase();
+            List<T> results = new ArrayList<>();
+            for (T e : getReadOnlyList()) {
+                if (!e.isDeleted() && matchesBase(e, q)) results.add(e);
+            }
+            return results;
         }
-        String q = query.toLowerCase();
-        List<T> results = new ArrayList<>();
-        for (T e : getReadOnlyList()) {
-            if (!e.isDeleted() && matchesBase(e, q)) results.add(e);
-        }
-        return results;
     }
 
     protected boolean matchesBase(T e, String q) {
@@ -130,44 +148,51 @@ public abstract class BaseVaultService<T extends VaultItem> {
         return str != null && str.toLowerCase().contains(q);
     }
 
-    public synchronized boolean toggleFavorite(String entryId) {
-        for (T entry : getMutableList()) {
-            if (entry.getId().equals(entryId)) {
-                entry.setFavorite(!entry.isFavorite());
-                entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
+    public boolean toggleFavorite(String entryId) {
+        synchronized (vault) {
+            for (T entry : getMutableList()) {
+                if (entry.getId().equals(entryId)) {
+                    entry.setFavorite(!entry.isFavorite());
+                    entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
+                    vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    public int bulkSetFavorite(List<String> entryIds, boolean favorite) {
+        synchronized (vault) {
+            java.util.Set<String> idSet = new java.util.HashSet<>(entryIds);
+            int count = 0;
+            for (T entry : getMutableList()) {
+                if (idSet.contains(entry.getId())) {
+                    entry.setFavorite(favorite);
+                    entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
+                    count++;
+                }
+            }
+            if (count > 0) {
                 vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
-                return true;
             }
+            return count;
         }
-        return false;
     }
 
-    public synchronized int bulkSetFavorite(List<String> entryIds, boolean favorite) {
-        java.util.Set<String> idSet = new java.util.HashSet<>(entryIds);
-        int count = 0;
-        for (T entry : getMutableList()) {
-            if (idSet.contains(entry.getId())) {
-                entry.setFavorite(favorite);
-                entry.setUpdatedAt(DateUtils.getCurrentTimestamp());
-                count++;
+    public int bulkDelete(List<String> entryIds) {
+        synchronized (vault) {
+            int count = 0;
+            for (String id : entryIds) {
+                if (deleteEntry(id)) count++;
             }
+            return count;
         }
-        if (count > 0) {
-            vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
-        }
-        return count;
-    }
-
-    public synchronized int bulkDelete(List<String> entryIds) {
-        int count = 0;
-        for (String id : entryIds) {
-            if (deleteEntry(id)) count++;
-        }
-        return count;
     }
 
     /**
-     * Sorts with favorites-first as default behavior.
+     * Sorts with favorites-first as default behavior. Operates only on the supplied
+     * list (no shared vault state), so it needs no synchronization.
      */
     public List<T> sorted(List<T> entries, Comparator<T> comp) {
         List<T> sorted = new ArrayList<>(entries);

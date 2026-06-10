@@ -7,6 +7,11 @@ import java.util.Map;
  * Facade providing backward-compatible access to vault operations.
  * Delegates password-related operations to PasswordService,
  * and exposes the three specialized services.
+ *
+ * <p>This facade does not add its own lock: each delegated call is a single
+ * operation that is already serialized on the {@link Vault} monitor by the
+ * underlying service, so a facade-level {@code synchronized} would only add a
+ * redundant second monitor.
  */
 public class VaultService {
     private Vault vault;
@@ -36,67 +41,67 @@ public class VaultService {
 
     // === Delegate to PasswordService for backward compatibility ===
 
-    public synchronized void addEntry(PasswordEntry entry) {
+    public void addEntry(PasswordEntry entry) {
         passwordService.addEntry(entry);
     }
 
-    public synchronized boolean updateEntry(PasswordEntry updated) {
+    public boolean updateEntry(PasswordEntry updated) {
         return passwordService.updateEntry(updated);
     }
 
-    public synchronized boolean deleteEntry(String entryId) {
+    public boolean deleteEntry(String entryId) {
         return passwordService.deleteEntry(entryId);
     }
 
-    public synchronized List<PasswordEntry> search(String query) {
+    public List<PasswordEntry> search(String query) {
         return passwordService.search(query);
     }
 
-    public synchronized List<PasswordEntry> getByCategory(String category) {
+    public List<PasswordEntry> getByCategory(String category) {
         return passwordService.getByCategory(category);
     }
 
-    public synchronized List<PasswordEntry> sorted(List<PasswordEntry> entries, SortField sortBy) {
+    public List<PasswordEntry> sorted(List<PasswordEntry> entries, SortField sortBy) {
         return passwordService.sorted(entries, sortBy);
     }
 
-    public synchronized List<PasswordEntry> sorted(List<PasswordEntry> entries, SortField sortBy, boolean descending) {
+    public List<PasswordEntry> sorted(List<PasswordEntry> entries, SortField sortBy, boolean descending) {
         return passwordService.sorted(entries, sortBy, descending);
     }
 
-    public synchronized List<PasswordEntry> filter(List<PasswordEntry> entries, EntryFilter filter) {
+    public List<PasswordEntry> filter(List<PasswordEntry> entries, EntryFilter filter) {
         return passwordService.filter(entries, filter);
     }
 
-    public synchronized Map<String, List<PasswordEntry>> findDuplicatePasswords() {
+    public Map<String, List<PasswordEntry>> findDuplicatePasswords() {
         return passwordService.findDuplicatePasswords();
     }
 
-    public synchronized List<PasswordEntry> findOldPasswords(int days) {
+    public List<PasswordEntry> findOldPasswords(int days) {
         return passwordService.findOldPasswords(days);
     }
 
-    public synchronized int bulkDelete(List<String> entryIds) {
+    public int bulkDelete(List<String> entryIds) {
         return passwordService.bulkDelete(entryIds);
     }
 
-    public synchronized int bulkChangeCategory(List<String> entryIds, String newCategory) {
+    public int bulkChangeCategory(List<String> entryIds, String newCategory) {
         return passwordService.bulkChangeCategory(entryIds, newCategory);
     }
 
-    public synchronized boolean toggleFavorite(String entryId) {
+    public boolean toggleFavorite(String entryId) {
         return passwordService.toggleFavorite(entryId);
     }
 
-    public synchronized int bulkSetFavorite(List<String> entryIds, boolean favorite) {
+    public int bulkSetFavorite(List<String> entryIds, boolean favorite) {
         return passwordService.bulkSetFavorite(entryIds, favorite);
     }
 
-    public synchronized void addCategory(String category) {
+    public void addCategory(String category) {
         passwordService.addCategory(category);
     }
 
-    public synchronized boolean removeCategory(String category) {
+    public boolean removeCategory(String category) {
         return passwordService.removeCategory(category);
     }
 }

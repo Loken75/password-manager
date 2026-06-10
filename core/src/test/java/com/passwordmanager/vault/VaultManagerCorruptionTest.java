@@ -6,9 +6,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -98,5 +100,46 @@ class VaultManagerCorruptionTest {
         env.addProperty("version", "9.9");
         writeEnvelope(env);
         assertThrows(Exception.class, () -> manager.loadVault("alice", password.clone()));
+    }
+
+    // Asserting on the message (not just that *some* exception is thrown) is deliberate:
+    // a wrong iteration count would also make GCM fail, so a bare assertThrows would pass
+    // even without the bounds check. The message proves the bounds check itself rejected it.
+
+    @Test
+    void kdfIterationsBelowFloorIsRejectedByBoundsCheck() throws Exception {
+        JsonObject env = readEnvelope();
+        env.addProperty("kdf_iterations", 400_000); // below the 600k OWASP floor
+        writeEnvelope(env);
+        IOException ex = assertThrows(IOException.class, () -> manager.loadVault("alice", password.clone()));
+        assertTrue(ex.getMessage().contains("out of accepted range"),
+                "expected a bounds-check rejection, got: " + ex.getMessage());
+    }
+
+    @Test
+    void kdfIterationsNonNumericIsRejectedByBoundsCheck() throws Exception {
+        JsonObject env = readEnvelope();
+        env.addProperty("kdf_iterations", "not-a-number");
+        writeEnvelope(env);
+        IOException ex = assertThrows(IOException.class, () -> manager.loadVault("alice", password.clone()));
+        assertTrue(ex.getMessage().contains("not a valid integer"),
+                "expected a non-numeric rejection, got: " + ex.getMessage());
+    }
+
+    /**
+     * An absurdly large iteration count must be rejected by the bounds check BEFORE
+     * PBKDF2 runs -- otherwise the load would stall for minutes/hours (denial of service).
+     * The preemptive timeout proves the rejection is immediate, not after running the KDF.
+     */
+    @Test
+    void kdfIterationsAboveCeilingIsRejectedWithoutStalling() throws Exception {
+        JsonObject env = readEnvelope();
+        env.addProperty("kdf_iterations", 2_000_000_000); // would hang for hours if passed to PBKDF2
+        writeEnvelope(env);
+        assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
+            IOException ex = assertThrows(IOException.class, () -> manager.loadVault("alice", password.clone()));
+            assertTrue(ex.getMessage().contains("out of accepted range"),
+                    "expected a bounds-check rejection, got: " + ex.getMessage());
+        });
     }
 }

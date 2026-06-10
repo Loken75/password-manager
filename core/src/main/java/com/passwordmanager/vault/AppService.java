@@ -29,7 +29,8 @@ public class AppService extends BaseVaultService<AppEntry> {
             || containsIC(e.getNotes(), q);
     }
 
-    public synchronized List<AppEntry> sorted(List<AppEntry> entries, SortField sortBy) {
+    /** Pure function of the supplied list; needs no synchronization. */
+    public List<AppEntry> sorted(List<AppEntry> entries, SortField sortBy) {
         return sorted(entries, sortBy, false);
     }
 
@@ -37,8 +38,10 @@ public class AppService extends BaseVaultService<AppEntry> {
      * Sorts entries with favorites ALWAYS grouped first (two blocks: favorites, then the rest),
      * each block ordered by {@code sortBy}. {@code descending} reverses only the in-block field
      * order — it never moves favorites below non-favorites.
+     *
+     * <p>Pure function of the supplied list; needs no synchronization.
      */
-    public synchronized List<AppEntry> sorted(List<AppEntry> entries, SortField sortBy, boolean descending) {
+    public List<AppEntry> sorted(List<AppEntry> entries, SortField sortBy, boolean descending) {
         List<AppEntry> sorted = new ArrayList<>(entries);
         Comparator<AppEntry> field;
         switch (sortBy) {

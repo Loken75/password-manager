@@ -130,6 +130,16 @@ public class VaultManager {
     /** Maximum vault file size: 50 MB. */
     private static final long MAX_VAULT_FILE_SIZE = 50L * 1024 * 1024;
 
+    /** Minimum accepted PBKDF2 iteration count (OWASP 2025 floor; matches the default). */
+    private static final int MIN_KDF_ITERATIONS = 600_000;
+    /**
+     * Maximum accepted PBKDF2 iteration count. The {@code kdf_iterations} field is read
+     * from the (untrusted) vault file; an absurdly large value would stall PBKDF2 for
+     * minutes/hours on open (denial of service). A value outside
+     * {@code [MIN_KDF_ITERATIONS, MAX_KDF_ITERATIONS]} is treated as tampered/corrupted.
+     */
+    private static final int MAX_KDF_ITERATIONS = 10_000_000;
+
     public VaultLoadResult loadVault(String username, char[] masterPassword)
             throws VaultDecryptionException, VaultEncryptionException, IOException {
         String name = vaultFilename(username);
@@ -155,7 +165,7 @@ public class VaultManager {
             byte[] salt = Base64.getDecoder().decode(json.get("salt").getAsString());
             byte[] kekIv = Base64.getDecoder().decode(json.get("kek_iv").getAsString());
             byte[] encryptedDek = Base64.getDecoder().decode(json.get("encrypted_dek").getAsString());
-            int iterations = json.get("kdf_iterations").getAsInt();
+            int iterations = readKdfIterations(json);
             byte[] dataIv = Base64.getDecoder().decode(json.get("data_iv").getAsString());
             byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
 
@@ -205,10 +215,15 @@ public class VaultManager {
      */
     public void saveVault(Vault vault, String username, VaultSession session)
             throws VaultEncryptionException, IOException {
-        vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
-
-        // Serialize vault to a char[] (secrets never become a String), then UTF-8 encode.
-        char[] vaultChars = VaultJsonCodec.encode(vault);
+        // Stamp + serialize under the Vault monitor so the encoded snapshot is internally
+        // consistent w.r.t. concurrent service mutations (the same monitor the *Service
+        // classes and Vault's own mutators use). Crypto and file I/O run outside the lock.
+        char[] vaultChars;
+        synchronized (vault) {
+            vault.setUpdatedAt(DateUtils.getCurrentTimestamp());
+            // Secrets never become a String -- encode straight to char[].
+            vaultChars = VaultJsonCodec.encode(vault);
+        }
         byte[] vaultBytes = encodeUtf8(vaultChars);
         SecureWiper.wipe(vaultChars);
         String envelopeJson;
@@ -447,7 +462,7 @@ public class VaultManager {
             byte[] salt = Base64.getDecoder().decode(json.get("salt").getAsString());
             byte[] kekIv = Base64.getDecoder().decode(json.get("kek_iv").getAsString());
             byte[] encryptedDek = Base64.getDecoder().decode(json.get("encrypted_dek").getAsString());
-            int iterations = json.get("kdf_iterations").getAsInt();
+            int iterations = readKdfIterations(json);
             byte[] dataIv = Base64.getDecoder().decode(json.get("data_iv").getAsString());
             byte[] ciphertext = Base64.getDecoder().decode(json.get("encrypted_data").getAsString());
 
@@ -503,8 +518,32 @@ public class VaultManager {
         byte[] salt = Base64.getDecoder().decode(json.get("salt").getAsString());
         byte[] kekIv = Base64.getDecoder().decode(json.get("kek_iv").getAsString());
         byte[] encryptedDek = Base64.getDecoder().decode(json.get("encrypted_dek").getAsString());
-        int iterations = json.get("kdf_iterations").getAsInt();
+        int iterations = readKdfIterations(json);
         cryptoService.adoptEnvelope(session, salt, kekIv, encryptedDek, iterations);
+    }
+
+    /**
+     * Reads and validates the {@code kdf_iterations} field from a vault envelope.
+     *
+     * <p>The value is stored in clear text in the (untrusted) vault file, so it is not
+     * blindly trusted: a non-numeric, missing, or out-of-range count is treated as a
+     * tampered/corrupted vault. This bounds the PBKDF2 work factor on open, preventing a
+     * denial of service from an absurdly large value pushed by a malicious/buggy sync
+     * source or a corrupted file. The field is read as a {@code long} so an oversized
+     * value cannot wrap around the {@code int} range before the bounds check.
+     */
+    private static int readKdfIterations(JsonObject json) throws IOException {
+        long iterations;
+        try {
+            iterations = json.get("kdf_iterations").getAsLong();
+        } catch (RuntimeException e) {
+            throw new IOException("Corrupted vault file: 'kdf_iterations' is not a valid integer", e);
+        }
+        if (iterations < MIN_KDF_ITERATIONS || iterations > MAX_KDF_ITERATIONS) {
+            throw new IOException("Tampered or corrupted vault file: 'kdf_iterations' out of accepted range ["
+                    + MIN_KDF_ITERATIONS + ".." + MAX_KDF_ITERATIONS + "]: " + iterations);
+        }
+        return (int) iterations;
     }
 
     /**

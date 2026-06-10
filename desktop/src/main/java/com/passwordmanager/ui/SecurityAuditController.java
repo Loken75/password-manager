@@ -362,11 +362,15 @@ public class SecurityAuditController {
             status.setText(lang.getString("audit.breach_checking"));
             status.setForeground(DesignTokens.onSurfaceFaint());
 
+            // Snapshot on the EDT (where all vault mutations happen) so the background
+            // HIBP loop iterates a stable copy, never the live vault view -- avoids a
+            // read/write race if the user edits entries during the (slow) check.
+            final List<PasswordEntry> auditEntries = new ArrayList<>(vault.getEntries());
             new SwingWorker<List<PasswordEntry>, Integer>() {
                 @Override
                 protected List<PasswordEntry> doInBackground() {
                     List<PasswordEntry> breached = new ArrayList<>();
-                    List<PasswordEntry> entries = vault.getEntries();
+                    List<PasswordEntry> entries = auditEntries;
                     for (int i = 0; i < entries.size(); i++) {
                         PasswordEntry entry = entries.get(i);
                         char[] pwd = entry.getPassword();
