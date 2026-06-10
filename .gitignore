@@ -46,6 +46,9 @@ keystore.properties
 
 ### Application data ###
 /data/
+/desktop/data/
 *.enc
 *.bak
 tmp_*
+# Cle de chiffrement de la config locale — ne jamais committer, ou qu'elle soit
+**/.config_key
