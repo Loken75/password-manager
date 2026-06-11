@@ -98,10 +98,12 @@ public class AppEntryDialog extends JDialog {
                     lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
                 return;
             }
+            captureEntry();
             confirmed = true;
             dispose();
         });
 
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         pack();
         setMinimumSize(new Dimension(480, 420));
         setLocationRelativeTo(getOwner());
@@ -155,8 +157,15 @@ public class AppEntryDialog extends JDialog {
     public boolean isConfirmed() { return confirmed; }
 
     public AppEntry getEntry() {
-        if (!confirmed) return null;
+        return confirmed ? entry : null;
+    }
 
+    /**
+     * Builds/updates the entry from the fields. Called once at save time (before the
+     * secret PIN field is wiped on dispose); {@link #getEntry()} then returns this
+     * captured value, so it stays valid after the dialog -- and its fields -- are cleared.
+     */
+    private void captureEntry() {
         if (entry == null) {
             entry = new AppEntry(
                 titleField.getText().trim(),
@@ -170,7 +179,27 @@ public class AppEntryDialog extends JDialog {
             entry.setPin(pinField.getPassword());
             entry.setNotes(notesArea.getText());
         }
-        return entry;
+    }
+
+    /**
+     * Best-effort wipe of the PIN field's content on close. Swing's {@code GapContent}
+     * backing store cannot be reliably zeroed (JDK 17+ blocks reflection into
+     * {@code java.desktop} internals), so this removes the content to shrink the exposure
+     * window; it does not guarantee the chars are overwritten.
+     */
+    private void wipeSecretFields() {
+        try {
+            javax.swing.text.Document doc = pinField.getDocument();
+            doc.remove(0, doc.getLength());
+        } catch (javax.swing.text.BadLocationException ignored) {
+            // offsets are always valid here
+        }
+    }
+
+    @Override
+    public void dispose() {
+        wipeSecretFields();
+        super.dispose();
     }
 
     /**

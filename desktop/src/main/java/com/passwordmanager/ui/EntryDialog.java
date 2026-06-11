@@ -151,10 +151,12 @@ public class EntryDialog extends JDialog {
                     lang.getString("common.error"), JOptionPane.ERROR_MESSAGE);
                 return;
             }
+            captureEntry();
             confirmed = true;
             dispose();
         });
 
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         pack();
         setMinimumSize(new Dimension(540, 600));
         setLocationRelativeTo(getOwner());
@@ -213,8 +215,15 @@ public class EntryDialog extends JDialog {
     public boolean isConfirmed() { return confirmed; }
 
     public PasswordEntry getEntry() {
-        if (!confirmed) return null;
+        return confirmed ? entry : null;
+    }
 
+    /**
+     * Builds/updates the entry from the fields. Called once at save time (before the
+     * secret password field is wiped on dispose); {@link #getEntry()} then returns this
+     * captured value, so it stays valid after the dialog -- and its fields -- are cleared.
+     */
+    private void captureEntry() {
         String tagsStr = tagsField.getText().trim();
         List<String> tags = tagsStr.isEmpty()
             ? new java.util.ArrayList<>()
@@ -241,7 +250,27 @@ public class EntryDialog extends JDialog {
             entry.setCategory((String) categoryCombo.getSelectedItem());
             entry.setTags(tags);
         }
-        return entry;
+    }
+
+    /**
+     * Best-effort wipe of the password field's content on close. Swing's
+     * {@code GapContent} backing store cannot be reliably zeroed (JDK 17+ blocks
+     * reflection into {@code java.desktop} internals), so this removes the content to
+     * shrink the exposure window; it does not guarantee the chars are overwritten.
+     */
+    private void wipeSecretFields() {
+        try {
+            javax.swing.text.Document doc = passwordField.getDocument();
+            doc.remove(0, doc.getLength());
+        } catch (javax.swing.text.BadLocationException ignored) {
+            // offsets are always valid here
+        }
+    }
+
+    @Override
+    public void dispose() {
+        wipeSecretFields();
+        super.dispose();
     }
 
     /**
