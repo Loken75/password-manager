@@ -36,7 +36,7 @@ Password Manager est une application multiplateforme (desktop + Android) permett
 - Interface bilingue francais/anglais
 - Themes systeme, clair et sombre
 - Injection de dependances Hilt sur le module Android
-- ~529 tests unitaires et d'integration (core, desktop et Android), plus des tests
+- ~534 tests unitaires et d'integration (core, desktop et Android), plus des tests
   instrumentes Android (Keystore AES-GCM, EncryptedSharedPreferences, smoke Compose)
 
 ---
@@ -267,6 +267,7 @@ DEK (Data Encryption Key) -- AES-256, 32 octets aleatoires (SecureRandom)
 | Taille du sel PBKDF2 | 32 octets |
 | Iterations PBKDF2 (v2.0) | 600 000 (minimum OWASP 2025) |
 | Iterations PBKDF2 (legacy v1.0) | 100 000 |
+| Iterations acceptees a la lecture | bornees a [600 000 ; 10 000 000] ; une valeur hors borne ou non numerique dans le fichier est traitee comme coffre altere/corrompu (protege d'un deni de service par compteur d'iterations absurde, `VaultManager.readKdfIterations`) |
 | Generateur aleatoire | `java.security.SecureRandom` |
 
 ### 4.3. Classes du package `crypto`
@@ -466,7 +467,7 @@ Les champs sensibles de la configuration (identifiants SFTP) sont chiffres au re
 - Recherche insensible a la casse sur titre et notes
 - `toggleFavorite(String entryId)` / `bulkSetFavorite(List<String>, boolean)` : bascule et operations en masse sur les favoris
 - `bulkDelete(List<String> entryIds)` : suppression en masse avec effacement securise de chaque entree
-- **Thread safety** : toutes les methodes publiques sont `synchronized`
+- **Thread safety** : les methodes touchant l'etat partage du coffre synchronisent sur le **moniteur unique du `Vault`** (`synchronized (vault)`) — le meme que celui des mutateurs de `Vault` et de la serialisation a la sauvegarde (`VaultManager.saveVault`). Les helpers purs (`sorted`/`filter`, qui n'operent que sur la liste fournie) ne prennent aucun verrou ; la facade `VaultService` ne pose plus de verrou redondant
 
 **PasswordService (extends BaseVaultService\<PasswordEntry\>) — details :**
 - Recherche etendue sur identifiant, email, URL, categorie et tags
@@ -645,17 +646,18 @@ Ce package et les fichiers de ressources `i18n/messages_{fr,en}.properties` sont
 
 | Classe | Role |
 |--------|------|
-| `LoginFrame` | Ecran de connexion, creation d'utilisateur, toggle visibilite mot de passe, changement de langue |
+| `LoginFrame` | Ecran de connexion, creation d'utilisateur, toggle visibilite mot de passe, changement de langue. Login et creation (PBKDF2) executes hors EDT via `BackgroundTask` (fenetre reactive, statut « Verification… ») |
+| `BackgroundTask` | Utilitaire : execute le travail bloquant (PBKDF2, I/O fichier) hors EDT via `SwingWorker` derriere un indicateur d'occupation (glass pane qui bloque la saisie), resultat/erreur rendus sur l'EDT. Les secrets sont effaces dans la tache de fond. Utilise par login/creation/changement de mot de passe maitre et import/export |
 | `MainFrame` | Fenetre principale : `JMenuBar` de fenetre (Fichier/Edition/Outils/Aide, dont Deconnexion), **barre laterale de navigation** (Mots de passe, Applications, Audit, Parametres) pilotant un `CardLayout` central, barre de notification (NORTH) + barre de statut (SOUTH), auto-lock, shutdown hook (retire au verrouillage) |
 | `CoffrePasswordsPanel` | Page mots de passe : barre de controle (recherche, icone tri -> menu, icone filtres -> chips multi-selection, bouton "+ Nouvelle entree"), tableau de bord (cartes Entrees/Favoris/Securite), rangee "Recemment utilises" (MRU en memoire), liste de cartes (`EntryCardPanel`) + panneau de details (boutons copier avec feedback "Copie ✓"). Selection multiple, menu contextuel (clic droit), **navigation clavier** (fleches/Entree, anneau de focus). Favicons asynchrones (`SwingWorker`) |
 | `CoffreAppsPanel` | Page applications : meme structure de liste/details et de controles (sans categorie ni force) |
 | `SecurityAuditController` | Construit la **page Audit** (`buildAuditView()` -> composant scrollable embarque dans `MainFrame`, plus de dialog) : sections Vue d'ensemble, A risque (callouts repliables faibles/reutilises/anciens/HIBP), Points forts, Composition, Completude, Activite. Verification HIBP asynchrone via `SwingWorker<List<PasswordEntry>, Integer>` + `JProgressBar` |
-| `EntryDialog` | Formulaire modal de creation/edition d'entree mot de passe |
-| `AppEntryDialog` | Formulaire modal de creation/edition d'entree application |
+| `EntryDialog` | Formulaire modal de creation/edition d'entree mot de passe. Capture l'entree a la sauvegarde, vide le champ secret (best-effort) et se dispose sur toute fermeture (`DISPOSE_ON_CLOSE`) |
+| `AppEntryDialog` | Formulaire modal de creation/edition d'entree application. Meme cycle de capture/wipe/dispose que `EntryDialog` |
 | `CoffreSshPanel` | Onglet **Parametres > Cles SSH** : liste de cartes `SshKeyEntry` (type, empreinte), detail, selection multiple, operations en masse, generation de cles (ED25519/RSA via JSch), import de fichiers PEM, bouton "+ Nouvelle cle" (creation manuelle) |
-| `SshKeyEntryDialog` | Formulaire modal de creation/edition de cle SSH (nom, type, cle privee, cle publique, empreinte) |
+| `SshKeyEntryDialog` | Formulaire modal de creation/edition de cle SSH (nom, type, cle privee, cle publique, empreinte). Meme cycle de capture/wipe/dispose que `EntryDialog` (la cle privee est videe du champ a la fermeture) |
 | `PasswordGeneratorDialog` | Dialogue du generateur de mots de passe. Timer clipboard `javax.swing.Timer` annule a la fermeture |
-| `ImportExportController` | Popup unifiee d'import/export (CSV, JSON, coffre chiffre .enc) avec champ mot de passe pour l'import chiffre |
+| `ImportExportController` | Popup unifiee d'import/export (CSV, JSON, coffre chiffre .enc) avec champ mot de passe pour l'import chiffre. Lecture/ecriture de fichier et dechiffrement PBKDF2 du .enc executes hors EDT (`BackgroundTask`) ; l'acces au coffre vivant (parse/mutation/serialisation) reste sur l'EDT pour rester serialise avec la fusion de sync |
 | `CoffreSettingsPanel` | **Page** des parametres (in-shell, plus un dialogue) en onglets : General, Categories, Securite, Synchronisation, Cles SSH. Gestion des categories (ajout/suppression). Source de cle SSH configurable (`CardLayout`). Test SFTP sur `SwingWorker` (hors EDT). Pied de page : bouton Appliquer (plus de Retour) |
 | `ConflictResolutionDialog` | Dialogue generique de resolution de conflits pour tous les sous-types `VaultItem` |
 | `StrengthBarHelper` | Utilitaire d'affichage de la barre de force (couleurs : rouge/orange/vert/bleu) |
@@ -756,7 +758,8 @@ Emplacement : `~/.password-manager/data/.config_key`
 | Copie defensive | `PasswordEntry.getPassword()`, `AppEntry.getPin()`, `SshKeyEntry.getPrivateKey()` retournent des clones. Les setters effacent l'ancienne valeur avant clone |
 | Copie defensive session | `VaultSession.getSalt/getKekIv/getEncryptedDek()` retournent des clones |
 | Nettoyage de session | La DEK est detenue en clair sous forme de `byte[]` possede par `VaultSession` ; `destroy()` efface reellement (`SecureWiper.wipe`) la DEK, le sel, l'IV et la DEK chiffree. Le KEK derive du mot de passe est lui aussi manipule en `byte[]` (`KeyDerivation.deriveKeyBytes`) et efface en `finally` apres chaque operation dans `CryptoService`. **Limite JCA residuelle** : chaque operation cipher doit reconstruire un `SecretKeySpec` transitoire (`getDataKey()`), dont la copie interne des octets n'est pas effacable et subsiste jusqu'au GC ; cette exposition est de courte duree, contrairement a l'ancienne ou la DEK persistait toute la session. `getDataKey()` leve `IllegalStateException` apres destruction |
-| Nettoyage Swing | Insertion via `Document.insertString()` au lieu de `JPasswordField.setText(String)` pour minimiser l'interning |
+| Nettoyage Swing | Insertion via `Document.insertString()` au lieu de `JPasswordField.setText(String)` pour minimiser l'interning. Les dialogues d'edition (mot de passe / PIN / cle SSH) capturent l'entree a la sauvegarde puis vident le champ secret a toute fermeture (annuler / sauver / X) et se disposent. **Best-effort** : le `GapContent` de Swing ne peut etre zeroe de facon fiable (JDK 17+ bloque la reflexion sur les internes `java.desktop`), donc le contenu est retire mais pas garanti reecrit |
+| Thread safety (coffre `:core`) | Tout acces a l'etat partage du `Vault` (services CRUD, mutateurs `Vault`, serialisation a la sauvegarde) est serialise sur un **moniteur unique** (l'instance `Vault`), evitant les races — p.ex. une sauvegarde concurrente avec l'application d'une fusion de sync |
 | Nettoyage ViewModel (Android) | `EntryEditViewModel.onCleared()`, `EntryDetailViewModel.onCleared()`, `AppDetailViewModel.onCleared()`, `ChangeMasterPasswordViewModel.onCleared()` et `SettingsViewModel.onCleared()` effacent les donnees sensibles de l'etat UI |
 | Biometrie AndroidKeyStore | Cle AES-256-GCM par utilisateur, `setUserAuthenticationRequired(true)`, `setInvalidatedByBiometricEnrollment(true)`. Le mot de passe maitre est chiffre/dechiffre via `CharBuffer`/`ByteBuffer` (sans intermediaire `String`) et stocke dans `EncryptedSharedPreferences`. L'inscription efface le `char[]` du mot de passe apres chiffrement |
 | Invalidation biometrique | Changement de mot de passe maitre → `configRepo.clearBiometricData()` + `biometricHelper.deleteKey()`. Changement d'empreinte → `KeyPermanentlyInvalidatedException` interceptee |
@@ -1142,11 +1145,11 @@ update.enabled=true
 ### 12.1. Vue d'ensemble
 
 **Framework** : JUnit 5 (Jupiter) 5.14.2
-**Total** : **~529 tests** (unitaires + integration) repartis sur les 3 modules
+**Total** : **~534 tests** (unitaires + integration) repartis sur les 3 modules
 
 | Module Gradle | Tests | Framework |
 |---|---|---|
-| `:core` | 371 | JUnit 5 (Java) |
+| `:core` | 376 | JUnit 5 (Java) |
 | `:desktop` | 52 | JUnit 5 (Java, dont tests d'integration SFTP reels) |
 | `:android` | 106 | JUnit 5 (Kotlin, JVM local) |
 
@@ -1195,7 +1198,8 @@ update.enabled=true
 | vault | `VaultJsonCodecTest` | 8 | Codec JSON maison : round-trip, caracteres pieges, tombstone, retro-compat Gson, echec propre (R3) |
 | vault.store | `FileVaultStoreTest` | 13 | Primitives `VaultStore` filesystem : list/exists/read/writeAtomic/copy/delete, rejet du path traversal, permissions |
 | vault | `VaultStoreMigratorTest` | 3 | Migration des fichiers `vault_*` entre deux stores (copie-puis-suppression, sans ecrasement) |
-| vault | `VaultManagerCorruptionTest` | 7 | Chargement de coffres corrompus/tronques : detection et echec propre |
+| vault | `VaultManagerCorruptionTest` | 10 | Chargement de coffres corrompus/tronques/alteres : detection et echec propre (dont bornes `kdf_iterations`) |
+| vault | `VaultManagerMigrationTest` | 2 | Migration v1.0 -> v2.0 end-to-end : donnees preservees, fichier reecrit en v2.0 (DEK/KEK), mauvais mot de passe rejete |
 | crypto/util | `SshHostKeyStoreTest` (android) | 10 | Empreinte SHA-256, parseKeyType, Match/Unknown/Changed, persistance, isolation hote:port (C2) |
 | **android** | `AutofillDomainMatcherTest` | 6 | Matching autofill : exact, sous-domaine, rejet parent/look-alike (R10) |
 | **android** | `PinningHostKeyRepositoryTest` | 4 | Verdicts JSch OK/NOT_INCLUDED/CHANGED (C2) |
@@ -1205,7 +1209,7 @@ update.enabled=true
 | **desktop** | `DesktopSyncFactoryTest` | 2 | Construction du SyncService depuis AppConfig (sans connexion) |
 | **desktop** | `MasterPasswordSyncIntegrationTest` | 2 | Deux appareils : propagation du changement de mot de passe maitre (R4) |
 | **desktop** | `SyncConflictIntegrationTest` | 1 | Conflit expose le VRAI distant pour la fusion (R-merge) |
-| | | **~529** | |
+| | | **~534** | |
 
 ### 12.3. Infrastructure de test Android
 
@@ -1334,7 +1338,7 @@ password-manager/
 |       |   |                               # VaultJsonCodec + JsonCharWriter/JsonCharReader (codec JSON, secrets en char[], R3)
 |       |   +-- vault/store/                 # VaultStore (abstraction stockage), FileVaultStore (java.nio.file, ecriture atomique)
 |       |-- main/resources/update.properties # Configuration du systeme de mise a jour
-|       +-- test/java/com/passwordmanager/  # 371 tests (dont SyncServiceTest/LocalRepositoryTest migres, vault.store)
+|       +-- test/java/com/passwordmanager/  # 376 tests (dont SyncServiceTest/LocalRepositoryTest migres, vault.store)
 |
 |-- desktop/                                # :desktop — interface Swing (Java 17)
 |   |-- build.gradle.kts
