@@ -749,6 +749,7 @@ Emplacement : `~/.password-manager/data/.config_key`
 |--------|----------------|
 | Donnees sensibles en `char[]` | `PasswordEntry.password`, `AppEntry.pin`, `SshKeyEntry.privateKey`, `PasswordGenerator.generate()`, `VaultExporter` retournent `char[]` |
 | Serialisation sans `String` | Le corps du coffre est (de)serialise par `VaultJsonCodec` : les secrets ne transitent jamais par un `String` immuable, ni a la sauvegarde (`encode` -> `char[]`) ni au chargement (`decode` lit les secrets directement en `char[]`). Subsistent uniquement les `String` imposes par les API OS (presse-papiers, autofill, `JPasswordField`) |
+| Conversions `char[]` <-> `byte[]` sans `String` | `SecureCharsets.toUtf8Bytes()` / `toChars()` (package `util`) encodent/decodent en UTF-8 via `CharBuffer`/`ByteBuffer` en effacant le tampon transitoire. Utilise pour les cles SSH (generation/import, cle SFTP) et l'export, cote desktop comme Android ; `VaultManager` y delegue aussi |
 | Effacement securise | `SecureWiper.wipe()` avec accumulateur volatile sur tout le tableau (empeche le JIT d'eliminer le `Arrays.fill`) |
 | GCM AAD | Le chiffrement des donnees du coffre lie la version (`"2.0"`) en AAD. C'est une mesure de defense en profondeur de portee limitee : l'AAD est une constante codee en dur (non relue du fichier) et la lecture retombe en clair-AAD si la verification echoue (fallback pour les coffres pre-AAD). La confidentialite repose sur la cle, pas sur l'AAD |
 | Presse-papiers securise (Desktop) | `SecureClipboard` : `Transferable` personnalise stockant `char[]`, efface sur `lostOwnership()` + `clear()` en shutdown hook. Aucun `new String(password)` dans le presse-papiers |
@@ -762,6 +763,16 @@ Emplacement : `~/.password-manager/data/.config_key`
 | Thread safety SessionHolder | Champs `@Volatile` (`vault`, `session`, `vaultService`, `username`) + `@Synchronized` sur `unlock()`, `lock()`, `save()` |
 | Thread safety VaultListViewModel | `pendingPasswordConflicts` marque `@Volatile` ; `syncJob` suivi et annule dans `onCleared()` ; cache favicon borne (`MAX_FAVICONS=50`) |
 | Auto-masquage | Le mot de passe affiche se re-masque automatiquement apres 30 secondes |
+
+**Frontieres `String` residuelles assumees.** Certaines API plateforme n'acceptent qu'un `String`, qui ne peut etre efface et subsiste en memoire jusqu'au GC. Ces expositions sont assumees comme limite connue (pertinentes seulement face a un attaquant capable de lire la memoire du processus : device roote, dump de tas) :
+
+- **Presse-papiers** : `Transferable`/`StringSelection` (desktop), `ClipData.newPlainText` (Android) — efface par minuterie.
+- **Affichage** : `Text` Compose et `Document.insertString()` Swing exigent un `String` pour rendre un secret revele.
+- **Autofill (Android)** : `AutofillValue.forText()` impose un `String`.
+- **Parseur d'import** : la lecture CSV/JSON passe par un `String` (le format est textuel).
+- **Etat d'edition Compose (Android)** : un `TextField` detient le secret en `String` le temps de l'edition — limitation inherente a Jetpack Compose, commune aux gestionnaires de mots de passe de cette categorie.
+
+Hors de ces frontieres (edition/affichage/copie/import), les secrets restent en `char[]`/`byte[]` de bout en bout.
 
 ### 7.2. Securite des fichiers
 

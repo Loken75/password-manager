@@ -9,6 +9,7 @@ import com.passwordmanager.ui.components.EntryCardPanel;
 import com.passwordmanager.ui.components.RoundedPanel;
 import com.passwordmanager.ui.components.SecretFieldPanel;
 import com.passwordmanager.ui.theme.DesignTokens;
+import com.passwordmanager.util.SecureCharsets;
 import com.passwordmanager.util.SecureWiper;
 import com.passwordmanager.vault.SshKeyEntry;
 import com.passwordmanager.vault.SshKeyService;
@@ -526,7 +527,7 @@ public class CoffreSshPanel extends JPanel {
                 String fingerprint = kpair.getFingerPrint();
                 kpair.dispose();
                 byte[] privBytes = privOut.toByteArray();
-                char[] privChars = new String(privBytes, java.nio.charset.StandardCharsets.UTF_8).toCharArray();
+                char[] privChars = SecureCharsets.toChars(privBytes);
                 java.util.Arrays.fill(privBytes, (byte) 0);
                 privOut.reset();
                 String pubString = pubOut.toString(java.nio.charset.StandardCharsets.UTF_8);
@@ -569,7 +570,7 @@ public class CoffreSshPanel extends JPanel {
                     String fingerprint = kpair.getFingerPrint();
                     String keyType = keyTypeName(kpair.getKeyType());
                     kpair.dispose();
-                    char[] privChars = new String(pemBytes, java.nio.charset.StandardCharsets.UTF_8).toCharArray();
+                    char[] privChars = SecureCharsets.toChars(pemBytes);
                     SshKeyEntry entry = new SshKeyEntry(keyName, privChars,
                         pubOut.toString(java.nio.charset.StandardCharsets.UTF_8), keyType, fingerprint);
                     SecureWiper.wipe(privChars);
@@ -627,7 +628,7 @@ public class CoffreSshPanel extends JPanel {
                     String fingerprint = kpair.getFingerPrint();
                     String keyType = keyTypeName(kpair.getKeyType());
                     kpair.dispose();
-                    char[] privChars = new String(pemBytes, java.nio.charset.StandardCharsets.UTF_8).toCharArray();
+                    char[] privChars = SecureCharsets.toChars(pemBytes);
                     SshKeyEntry entry = new SshKeyEntry(name, privChars,
                         pubOut.toString(java.nio.charset.StandardCharsets.UTF_8), keyType, fingerprint);
                     SecureWiper.wipe(privChars);

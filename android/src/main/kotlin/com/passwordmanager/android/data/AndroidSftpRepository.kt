@@ -4,6 +4,7 @@ import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
 import com.passwordmanager.sync.RemoteSyncRepository
+import com.passwordmanager.util.SecureCharsets
 import com.passwordmanager.util.SecureWiper
 import com.passwordmanager.vault.Vault
 
@@ -128,7 +129,7 @@ class AndroidSftpRepository(
             if (keyEntry != null) {
                 val priv = keyEntry.privateKey
                 if (priv != null) {
-                    keyBytes = String(priv).toByteArray(Charsets.UTF_8)
+                    keyBytes = SecureCharsets.toUtf8Bytes(priv)
                     SecureWiper.wipe(priv)
                 }
             }

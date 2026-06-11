@@ -12,8 +12,6 @@ import com.passwordmanager.vault.store.FileVaultStore;
 import com.passwordmanager.vault.store.VaultStore;
 
 import java.io.*;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
@@ -584,11 +582,7 @@ public class VaultManager {
      * transient encoder buffer (which held the secret characters).
      */
     private static byte[] encodeUtf8(char[] chars) {
-        ByteBuffer bb = StandardCharsets.UTF_8.encode(CharBuffer.wrap(chars));
-        byte[] out = new byte[bb.remaining()];
-        bb.get(out);
-        if (bb.hasArray()) Arrays.fill(bb.array(), (byte) 0);
-        return out;
+        return com.passwordmanager.util.SecureCharsets.toUtf8Bytes(chars);
     }
 
     /**
@@ -596,11 +590,7 @@ public class VaultManager {
      * transient decoder buffer (which held the secret characters).
      */
     private static char[] decodeUtf8(byte[] bytes) {
-        CharBuffer cb = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(bytes));
-        char[] out = new char[cb.remaining()];
-        cb.get(out);
-        if (cb.hasArray()) Arrays.fill(cb.array(), '\0');
-        return out;
+        return com.passwordmanager.util.SecureCharsets.toChars(bytes);
     }
 
     /**

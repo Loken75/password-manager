@@ -389,7 +389,7 @@ public class MainFrame extends JFrame {
             if (keyEntry != null) {
                 char[] pk = keyEntry.getPrivateKey();
                 if (pk != null) {
-                    byte[] bytes = new String(pk).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    byte[] bytes = com.passwordmanager.util.SecureCharsets.toUtf8Bytes(pk);
                     com.passwordmanager.util.SecureWiper.wipe(pk);
                     this.vaultKeyBytes = bytes;
                 } else {

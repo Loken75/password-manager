@@ -3,6 +3,7 @@ package com.passwordmanager.ui;
 import com.passwordmanager.crypto.VaultSession;
 import com.passwordmanager.i18n.LanguageManager;
 import com.passwordmanager.util.FileSecurityUtils;
+import com.passwordmanager.util.SecureCharsets;
 import com.passwordmanager.util.SecureWiper;
 import com.passwordmanager.vault.AppEntry;
 import com.passwordmanager.vault.Vault;
@@ -251,7 +252,7 @@ public class ImportExportController {
         try {
             char[] content = "csv".equals(format) ? vaultManager.exportAsCsv(vault)
                                                    : vaultManager.exportAsJson(vault);
-            exportBytes = new String(content).getBytes(StandardCharsets.UTF_8);
+            exportBytes = SecureCharsets.toUtf8Bytes(content);
             SecureWiper.wipe(content);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(parentComponent,

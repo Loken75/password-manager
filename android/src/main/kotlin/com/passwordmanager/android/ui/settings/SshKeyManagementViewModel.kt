@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.KeyPair
 import com.passwordmanager.android.data.SessionHolder
+import com.passwordmanager.util.SecureCharsets
 import com.passwordmanager.util.SecureWiper
 import com.passwordmanager.vault.SshKeyEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -74,7 +75,7 @@ class SshKeyManagementViewModel @Inject constructor(
                 kpair.dispose()
 
                 val privChars = privOut.toByteArray().let { bytes ->
-                    val chars = String(bytes, Charsets.UTF_8).toCharArray()
+                    val chars = SecureCharsets.toChars(bytes)
                     bytes.fill(0)
                     chars
                 }
@@ -124,7 +125,7 @@ class SshKeyManagementViewModel @Inject constructor(
                 }
                 kpair.dispose()
 
-                val privChars = String(pemBytes, Charsets.UTF_8).toCharArray()
+                val privChars = SecureCharsets.toChars(pemBytes)
                 pemBytes.fill(0)
 
                 val entry = SshKeyEntry(name, privChars, pubOut.toString(Charsets.UTF_8), type, fingerprint)
@@ -171,7 +172,7 @@ class SshKeyManagementViewModel @Inject constructor(
                 }
                 kpair.dispose()
 
-                val privChars = String(pemBytes, Charsets.UTF_8).toCharArray()
+                val privChars = SecureCharsets.toChars(pemBytes)
                 pemBytes.fill(0)
 
                 val entry = SshKeyEntry(name, privChars, pubOut.toString(Charsets.UTF_8), type, fingerprint)
