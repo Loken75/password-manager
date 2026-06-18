@@ -48,7 +48,7 @@ jobs:
           java-version: '21'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Test (core + desktop)
         run: ./gradlew :core:test :desktop:test
@@ -125,7 +125,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Test (core + android)
         run: ./gradlew :core:test :android:testDebugUnitTest
@@ -181,7 +181,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Generate CycloneDX SBOM
         run: ./gradlew cyclonedxBom
